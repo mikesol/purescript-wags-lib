@@ -1,57 +1,109 @@
 module WAGS.Example.HelloWorld where
 
 import Prelude
+
+import BufferPool (BuffyStream, bufferPool)
 import Control.Applicative.Indexed ((:*>))
 import Control.Comonad.Cofree (Cofree, head, mkCofree, tail)
+import Control.Plus (empty)
+import Control.Promise (toAffE)
 import Data.Foldable (for_)
+import Data.Int (toNumber)
 import Data.Maybe (Maybe(..))
 import Data.Tuple.Nested (type (/\))
+import Data.Typelevel.Num (D4, d0, d1, d2, d3)
+import Data.Vec as V
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
 import FRP.Event (subscribe)
+import Foreign.Object as O
 import Halogen as H
 import Halogen.Aff (awaitBody, runHalogenAff)
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.VDom.Driver (runUI)
-import Math (pi, sin)
+import Math (cos, pi, sin)
 import WAGS.Change (ichange)
 import WAGS.Control.Functions.Validated (iloop, (@!>))
 import WAGS.Control.Indexed (IxFrame)
 import WAGS.Control.Types (Frame0, Scene)
-import WAGS.Create (icreate)
-import WAGS.Create.Optionals (CGain, CSpeaker, CSinOsc, gain, sinOsc, speaker)
-import WAGS.Graph.AudioUnit (TGain, TSinOsc, TSpeaker)
-import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, defaultFFIAudio, makeUnitCache)
-import WAGS.Lib.Rate (Rate, makeRate)
+import WAGS.Graph.AudioUnit (TGain, TPlayBuf, TSinOsc, TSpeaker)
+import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
+import WAGS.Lib.Rate (Emitter, Rate, makeEmitter, makeRate)
 import WAGS.Patch (ipatch)
 import WAGS.Run (RunAudio, SceneI, RunEngine, run)
 
 type SceneType
-  = { speaker :: TSpeaker /\ { oscGain :: Unit }
+  = { speaker ::
+        TSpeaker
+          /\ { oscGain :: Unit
+          , b0Gain :: Unit
+          , b1Gain :: Unit
+          , b2Gain :: Unit
+          , b3Gain :: Unit
+          }
     , oscGain :: TGain /\ { osc :: Unit }
     , osc :: TSinOsc /\ {}
+    , b0Gain :: TGain /\ { b0 :: Unit }
+    , b0 :: TPlayBuf /\ {}
+    , b1Gain :: TGain /\ { b1 :: Unit }
+    , b1 :: TPlayBuf /\ {}
+    , b2Gain :: TGain /\ { b2 :: Unit }
+    , b2 :: TPlayBuf /\ {}
+    , b3Gain :: TGain /\ { b3 :: Unit }
+    , b3 :: TPlayBuf /\ {}
     }
 
 type Acc
   = { myRate :: Rate
+    , myEmitter :: Emitter
+    , buffy :: BuffyStream D4
     }
 
 createFrame :: IxFrame (SceneI Unit Unit) RunAudio RunEngine Frame0 Unit {} SceneType Acc
-createFrame = \{ time } -> (ipatch :*> (ichange {} $> { myRate: makeRate { prevTime: 0.0, startsAt: time } }))
+createFrame = \{ time } ->
+  ( ipatch
+      :*> ( ichange
+            { b0: "bell"
+            , b1: "bell"
+            , b2: "bell"
+            , b3: "bell"
+            }
+            $> { myRate: makeRate { prevTime: 0.0, startsAt: time }
+              , myEmitter: makeEmitter { prevTime: 0.0, startsAt: time }
+              , buffy: bufferPool (pure 6.0) empty
+              }
+        )
+  )
 
 piece :: Scene (SceneI Unit Unit) RunAudio RunEngine Frame0 Unit
 piece =
   createFrame
-    @!> iloop \{ time } a ->
+    @!> iloop \{ time, headroom } a ->
         let
+          hr = toNumber headroom / 1000.0
+
           rate = a.myRate { time, rate: 4.0 + sin (time * pi * 0.25) * 3.5 }
+
+          emitter = a.myEmitter { time, headroom: hr, rate: 4.0 + cos (time * pi * 0.25) * 3.5 }
+
+          bufz = a.buffy { time, headroom: hr, offsets: head emitter }
+
+          hbufz = head bufz
         in
           ichange
             { oscGain: 0.1 + 0.09 * sin (pi * (head rate))
+            , b0Gain: (V.index hbufz d0).gain
+            , b1Gain: (V.index hbufz d1).gain
+            , b2Gain: (V.index hbufz d2).gain
+            , b3Gain: (V.index hbufz d3).gain
+            , b0: (V.index hbufz d0).onOff
+            , b1: (V.index hbufz d1).onOff
+            , b2: (V.index hbufz d2).onOff
+            , b3: (V.index hbufz d3).onOff
             }
-            $> { myRate: tail rate }
+            $> { myRate: tail rate, myEmitter: tail emitter, buffy: tail bufz }
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =
@@ -107,8 +159,13 @@ handleAction = case _ of
   StartAudio -> do
     audioCtx <- H.liftEffect context
     unitCache <- H.liftEffect makeUnitCache
+    bell <-
+      H.liftAff $ toAffE
+        $ decodeAudioDataFromUri
+            audioCtx
+            "https://freesound.org/data/previews/339/339809_5121236-hq.mp3"
     let
-      ffiAudio = defaultFFIAudio audioCtx unitCache
+      ffiAudio = (defaultFFIAudio audioCtx unitCache) { buffers = pure (O.singleton "bell" bell) }
     unsubscribe <-
       H.liftEffect
         $ subscribe
