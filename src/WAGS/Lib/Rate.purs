@@ -44,8 +44,9 @@ makeOffsets { tnow, headroom, clearedSoFar, rate } =
   lookahead = floor (tnow + headroom * rate)
 
 makeEmitter :: { startsAt :: Number, prevTime :: Number } -> Emitter
-makeEmitter { startsAt, prevTime } = go (floor startsAt) startsAt prevTime
+makeEmitter { startsAt, prevTime } = go (if floorStartsAt == startsAt then startsAt - 1.0 else startsAt) startsAt prevTime
   where
+  floorStartsAt = floor startsAt
   go clearedSoFar n i { time, headroom, rate } =
     let
       tnow = (time - i) * rate + n
