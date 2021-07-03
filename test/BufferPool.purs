@@ -2,7 +2,7 @@ module Test.BufferPool where
 
 import Prelude
 
-import BufferPool (BuffyStream, bufferPool)
+import WAGS.Lib.BufferPool (BuffyStream, bufferPool)
 import Control.Comonad.Cofree (head, tail)
 import Data.Maybe (Maybe(..))
 import Data.Typelevel.Num (D5, d0, d1)
