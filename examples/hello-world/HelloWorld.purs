@@ -1,10 +1,9 @@
 module WAGS.Example.HelloWorld where
 
 import Prelude
-
-import Control.Comonad.Cofree (Cofree, mkCofree)
+import Control.Applicative.Indexed ((:*>))
+import Control.Comonad.Cofree (Cofree, head, mkCofree, tail)
 import Data.Foldable (for_)
-import Data.Functor.Indexed (ivoid)
 import Data.Maybe (Maybe(..))
 import Data.Tuple.Nested (type (/\))
 import Effect (Effect)
@@ -19,47 +18,40 @@ import Halogen.VDom.Driver (runUI)
 import Math (pi, sin)
 import WAGS.Change (ichange)
 import WAGS.Control.Functions.Validated (iloop, (@!>))
+import WAGS.Control.Indexed (IxFrame)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Create (icreate)
-import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, defaultFFIAudio, makeUnitCache)
-import WAGS.Run (RunAudio, SceneI, RunEngine, run)
 import WAGS.Create.Optionals (CGain, CSpeaker, CSinOsc, gain, sinOsc, speaker)
 import WAGS.Graph.AudioUnit (TGain, TSinOsc, TSpeaker)
-
-type SceneTemplate
-  = CSpeaker
-      { gain0 :: CGain { sin0 :: CSinOsc }
-      , gain1 :: CGain { sin1 :: CSinOsc }
-      , gain2 :: CGain { sin2 :: CSinOsc }
-      , gain3 :: CGain { sin3 :: CSinOsc }
-      }
+import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, defaultFFIAudio, makeUnitCache)
+import WAGS.Lib.Rate (Rate, makeRate)
+import WAGS.Patch (ipatch)
+import WAGS.Run (RunAudio, SceneI, RunEngine, run)
 
 type SceneType
-  = { speaker :: TSpeaker /\ { gain0 :: Unit, gain1 :: Unit, gain2 :: Unit, gain3 :: Unit }
-    , gain0 :: TGain /\ { sin0 :: Unit }
-    , sin0 :: TSinOsc /\ {}
-    , gain1 :: TGain /\ { sin1 :: Unit }
-    , sin1 :: TSinOsc /\ {}
-    , gain2 :: TGain /\ { sin2 :: Unit }
-    , sin2 :: TSinOsc /\ {}
-    , gain3 :: TGain /\ { sin3 :: Unit }
-    , sin3 :: TSinOsc /\ {}
+  = { speaker :: TSpeaker /\ { oscGain :: Unit }
+    , oscGain :: TGain /\ { osc :: Unit }
+    , osc :: TSinOsc /\ {}
     }
 
-scene :: Number -> SceneTemplate
-scene time =
-  let
-    rad = pi * time
-  in
-    speaker
-      { gain0: gain 0.1 { sin0: sinOsc (440.0 + (10.0 * sin (2.3 * rad))) }
-      , gain1: gain 0.25 { sin1: sinOsc (235.0 + (10.0 * sin (1.7 * rad))) }
-      , gain2: gain 0.2 { sin2: sinOsc (337.0 + (10.0 * sin rad)) }
-      , gain3: gain 0.1 { sin3: sinOsc (530.0 + (19.0 * (5.0 * sin rad))) }
-      }
+type Acc
+  = { myRate :: Rate
+    }
+
+createFrame :: IxFrame (SceneI Unit Unit) RunAudio RunEngine Frame0 Unit {} SceneType Acc
+createFrame = \{ time } -> (ipatch :*> (ichange {} $> { myRate: makeRate { prevTime: 0.0, startsAt: time } }))
 
 piece :: Scene (SceneI Unit Unit) RunAudio RunEngine Frame0 Unit
-piece = (_.time >>> scene >>> icreate) @!> iloop \{ time } _ -> ivoid $ ichange (scene time)
+piece =
+  createFrame
+    @!> iloop \{ time } a ->
+        let
+          rate = a.myRate { time, rate: 4.0 + sin (time * pi * 0.25) * 3.5 }
+        in
+          ichange
+            { oscGain: 0.1 + 0.09 * sin (pi * (head rate))
+            }
+            $> { myRate: tail rate }
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =

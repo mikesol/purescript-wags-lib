@@ -38,13 +38,20 @@ type InternalState
 notPlaying :: { bufferInternal :: Maybe BufferInternal, buffy :: Buffy }
 notPlaying = { bufferInternal: Nothing, buffy: { gain: pure 0.0, onOff: pure Off } }
 
+type BuffyVec :: forall k. k -> Type
+type BuffyVec n = V.Vec n Buffy
+
+type BuffyStream :: forall k. k -> Type
+type BuffyStream n = TimeHeadroomOffsets ->
+  Cofree ((->) TimeHeadroomOffsets) (BuffyVec n)
+
 bufferPool ::
   forall n.
   Pos n =>
-  Number ->
+  Maybe Number ->
   Maybe (NonEmpty List (Number /\ Number)) ->
   TimeHeadroomOffsets ->
-  Cofree ((->) TimeHeadroomOffsets) (V.Vec n Buffy)
+  Cofree ((->) TimeHeadroomOffsets) (BuffyVec n)
 bufferPool dur pwf = go 0 (V.fill (const (Nothing :: Maybe BufferInternal)))
   where
   len :: Int
@@ -75,7 +82,8 @@ bufferPool dur pwf = go 0 (V.fill (const (Nothing :: Maybe BufferInternal)))
 
   maybeBufferToGainOnOff cPos { time, headroom, offsets } myPos (Just { startedAt, env })
     | Just offset <- A.index offsets (myPos - cPos `mod` len) = refresh { time, headroom, offset } OffOn
-    | time - startedAt > dur = notPlaying
+    | Just dur' <- dur
+    , time - startedAt > dur' = notPlaying
     | otherwise =
       let
         now = env { time, headroom }
