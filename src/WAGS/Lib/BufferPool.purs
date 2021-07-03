@@ -1,4 +1,4 @@
-module BufferPool where
+module WAGS.Lib.BufferPool where
 
 import Prelude
 import Control.Comonad.Cofree (Cofree, head, tail, (:<))
