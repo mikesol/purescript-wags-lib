@@ -38,14 +38,14 @@ type InternalState
 notPlaying :: { bufferInternal :: Maybe BufferInternal, buffy :: Buffy }
 notPlaying = { bufferInternal: Nothing, buffy: { gain: pure 0.0, onOff: pure Off } }
 
-makeOffsetsPool ::
+bufferPool ::
   forall n.
   Pos n =>
   Number ->
   Maybe (NonEmpty List (Number /\ Number)) ->
   TimeHeadroomOffsets ->
   Cofree ((->) TimeHeadroomOffsets) (V.Vec n Buffy)
-makeOffsetsPool dur pwf = go 0 (V.fill (const (Nothing :: Maybe BufferInternal)))
+bufferPool dur pwf = go 0 (V.fill (const (Nothing :: Maybe BufferInternal)))
   where
   len :: Int
   len = toInt' (Proxy :: _ n)

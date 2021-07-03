@@ -11,7 +11,7 @@ testRate :: Spec Unit
 testRate = describe "Tests rate" do
   it "Produces the correct rate" do
     let
-      rate = makeRate 0.0
+      rate = makeRate { startsAt: 0.0, prevTime: 0.0 }
       r0 = rate { time: 1.0, rate: 1.0 }
       r1 = tail r0 { time: 2.1, rate: 1.0 }
       r2 = tail r1 { time: 3.1, rate: 2.0 }
