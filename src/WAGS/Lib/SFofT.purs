@@ -89,8 +89,6 @@ makePiecewise v@(a /\ b :| (Cons (c /\ d) e)) { time, headroom }
         :< makePiecewise v
   | otherwise = makePiecewise (c /\ d :| e) { time, headroom }
 
-infixl 6 makePiecewise as /:<
-
 type SFofT a b
   = { time :: Number, value :: a } -> Cofree ((->) { time :: Number, value :: a }) b
 
