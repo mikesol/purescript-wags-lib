@@ -4,19 +4,22 @@ import Prelude
 
 import Control.Comonad.Cofree (Cofree, head, tail, (:<))
 import Data.FunctorWithIndex (mapWithIndex)
+import Data.Array as A
 import Data.Lens (_1, over)
 import Data.List (List(..))
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.NonEmpty (NonEmpty, (:|))
 import Data.Tuple.Nested (type (/\), (/\))
-import Data.Typelevel.Num (class Pos)
+import Data.Typelevel.Num (class Pos, toInt')
 import Data.Vec as V
+import Type.Proxy (Proxy(..))
 import WAGS.Graph.AudioUnit (APOnOff, OnOff(..))
-import WAGS.Graph.Parameter (AudioParameter)
+import WAGS.Graph.Parameter (AudioParameter, ff)
 import WAGS.Lib.SFofT (SAPFofT, makePiecewise)
 
-type TimeHeadroomTriggered
-  = { time :: Number, headroom :: Number, triggered :: Boolean }
+-- use array as it is faster
+type TimeHeadroomOffsets
+  = { time :: Number, headroom :: Number, offsets :: Array Number }
 
 type TimeHeadroomRate
   = { time :: Number, headroom :: Number, rate :: Number }
@@ -47,37 +50,38 @@ makeLoopingPool durAtUnitRate pwf initialTime = ?hole
 
 type InternalState = { bufferInternal :: Maybe BufferInternal, buffy :: Buffy }
 
-makeTriggeredPool ::
+makeOffsetsPool ::
   forall n.
   Pos n =>
   Number ->
   Maybe (NonEmpty List (Number /\ Number)) ->
-  TimeHeadroomTriggered ->
-  Cofree ((->) TimeHeadroomTriggered) (V.Vec n Buffy)
-makeTriggeredPool dur pwf = go 0 (V.fill (const (Nothing :: Maybe BufferInternal)))
+  TimeHeadroomOffsets ->
+  Cofree ((->) TimeHeadroomOffsets) (V.Vec n Buffy)
+makeOffsetsPool dur pwf = go 0 (V.fill (const (Nothing :: Maybe BufferInternal)))
   where
+  len :: Int
+  len = toInt' (Proxy :: _ n)
   notPlaying :: { bufferInternal :: Maybe BufferInternal, buffy :: Buffy }
   notPlaying =  { bufferInternal: Nothing, buffy: { gain: pure 0.0, onOff: pure Off } }
   realPwf = fromMaybe unchangingPiecewise pwf
-  refresh :: Number -> Number -> OnOff -> InternalState
-  refresh time headroom onOff =
+  refresh :: { time :: Number, headroom :: Number, offset :: Number } -> OnOff -> InternalState
+  refresh { time, headroom, offset } onOff =
       let
-        sapfot =  makePiecewise (map (over _1 (add time)) realPwf)
+        sapfot =  makePiecewise (map (over _1 (add (time + offset))) realPwf)
         now = sapfot { time, headroom }
-      in { bufferInternal: Just { startedAt: time, env: tail now }, buffy: { gain: head now, onOff: pure onOff } }
+      in { bufferInternal: Just { startedAt: time + offset, env: tail now }, buffy: { gain: head now, onOff: ff offset (pure onOff) } }
   -- cPos myPos
   maybeBufferToGainOnOff ::
     Int ->
-    TimeHeadroomTriggered ->
+    TimeHeadroomOffsets ->
     Int ->
     Maybe BufferInternal ->
     InternalState
-  maybeBufferToGainOnOff cPos { time, headroom, triggered } myPos Nothing
-    | cPos /= myPos = notPlaying
-    | not triggered = notPlaying
-    | otherwise = refresh time headroom On
-  maybeBufferToGainOnOff cPos { time, headroom, triggered } myPos (Just { startedAt, env })
-    | triggered && cPos == myPos = refresh time headroom OffOn
+  maybeBufferToGainOnOff cPos { time, headroom, offsets } myPos Nothing
+    | Just offset <- A.index offsets (myPos - cPos `mod` len) = refresh { time, headroom, offset } On
+    | otherwise = notPlaying
+  maybeBufferToGainOnOff cPos { time, headroom, offsets } myPos (Just { startedAt, env })
+    | Just offset <- A.index offsets (myPos - cPos `mod` len) = refresh { time, headroom, offset } OffOn
     | time - startedAt > dur = notPlaying
     | otherwise =
       let
@@ -86,8 +90,8 @@ makeTriggeredPool dur pwf = go 0 (V.fill (const (Nothing :: Maybe BufferInternal
   go ::
     Int ->
     V.Vec n (Maybe BufferInternal) ->
-    TimeHeadroomTriggered ->
-    Cofree ((->) TimeHeadroomTriggered) (V.Vec n Buffy)
-  go cIdx v tht@{ triggered } = map _.buffy internalStates :< go (if triggered then cIdx + 1 else cIdx) (map _.bufferInternal internalStates)
+    TimeHeadroomOffsets ->
+    Cofree ((->) TimeHeadroomOffsets) (V.Vec n Buffy)
+  go cIdx v tht@{ offsets } = map _.buffy internalStates :< go ((cIdx + A.length offsets) `mod` len) (map _.bufferInternal internalStates)
     where
     internalStates = mapWithIndex (maybeBufferToGainOnOff cIdx tht) v
