@@ -2,7 +2,6 @@ module WAGS.Example.HelloWorld where
 
 import Prelude
 
-import BufferPool (BuffyStream, bufferPool)
 import Control.Applicative.Indexed ((:*>))
 import Control.Comonad.Cofree (Cofree, head, mkCofree, tail)
 import Control.Plus (empty)
@@ -25,6 +24,7 @@ import Halogen.HTML.Events as HE
 import Halogen.VDom.Driver (runUI)
 import Math (cos, pi, sin)
 import WAGS.Change (ichange)
+import WAGS.Lib.BufferPool (BuffyStream, bufferPool)
 import WAGS.Control.Functions.Validated (iloop, (@!>))
 import WAGS.Control.Indexed (IxFrame)
 import WAGS.Control.Types (Frame0, Scene)
