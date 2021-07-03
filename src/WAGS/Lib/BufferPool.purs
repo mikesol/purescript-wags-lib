@@ -35,6 +35,9 @@ unchangingPiecewise = (0.0 /\ 1.0) :| Nil
 type InternalState
   = { bufferInternal :: Maybe BufferInternal, buffy :: Buffy }
 
+notPlaying :: { bufferInternal :: Maybe BufferInternal, buffy :: Buffy }
+notPlaying = { bufferInternal: Nothing, buffy: { gain: pure 0.0, onOff: pure Off } }
+
 makeOffsetsPool ::
   forall n.
   Pos n =>
@@ -47,9 +50,7 @@ makeOffsetsPool dur pwf = go 0 (V.fill (const (Nothing :: Maybe BufferInternal))
   len :: Int
   len = toInt' (Proxy :: _ n)
 
-  notPlaying :: { bufferInternal :: Maybe BufferInternal, buffy :: Buffy }
-  notPlaying = { bufferInternal: Nothing, buffy: { gain: pure 0.0, onOff: pure Off } }
-
+  realPwf :: NonEmpty List (Number /\ Number)
   realPwf = fromMaybe unchangingPiecewise pwf
 
   refresh :: { time :: Number, headroom :: Number, offset :: Number } -> OnOff -> InternalState
