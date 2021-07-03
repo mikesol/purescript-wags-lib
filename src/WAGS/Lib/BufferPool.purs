@@ -38,10 +38,8 @@ type InternalState
 notPlaying :: { bufferInternal :: Maybe BufferInternal, buffy :: Buffy }
 notPlaying = { bufferInternal: Nothing, buffy: { gain: pure 0.0, onOff: pure Off } }
 
-type BuffyVec :: forall k. k -> Type
 type BuffyVec n = V.Vec n Buffy
 
-type BuffyStream :: forall k. k -> Type
 type BuffyStream n = TimeHeadroomOffsets ->
   Cofree ((->) TimeHeadroomOffsets) (BuffyVec n)
 
