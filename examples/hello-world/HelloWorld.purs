@@ -24,12 +24,12 @@ import Halogen.HTML.Events as HE
 import Halogen.VDom.Driver (runUI)
 import Math (cos, pi, sin)
 import WAGS.Change (ichange)
-import WAGS.Lib.BufferPool (BuffyStream, bufferPool)
 import WAGS.Control.Functions.Validated (iloop, (@!>))
 import WAGS.Control.Indexed (IxFrame)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (TGain, TPlayBuf, TSinOsc, TSpeaker)
 import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
+import WAGS.Lib.BufferPool (BuffyStream, bGain, bOnOff, bufferPool)
 import WAGS.Lib.Rate (Emitter, Rate, makeEmitter, makeRate)
 import WAGS.Patch (ipatch)
 import WAGS.Run (RunAudio, SceneI, RunEngine, run)
@@ -58,7 +58,7 @@ type SceneType
 type Acc
   = { myRate :: Rate
     , myEmitter :: Emitter
-    , buffy :: BuffyStream D4
+    , buffy :: BuffyStream D4 Unit
     }
 
 createFrame :: IxFrame (SceneI Unit Unit) RunAudio RunEngine Frame0 Unit {} SceneType Acc
@@ -88,20 +88,20 @@ piece =
 
           emitter = a.myEmitter { time, headroom: hr, rate: 4.0 + cos (time * pi * 0.25) * 3.5 }
 
-          bufz = a.buffy { time, headroom: hr, offsets: head emitter }
+          bufz = a.buffy { time, headroom: hr, offsets: map { rest: unit, offset: _ } (head emitter) }
 
           hbufz = head bufz
         in
           ichange
             { oscGain: 0.1 + 0.09 * sin (pi * (head rate))
-            , b0Gain: (V.index hbufz d0).gain
-            , b1Gain: (V.index hbufz d1).gain
-            , b2Gain: (V.index hbufz d2).gain
-            , b3Gain: (V.index hbufz d3).gain
-            , b0: (V.index hbufz d0).onOff
-            , b1: (V.index hbufz d1).onOff
-            , b2: (V.index hbufz d2).onOff
-            , b3: (V.index hbufz d3).onOff
+            , b0Gain: bGain (V.index hbufz d0)
+            , b1Gain: bGain (V.index hbufz d1)
+            , b2Gain: bGain (V.index hbufz d2)
+            , b3Gain: bGain (V.index hbufz d3)
+            , b0: bOnOff (V.index hbufz d0)
+            , b1: bOnOff (V.index hbufz d1)
+            , b2: bOnOff (V.index hbufz d2)
+            , b3: bOnOff (V.index hbufz d3)
             }
             $> { myRate: tail rate, myEmitter: tail emitter, buffy: tail bufz }
 
