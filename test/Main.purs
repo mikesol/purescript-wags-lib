@@ -5,6 +5,7 @@ import Prelude
 import Effect (Effect)
 import Effect.Aff (launchAff_)
 import Test.BufferPool (testBufferPool)
+import Test.Impulse (testImpulse)
 import Test.Rate (testRate)
 import Test.Spec.Reporter (consoleReporter)
 import Test.Spec.Runner (runSpec)
@@ -17,3 +18,4 @@ main = do
         testRate
         testBufferPool
         testStream
+        testImpulse
