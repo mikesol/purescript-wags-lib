@@ -12,6 +12,6 @@ impulse = go true
   go tf = deferCofree \_ -> tf /\ pure (go false)
 
 blip :: Boolean -> Cofree ((->) Boolean) Boolean
-blip b = go false b
+blip = go false
   where
   go prev cur = (not prev && cur) :< go cur
