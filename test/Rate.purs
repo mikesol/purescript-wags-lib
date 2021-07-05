@@ -5,7 +5,8 @@ import Prelude
 import Control.Comonad.Cofree (head, tail)
 import Test.Spec (Spec, describe, it)
 import Test.Util (shouldEqualIsh)
-import WAGS.Lib.Rate (makeEmitter, makeRate)
+import WAGS.Lib.Rate (makeRate)
+import WAGS.Lib.Emitter (makeEmitter)
 
 testRate :: Spec Unit
 testRate = do
