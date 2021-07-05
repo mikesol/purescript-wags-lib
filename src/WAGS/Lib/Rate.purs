@@ -2,11 +2,14 @@
 module WAGS.Lib.Rate where
 
 import Prelude
+
 import Control.Comonad.Cofree (Cofree, (:<))
-import Data.Int as DInt
-import Data.Tuple.Nested ((/\), type (/\))
 import Data.Array as A
+import Data.Int as DInt
+import Data.Maybe (Maybe(..))
+import Data.Tuple.Nested ((/\), type (/\))
 import Math (floor)
+import Math as Math
 
 type TimeRate
   = { time :: Number, rate :: Number }
@@ -54,3 +57,14 @@ makeEmitter { startsAt, prevTime } = go (if floorStartsAt == startsAt then start
       offsets /\ newCleared = makeOffsets { tnow, headroom, clearedSoFar, rate }
     in
       offsets :< \t -> go newCleared tnow time t
+
+fEmitter' :: { sensitivity :: Number } -> Number -> { time :: Number, headroom :: Number } -> Maybe Number
+fEmitter' { sensitivity } gapInSeconds { time, headroom } = if dist < sensitivity then Just (if tGapInSeconds < (gapInSeconds / 2.0) then 0.0 else (gapInSeconds - tGapInSeconds)) else Nothing
+  where
+
+  dist = Math.abs ((time + headroom) `Math.remainder` gapInSeconds)
+
+  tGapInSeconds = time `Math.remainder` gapInSeconds
+
+fEmitter :: Number -> { time :: Number, headroom :: Number } -> Maybe Number
+fEmitter = fEmitter' { sensitivity: 0.04 }
