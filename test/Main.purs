@@ -6,6 +6,7 @@ import Effect (Effect)
 import Effect.Aff (launchAff_)
 import Test.BufferPool (testBufferPool)
 import Test.Impulse (testImpulse)
+import Test.Piecewise (testPiecewise)
 import Test.Rate (testRate)
 import Test.Spec.Reporter (consoleReporter)
 import Test.Spec.Runner (runSpec)
@@ -19,3 +20,4 @@ main = do
         testBufferPool
         testStream
         testImpulse
+        testPiecewise

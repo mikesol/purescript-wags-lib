@@ -2,6 +2,7 @@
 module WAGS.Lib.Piecewise where
 
 import Prelude
+
 import Data.Foldable (foldl)
 import Data.List (List(..), (:))
 import Data.List.NonEmpty (NonEmptyList(..), sortBy)
@@ -32,9 +33,9 @@ infixl 6 makeLoopingPiecewise as /@:<
 newtype PWChunk
   = PWChunk { left :: Number, right :: Number, apfot :: APFofT }
 
-foreign import minValue :: Number
+minValue = 5e-300 :: Number
 
-foreign import maxValue :: Number
+maxValue = 5e300 :: Number
 
 instance eqPWChunk :: Eq PWChunk where
   eq (PWChunk { left: left0 }) (PWChunk { left: left1 }) = eq left0 left1
@@ -50,10 +51,10 @@ makeChunks l' = map PWChunk (go sorted)
   where
   (NonEmptyList sorted) = sortBy (\a b -> compare (fst a) (fst b)) (NonEmptyList l')
 
-  go (a /\ b :| Nil) = { left: minValue, right: maxValue, apfot: const (pure b) } :| Nil
+  go (a /\ b :| Nil) = { left: -55.0, right: maxValue, apfot: const (pure b) } :| Nil
 
   go l@(hol :| tol) =
-    { left: minValue, right: (fst $ NEL.head (wrap l)), apfot: const (pure (snd $ NEL.head (wrap l))) }
+    { left: -55.0, right: (fst $ NEL.head (wrap l)), apfot: const (pure (snd $ NEL.head (wrap l))) }
       :| ( ( foldl
                 ( \{ acc, cur } a ->
                     { cur: a
@@ -80,7 +81,7 @@ makeChunks l' = map PWChunk (go sorted)
                     }
                 )
                 { cur: NEL.head (wrap l), acc: Nil }
-                (hol : tol)
+                tol
             )
             .acc
             <> pure { right: maxValue, left: (fst $ NEL.last (wrap l)), apfot: const (pure (snd $ NEL.last (wrap l))) }
@@ -90,7 +91,6 @@ makePiecewise :: NonEmpty List (Number /\ Number) -> APFofT
 makePiecewise l = go
   where
   chunks = makeChunks l
-
   asSet = Set.fromFoldable chunks
 
   apfot' = const (pure 1.0)

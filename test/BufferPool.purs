@@ -4,19 +4,20 @@ import Prelude
 
 import Control.Comonad.Cofree (head, tail)
 import Data.Maybe (Maybe(..))
+import Data.Newtype (unwrap)
 import Data.Typelevel.Num (D5, d0, d1)
 import Data.Vec as V
 import Test.Spec (Spec, describe, it)
 import Test.Util (shouldEqualIsh)
 import WAGS.Graph.AudioUnit (OnOff(..))
-import WAGS.Lib.BufferPool (BuffyStream, bGain, bOnOff, bufferPool)
+import WAGS.Lib.BufferPool (BuffyStream, bGain, bOnOff, makeBufferPool)
 
 testBufferPool :: Spec Unit
 testBufferPool = do
   describe "Tests buffer pool" do
     it "Produces a correct buffer pool" do
       let
-        (buf :: BuffyStream D5 Unit) = bufferPool (Just 0.4) Nothing
+        (buf :: BuffyStream D5 Unit) = unwrap $ makeBufferPool (Just 0.4) Nothing
         b0 = buf { time: 0.0, headroom: 0.02, offsets: [ {offset: 0.0, rest: unit} ] }
         b1 = tail b0 { time: 0.3, headroom: 0.02, offsets: [ ] }
         b2 = tail b1 { time: 0.34, headroom: 0.02, offsets: [ {offset: 0.0, rest: unit} ] }

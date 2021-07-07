@@ -6,14 +6,14 @@ import Control.Comonad.Cofree (head, tail)
 import Data.Newtype (unwrap)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
-import WAGS.Lib.Impulse (blip, impulse)
+import WAGS.Lib.Impulse (makeBlip, makeImpulse)
 
 testImpulse :: Spec Unit
 testImpulse = do
   describe "Tests impulse" do
     it "Produces the correct impulse" do
       let
-        r0 = impulse
+        r0 = unwrap $ unwrap makeImpulse
         r1 = unwrap (tail r0)
         r2 = unwrap (tail r1)
       head r0 `shouldEqual` true
@@ -22,7 +22,7 @@ testImpulse = do
   describe "Tests blip" do
     it "Produces a blip only when there is a change from 0 to 1" do
       let
-        r0 = blip false
+        r0 = unwrap makeBlip false
         r1 = tail r0 false
         r2 = tail r1 true
         r3 = tail r2 true
