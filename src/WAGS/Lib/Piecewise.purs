@@ -4,7 +4,7 @@ module WAGS.Lib.Piecewise where
 import Prelude
 
 import Data.Foldable (foldl)
-import Data.List (List(..), (:))
+import Data.List (List(..))
 import Data.List.NonEmpty (NonEmptyList(..), sortBy)
 import Data.List.NonEmpty as NEL
 import Data.Map as Map
@@ -33,7 +33,7 @@ infixl 6 makeLoopingPiecewise as /@:<
 newtype PWChunk
   = PWChunk { left :: Number, right :: Number, apfot :: APFofT }
 
-minValue = 5e-300 :: Number
+minValue = -5e300 :: Number
 
 maxValue = 5e300 :: Number
 
@@ -51,10 +51,10 @@ makeChunks l' = map PWChunk (go sorted)
   where
   (NonEmptyList sorted) = sortBy (\a b -> compare (fst a) (fst b)) (NonEmptyList l')
 
-  go (a /\ b :| Nil) = { left: -55.0, right: maxValue, apfot: const (pure b) } :| Nil
+  go (a /\ b :| Nil) = { left: minValue, right: maxValue, apfot: const (pure b) } :| Nil
 
   go l@(hol :| tol) =
-    { left: -55.0, right: (fst $ NEL.head (wrap l)), apfot: const (pure (snd $ NEL.head (wrap l))) }
+    { left: minValue, right: (fst $ NEL.head (wrap l)), apfot: const (pure (snd $ NEL.head (wrap l))) }
       :| ( ( foldl
                 ( \{ acc, cur } a ->
                     { cur: a
