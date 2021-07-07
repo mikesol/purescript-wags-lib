@@ -1,5 +1,5 @@
 -- | Piecewise functions
-module WAGS.Lib.SFofT where
+module WAGS.Lib.Piecewise where
 
 import Prelude
 import Data.Foldable (foldl)

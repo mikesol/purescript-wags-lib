@@ -9,6 +9,7 @@ import Control.Promise (toAffE)
 import Data.Foldable (for_)
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..))
+import Data.Newtype (unwrap)
 import Data.Tuple.Nested (type (/\))
 import Data.Typelevel.Num (D4, d0, d1, d2, d3)
 import Data.Vec as V
@@ -29,11 +30,11 @@ import WAGS.Control.Indexed (IxFrame)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (TGain, TPlayBuf, TSinOsc, TSpeaker)
 import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
-import WAGS.Lib.BufferPool (BuffyStream, bGain, bOnOff, bufferPool)
-import WAGS.Lib.Rate (Rate, makeRate)
+import WAGS.Lib.BufferPool (BuffyStream, bGain, bOnOff, makeBufferPool)
 import WAGS.Lib.Emitter (Emitter, makeEmitter)
+import WAGS.Lib.Rate (Rate, makeRate)
 import WAGS.Patch (ipatch)
-import WAGS.Run (RunAudio, SceneI, RunEngine, run)
+import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
 
 type SceneType
   = { speaker ::
@@ -63,7 +64,7 @@ type Acc
     }
 
 createFrame :: IxFrame (SceneI Unit Unit) RunAudio RunEngine Frame0 Unit {} SceneType Acc
-createFrame = \{ time } ->
+createFrame = \(SceneI { time }) ->
   ( ipatch
       :*> ( ichange
             { b0: "bell"
@@ -71,9 +72,9 @@ createFrame = \{ time } ->
             , b2: "bell"
             , b3: "bell"
             }
-            $> { myRate: makeRate { prevTime: 0.0, startsAt: time }
-              , myEmitter: makeEmitter { prevTime: 0.0, startsAt: time }
-              , buffy: bufferPool (pure 6.0) empty
+            $> { myRate: unwrap $ makeRate { prevTime: 0.0, startsAt: time }
+              , myEmitter: unwrap $ makeEmitter { prevTime: 0.0, startsAt: time }
+              , buffy: unwrap $ makeBufferPool (pure 6.0) empty
               }
         )
   )
@@ -81,7 +82,7 @@ createFrame = \{ time } ->
 piece :: Scene (SceneI Unit Unit) RunAudio RunEngine Frame0 Unit
 piece =
   createFrame
-    @!> iloop \{ time, headroom } a ->
+    @!> iloop \(SceneI { time, headroom }) a ->
         let
           hr = toNumber headroom / 1000.0
 
