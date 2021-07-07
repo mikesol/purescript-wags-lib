@@ -101,8 +101,8 @@ makeSnappyBufferPool ::
   { prevTime :: Number, startsAt :: Number } ->
   Maybe Number ->
   Maybe (NonEmpty List (Number /\ Number)) ->
-  AHotBufferPool n
-makeSnappyBufferPool ptsa dur pwf = AHotBufferPool (go blip buffer)
+  ASnappyBufferPool n
+makeSnappyBufferPool ptsa dur pwf = ASnappyBufferPool (go blip buffer)
   where
   (ABlip blip) = makeBlip
 
