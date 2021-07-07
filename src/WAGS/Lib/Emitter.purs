@@ -2,6 +2,7 @@
 module WAGS.Lib.Emitter where
 
 import Prelude
+
 import Control.Comonad.Cofree (Cofree, head, tail, (:<))
 import Data.Array as A
 import Data.Int (toNumber)
@@ -30,7 +31,7 @@ consumeLookahead { lookahead, tnow, rate }
 makeOffsets :: { tnow :: Number, headroom :: Number, clearedSoFar :: Number, rate :: Number } -> Array Number /\ Number
 makeOffsets { tnow, headroom, clearedSoFar, rate } =
   ( A.replicate urgent 0.0
-      <> consumeLookahead { lookahead, tnow, rate }
+      <> if lookahead <= clearedSoFar then [] else consumeLookahead { lookahead, tnow, rate }
   )
     /\ lookahead
   where

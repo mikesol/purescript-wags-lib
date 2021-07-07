@@ -1,4 +1,4 @@
-module WAGS.Example.HelloWorld where
+module WAGS.Lib.Example.HelloWorld where
 
 import Prelude
 

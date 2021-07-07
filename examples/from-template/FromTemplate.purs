@@ -2,7 +2,7 @@ module WAGS.Lib.Example.FromTemplate where
 
 import Prelude
 
-import Control.Comonad.Cofree (Cofree, head, mkCofree, tail)
+import Control.Comonad.Cofree (Cofree, head, mkCofree)
 import Control.Promise (toAffE)
 import Data.Foldable (for_)
 import Data.Int (toNumber)
@@ -27,8 +27,10 @@ import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Create (icreate)
 import WAGS.Create.Optionals (gain, playBuf, speaker)
 import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
-import WAGS.Lib.BufferPool (ABufferPool(..), BuffyVec, bGain, bOnOff, fromTemplate)
+import WAGS.Lib.BufferPool (AHotBufferPool, BuffyVec, bGain, bOnOff)
+import WAGS.Lib.Cofree (actualizes, tails)
 import WAGS.Lib.Emitter (makeEmitter, Emitter)
+import WAGS.Lib.Template (fromTemplate)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
 
 vol = 1.4 :: Number
@@ -36,23 +38,36 @@ vol = 1.4 :: Number
 emit :: Number -> Emitter
 emit startsAt = unwrap $ makeEmitter { prevTime: 0.0, startsAt }
 
-piece :: Scene (SceneI Unit Unit) RunAudio RunEngine Frame0 Unit
-piece = (\(SceneI { time, headroom: headroom' }) -> let
-    headroom = (toNumber headroom') / 1000.0
-    m' = emit time { time, headroom, rate: 0.8 + sin (pi * time) * 0.4 }
-    (ABufferPool bp'') = (mempty :: ABufferPool D5 Unit)
-    bp' = bp''  { time, headroom, offsets: map { rest: unit, offset: _ } (head m') }
-  in
-    icreate (speaker { mainBus: scene (head bp')}) $> { m: tail m', bp: tail bp' }) @!> iloop \(SceneI { time, headroom: headroom' }) {m: m'', bp: bp'' } -> 
-      let
-        headroom = (toNumber headroom') / 1000.0
-        m' = m'' { time, headroom, rate: 1.0 }
-        bp' = bp'' { time, headroom, offsets: map { rest: unit, offset: _ } (head m') }
-      in
-        ichange (speaker { mainBus: scene (head bp')}) $> { m: tail m', bp: tail bp' }
+type Acc
+  = { hbp :: AHotBufferPool D5 }
 
+acc :: Acc
+acc = { hbp: mempty }
+
+piece :: Scene (SceneI Unit Unit) RunAudio RunEngine Frame0 Unit
+piece =
+  ( \e@(SceneI { time }) ->
+      let
+        actualized = actualizes acc e { hbp: 1.0 + sin (time * pi * 0.3) * 0.8 }
+      in
+        icreate (speaker { mainBus: scene (head actualized.hbp) }) $> tails actualized
+  )
+    @!> iloop \e@(SceneI { time }) (a :: Acc) ->
+        let
+          actualized = actualizes a e { hbp: 1.0 + sin (time * pi * 0.3) * 0.8 }
+        in
+          ichange (speaker { mainBus: scene (head actualized.hbp) }) $> tails actualized
   where
-  scene (v :: BuffyVec D5 Unit) = fromTemplate (Proxy :: _ "myPool") v \i gor -> gain (bGain gor) { myPlayer: playBuf {onOff: bOnOff gor, playbackRate: (toNumber (i + 1) * 0.5) } "atar" }
+  scene (v :: BuffyVec D5 Unit) =
+    fromTemplate (Proxy :: _ "myPool") v \i gor ->
+      gain (bGain gor)
+        { myPlayer:
+            playBuf
+              { onOff: bOnOff gor
+              , playbackRate: (toNumber (i + 1) * 0.5)
+              }
+              "atar"
+        }
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =
@@ -94,7 +109,7 @@ render :: forall m. State -> H.ComponentHTML Action () m
 render state = do
   HH.div_
     [ HH.h1_
-        [ HH.text "Atari speaks" ]
+        [ HH.text "Atari speaks 2.0" ]
     , HH.button
         [ HE.onClick \_ -> StartAudio ]
         [ HH.text "Start audio" ]

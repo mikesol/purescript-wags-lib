@@ -14,7 +14,7 @@ To compile the JS for the hello world example, issue the following command:
 
 ```bash
 spago -x examples.dhall bundle-app \
-  --main WAGS.Example.HelloWorld \
+  --main WAGS.Lib.Example.HelloWorld \
   --to examples/hello-world/index.js
 ```
 
