@@ -190,6 +190,47 @@ makeBufferPool' _ dur pwf = ABufferPool (go 0 (V.fill (const (Nothing :: Maybe (
     where
     internalStates = mapWithIndex (maybeBufferToGainOnOff cIdx tht) v
 
+-- todo: code dup, merge with below
+appendUBP :: forall nt n. Pos n => Semigroup nt => Newtype nt (TimeHeadroomRate -> Cofree ((->) TimeHeadroomRate) (BuffyVec n Unit)) => nt -> nt -> nt
+appendUBP i0' i1' = wrap f
+  where
+  i0 = unwrap i0'
+  i1 = unwrap i1'
+  f :: TimeHeadroomRate -> Cofree ((->) TimeHeadroomRate) (BuffyVec n Unit)
+  f tho =
+    ( V.zipWithE
+        ( \a b -> case a, b of
+            Nothing, Nothing -> Nothing
+            Nothing, Just x -> Just x
+            Just x, Nothing -> Just x
+            Just x, Just y ->
+              Just
+                { gain: x.gain + y.gain / (pure 2.0)
+                , onOff:
+                    case x.onOff, y.onOff of
+                      i@(AudioParameter { param: (Just On) }), j -> i
+                      i, j@(AudioParameter { param: (Just On) }) -> j
+                      i@(AudioParameter { param: (Just OffOn) }), j -> i
+                      i, j@(AudioParameter { param: (Just OffOn) }) -> j
+                      i, j -> i
+                , rest: x.rest <> y.rest
+                }
+        )
+        (head i0r)
+        (head i1r)
+    )
+      :< (unwrap (append ((wrap (tail i0r)) :: nt) (wrap (tail i1r))))
+    where
+    i0r = i0 tho
+
+    i1r = i1 tho
+
+instance semigroupHotBufferPool :: Pos n => Semigroup (AHotBufferPool n) where
+  append = appendUBP
+
+instance semigroupSnappyBufferPool :: Pos n => Semigroup (ASnappyBufferPool n) where
+  append = appendUBP
+
 instance semigroupBufferPool :: (Pos n, Semigroup r) => Semigroup (ABufferPool n r) where
   append (ABufferPool i0) (ABufferPool i1) = ABufferPool f
     where
@@ -224,6 +265,12 @@ instance semigroupBufferPool :: (Pos n, Semigroup r) => Semigroup (ABufferPool n
 
 instance monoidBufferPool :: (Semigroup r, Pos n) => Monoid (ABufferPool n r) where
   mempty = makeBufferPool Nothing Nothing
+
+instance monoidHotBufferPool :: (Semigroup r, Pos n) => Monoid (AHotBufferPool n) where
+  mempty = makeHotBufferPool { startsAt: 0.0, prevTime: 0.0 } Nothing Nothing
+
+instance monoidSnappyBufferPool :: (Semigroup r, Pos n) => Monoid (ASnappyBufferPool n) where
+  mempty = makeSnappyBufferPool { startsAt: 0.0, prevTime: 0.0 } Nothing Nothing
 
 bGain :: forall r. Maybe (Buffy r) -> AudioParameter
 bGain = maybe (pure 0.0) _.gain
