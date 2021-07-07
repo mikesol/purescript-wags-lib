@@ -8,5 +8,5 @@
 /.purs*
 /.psa*
 /.spago
-/examples/hello-world/index.js
+/examples/**/index.js
 packages.json
