@@ -98,3 +98,5 @@ makePiecewise l = go
   go th@{ time, headroom } = case lookupLE (PWChunk { left: time, right: 0.0, apfot: apfot' }) asSet of
     Nothing -> pure 1.0
     Just (PWChunk { apfot }) -> apfot th
+
+infixl 6 makePiecewise as /:<
