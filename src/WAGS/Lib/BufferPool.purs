@@ -5,6 +5,7 @@ import Prelude
 import Control.Comonad.Cofree (Cofree, head, tail, (:<))
 import Data.Array as A
 import Data.FunctorWithIndex (mapWithIndex)
+import Data.Int (toNumber)
 import Data.Lens (_1, over)
 import Data.List (List(..))
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
@@ -24,9 +25,11 @@ import Type.Proxy (Proxy(..))
 import WAGS.Create.Optionals (gain)
 import WAGS.Graph.AudioUnit (APOnOff, Gain, OnOff(..))
 import WAGS.Graph.Parameter (AudioParameter, AudioParameter_(..), ff)
+import WAGS.Lib.Cofree (class Actualize)
 import WAGS.Lib.Emitter (AnEmitter(..), fEmitter, makeEmitter)
 import WAGS.Lib.Impulse (ABlip(..), makeBlip)
 import WAGS.Lib.SFofT (SAPFofT, makePiecewise)
+import WAGS.Run (SceneI(..))
 
 -- use array as it is faster
 type TimeHeadroomOffsets (rest :: Type)
@@ -342,3 +345,10 @@ class
 
 instance poolWithTemplateAll :: (Pos n, PoolWithTemplate' suffix n a g o) => PoolWithTemplate suffix n a g (Gain AudioParameter /\ { | o }) where
   fromTemplate a b c = gain 1.0 (fromTemplate' a b c)
+
+
+instance actualizeHotBufferPool :: Actualize (AHotBufferPool n) (SceneI a b) Number (Cofree ((->) TimeHeadroomRate) (BuffyVec n Unit)) where
+  actualize (AHotBufferPool r) (SceneI { time, headroom }) rate = r { time, headroom: toNumber headroom / 1000.0, rate }
+
+instance actualizeSnappyBufferPool :: Actualize (ASnappyBufferPool n) (SceneI a b) Number (Cofree ((->) TimeHeadroomRate) (BuffyVec n Unit)) where
+  actualize (ASnappyBufferPool r) (SceneI { time, headroom }) rate = r { time, headroom: toNumber headroom / 1000.0, rate }
