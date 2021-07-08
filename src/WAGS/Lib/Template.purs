@@ -1,5 +1,6 @@
 module WAGS.Lib.Template where
 
+import Prelude
 import Data.Symbol (class IsSymbol)
 import Data.Tuple.Nested (type (/\), (/\))
 import Data.Typelevel.Num (class Nat, class Pos, class Pred, type (:*), D0, D1, D2, D3, D4, D5, D6, D7, D8, D9, toInt')
@@ -14,7 +15,6 @@ import Type.Proxy (Proxy(..))
 import WAGS.Create.Optionals (gain)
 import WAGS.Graph.AudioUnit (Gain)
 import WAGS.Graph.Parameter (AudioParameter)
-
 
 class Nat n <= NatToPeano (n :: Type) (p :: P.Nat) | n -> p
 
@@ -77,13 +77,14 @@ instance suffixAllRecordsRLCons ::
   ( SuffixAllRecordsRL c s i o'
   , IsSymbol a
   , IsSymbol aSuffix
-  , Cons a b x i
+  , Cons a (b /\ rest) x i
   , Symbol.Append a s aSuffix
   , Lacks aSuffix o'
-  , Cons aSuffix b o' o
+  , SuffixAllRecordsRec s rest newRest
+  , Cons aSuffix (b /\ newRest) o' o
   ) =>
-  SuffixAllRecordsRL (RowList.Cons a b c) s i o where
-  suffixizeRL _ _ i = Record.insert (Proxy :: _ aSuffix) (Record.get (Proxy :: _ a) i) (suffixizeRL (Proxy :: _ c) (Proxy :: _ s) i)
+  SuffixAllRecordsRL (RowList.Cons a (b /\ rest) c) s i o where
+  suffixizeRL _ px i = Record.insert (Proxy :: _ aSuffix) (map (suffixizeRec px) (Record.get (Proxy :: _ a) i)) (suffixizeRL (Proxy :: _ c) (Proxy :: _ s) i)
 
 instance suffixAllRecordsRLNil :: SuffixAllRecordsRL RowList.Nil s i () where
   suffixizeRL _ _ _ = {}
@@ -94,8 +95,8 @@ class SuffixAllRecordsRec (s :: Symbol) i o | s i -> o where
 instance suffixAllRecordsRec :: SuffixAllRecords s i o => SuffixAllRecordsRec s { | i } { | o } where
   suffixizeRec = suffixize
 
-instance suffixAllRecordsTupRec :: SuffixAllRecords s i o => SuffixAllRecordsRec s (a /\ { | i }) (a /\ { | o }) where
-  suffixizeRec s (a /\ b) = a /\ suffixize s b
+instance suffixAllRecordsTupRec :: SuffixAllRecordsRec s { | i } { | o } => SuffixAllRecordsRec s (a /\ { | i }) (a /\ { | o }) where
+  suffixizeRec s (a /\ b) = a /\ suffixizeRec s b
 
 class PoolWithTemplate' (suffix :: Symbol) (n :: Type) (a :: Type) (g :: Type) (o :: Row Type) | suffix n a g -> o where
   fromTemplate' :: forall proxy. proxy suffix -> V.Vec n a -> (Int -> a -> g) -> { | o }

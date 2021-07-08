@@ -1,31 +1,32 @@
 module WAGS.Lib.Example.FromTemplate where
 
 import Prelude
-
 import Control.Comonad.Cofree (Cofree, head, mkCofree)
 import Control.Promise (toAffE)
 import Data.Foldable (for_)
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
-import Data.Typelevel.Num (D5)
+import Data.Typelevel.Num (D20)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
-import FRP.Event (subscribe)
+import Effect.Random (random)
+import FRP.Behavior (Behavior, behavior)
+import FRP.Event (makeEvent, subscribe)
 import Foreign.Object as O
 import Halogen as H
 import Halogen.Aff (awaitBody, runHalogenAff)
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.VDom.Driver (runUI)
-import Math (sin, pi)
+import Math (sin, pi, pow, (%))
 import Type.Proxy (Proxy(..))
 import WAGS.Change (ichange)
 import WAGS.Control.Functions (iloop, (@!>))
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Create (icreate)
-import WAGS.Create.Optionals (gain, playBuf, speaker)
+import WAGS.Create.Optionals (gain, playBuf, speaker, pan)
 import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (AHotBufferPool, BuffyVec, bGain, bOnOff)
 import WAGS.Lib.Cofree (actualizes, tails)
@@ -35,38 +36,47 @@ import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
 
 vol = 1.4 :: Number
 
+ntropi :: Behavior Number
+ntropi =
+  behavior \e ->
+    makeEvent \f ->
+      e `subscribe` \a2b -> (a2b <$> random) >>= f
+
 emit :: Number -> Emitter
 emit startsAt = unwrap $ makeEmitter { prevTime: 0.0, startsAt }
 
 type Acc
-  = { hbp :: AHotBufferPool D5 }
+  = { hbp :: AHotBufferPool D20 }
 
 acc :: Acc
 acc = { hbp: mempty }
 
-piece :: Scene (SceneI Unit Unit) RunAudio RunEngine Frame0 Unit
+type World
+  = { entropy :: Number }
+
+piece :: Scene (SceneI Unit World) RunAudio RunEngine Frame0 Unit
 piece =
-  ( \e@(SceneI { time }) ->
+  ( \e@(SceneI { time, world: { entropy } }) ->
       let
-        actualized = actualizes acc e { hbp: 1.0 + sin (time * pi * 0.3) * 0.8 }
+        actualized = actualizes acc e { hbp: 12.0 * (entropy `pow` 6.0) }
       in
-        icreate (speaker { mainBus: scene (head actualized.hbp) }) $> tails actualized
+        icreate (speaker { mainBus: scene entropy (head actualized.hbp) }) $> tails actualized
   )
-    @!> iloop \e@(SceneI { time }) (a :: Acc) ->
+    @!> iloop \e@(SceneI { time, world: { entropy } }) (a :: Acc) ->
         let
-          actualized = actualizes a e { hbp: 1.0 + sin (time * pi * 0.3) * 0.8 }
+          actualized = actualizes a e { hbp: 12.0 * (entropy `pow` 6.0) }
         in
-          ichange (speaker { mainBus: scene (head actualized.hbp) }) $> tails actualized
+          ichange (speaker { mainBus: scene entropy (head actualized.hbp) }) $> tails actualized
   where
-  scene (v :: BuffyVec D5 Unit) =
+  scene (entropy :: Number) (v :: BuffyVec D20 Unit) =
     fromTemplate (Proxy :: _ "myPool") v \i gor ->
-      gain (bGain gor)
+      gain (bGain gor * pure 0.5)
         { myPlayer:
-            playBuf
+            pan (entropy * 2.0 - 1.0) { panny: playBuf
               { onOff: bOnOff gor
-              , playbackRate: (toNumber (i + 1) * 0.5)
+              , playbackRate: (1.0 + (toNumber (i + 1) * 0.1 + entropy))
               }
-              "atar"
+              "bells"}
         }
 
 easingAlgorithm :: Cofree ((->) Int) Int
@@ -109,7 +119,7 @@ render :: forall m. State -> H.ComponentHTML Action () m
 render state = do
   HH.div_
     [ HH.h1_
-        [ HH.text "Atari speaks 2.0" ]
+        [ HH.text "Grains" ]
     , HH.button
         [ HE.onClick \_ -> StartAudio ]
         [ HH.text "Start audio" ]
@@ -123,17 +133,17 @@ handleAction = case _ of
   StartAudio -> do
     audioCtx <- H.liftEffect context
     unitCache <- H.liftEffect makeUnitCache
-    atar <-
+    bells <-
       H.liftAff $ toAffE
         $ decodeAudioDataFromUri
             audioCtx
-            "https://freesound.org/data/previews/100/100981_1234256-lq.mp3"
+            "https://freesound.org/data/previews/339/339822_5121236-lq.mp3"
     let
-      ffiAudio = (defaultFFIAudio audioCtx unitCache) { buffers = pure $ O.singleton "atar" atar }
+      ffiAudio = (defaultFFIAudio audioCtx unitCache) { buffers = pure $ O.singleton "bells" bells }
     unsubscribe <-
       H.liftEffect
         $ subscribe
-            (run (pure unit) (pure unit) { easingAlgorithm } (FFIAudio ffiAudio) piece)
+            (run (pure unit) ({ entropy: _ } <$> ntropi) { easingAlgorithm } (FFIAudio ffiAudio) piece)
             (const $ pure unit)
     H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
   StopAudio -> do
