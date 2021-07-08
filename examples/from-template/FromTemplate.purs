@@ -1,6 +1,7 @@
 module WAGS.Lib.Example.FromTemplate where
 
 import Prelude
+
 import Control.Comonad.Cofree (Cofree, head, mkCofree)
 import Control.Promise (toAffE)
 import Data.Foldable (for_)
@@ -23,15 +24,17 @@ import Halogen.VDom.Driver (runUI)
 import Math (sin, pi, pow, (%))
 import Type.Proxy (Proxy(..))
 import WAGS.Change (ichange)
-import WAGS.Control.Functions (iloop, (@!>))
-import WAGS.Control.Types (Frame0, Scene)
+import WAGS.Control.Functions (iloop, startUsingWithHint,(@!>))
+import WAGS.Control.Types (Frame0, Scene, WAG)
 import WAGS.Create (icreate)
 import WAGS.Create.Optionals (gain, playBuf, speaker, pan)
-import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
+import WAGS.CreateT (class CreateT)
+import WAGS.Interpret (class AudioInterpret, AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (AHotBufferPool, BuffyVec, bGain, bOnOff)
 import WAGS.Lib.Cofree (actualizes, tails)
 import WAGS.Lib.Emitter (makeEmitter, Emitter)
 import WAGS.Lib.Template (fromTemplate)
+import WAGS.Patch (class Patch, ipatch)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
 
 ntropi :: Behavior Number
@@ -51,20 +54,15 @@ type World
 
 piece :: Scene (SceneI Unit World) RunAudio RunEngine Frame0 Unit
 piece =
-  ( \e@(SceneI { time, world: { entropy } }) ->
-      let
-        actualized = actualizes acc e { hbp: 12.0 * (entropy `pow` 6.0) }
-      in
-        icreate (speaker { mainBus: scene entropy (head actualized.hbp) }) $> tails actualized
-  )
-    @!> iloop \e@(SceneI { time, world: { entropy } }) (a :: Acc) ->
+   startUsingWithHint
+      scene acc (iloop \e@(SceneI { time, world: { entropy } }) (a :: Acc) ->
         let
           actualized = actualizes a e { hbp: 12.0 * (entropy `pow` 6.0) }
         in
-          ichange (speaker { mainBus: scene entropy (head actualized.hbp) }) $> tails actualized
+          ichange (scene entropy (head actualized.hbp)) $> tails actualized)
   where
   scene (entropy :: Number) (v :: BuffyVec D20 Unit) =
-    fromTemplate (Proxy :: _ "myPool") v \i gor ->
+    speaker { mainBus: fromTemplate (Proxy :: _ "myPool") v \i gor ->
       gain (bGain gor * pure 0.5)
         { myPlayer:
             pan (entropy * 2.0 - 1.0) { panny: playBuf
@@ -72,7 +70,7 @@ piece =
               , playbackRate: (1.0 + (toNumber (i + 1) * 0.1 + entropy))
               }
               "bells"}
-        }
+        }}
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =
