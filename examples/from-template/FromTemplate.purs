@@ -34,16 +34,11 @@ import WAGS.Lib.Emitter (makeEmitter, Emitter)
 import WAGS.Lib.Template (fromTemplate)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
 
-vol = 1.4 :: Number
-
 ntropi :: Behavior Number
 ntropi =
   behavior \e ->
     makeEvent \f ->
       e `subscribe` \a2b -> (a2b <$> random) >>= f
-
-emit :: Number -> Emitter
-emit startsAt = unwrap $ makeEmitter { prevTime: 0.0, startsAt }
 
 type Acc
   = { hbp :: AHotBufferPool D20 }
