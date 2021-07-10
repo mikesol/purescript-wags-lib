@@ -28,7 +28,7 @@ import WAGS.Create.Optionals (gain, playBuf, speaker, pan)
 import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (AHotBufferPool, BuffyVec, bGain, bOnOff)
 import WAGS.Lib.Cofree (actualizes, tails)
-import WAGS.Lib.Template (fromTemplate)
+import WAGS.Template (fromTemplate)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
 
 ntropi :: Behavior Number
