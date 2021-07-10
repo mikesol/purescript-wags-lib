@@ -49,7 +49,7 @@ instance tailableCofree :: Tailable (Cf.Cofree f a) (f (Cf.Cofree f a)) where
 else instance tailableRate :: Newtype n (f (Cf.Cofree f a)) => Tailable (Cf.Cofree f a) n where
   tail = wrap <<< Cf.tail
 
-class Actualize n e r o | n e r -> o where
+class Actualize n e r o | n e -> r o where
   actualize :: n -> e -> r -> o
 
 instance actualizeIdentityComonad :: Actualize (Identity (Cf.Cofree Identity Boolean)) e r (Cf.Cofree Identity Boolean) where
@@ -79,7 +79,7 @@ instance obliterateR'Cons :: (ObliterateR c x, IsSymbol a, Obliterate b, Lacks a
 instance addUnitAll :: (RowToList ii iil, ObliterateR iil oo, Union l oo r) => AddUnit ii l r where
   addUnit i l = Record.union l (obliterateR (Proxy :: _ iil))
 
-class ActualizeMany' (rl :: RowList Type) (n :: Row Type) (e :: Type) (r :: Row Type) (o :: Row Type) | rl n e r -> o where
+class ActualizeMany' (rl :: RowList Type) (n :: Row Type) (e :: Type) (r :: Row Type) (o :: Row Type) | rl n e -> r o where
   actualizeMany' :: Proxy rl -> { | n } -> e -> { | r } -> { | o }
 
 instance actualizeMany'Nil :: ActualizeMany' RowList.Nil n (SceneI trigger world) r () where
