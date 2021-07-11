@@ -1,9 +1,10 @@
 module WAGS.Lib.Example.HelloWorld where
 
 import Prelude
-
 import Control.Applicative.Indexed ((:*>))
-import Control.Comonad.Cofree (Cofree, head, mkCofree, tail)
+import Control.Comonad (extract)
+import Control.Comonad.Cofree (Cofree, mkCofree)
+import Control.Comonad.Cofree.Class (unwrapCofree)
 import Control.Plus (empty)
 import Control.Promise (toAffE)
 import Data.Foldable (for_)
@@ -30,9 +31,10 @@ import WAGS.Control.Indexed (IxFrame)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (TGain, TPlayBuf, TSinOsc, TSpeaker)
 import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
-import WAGS.Lib.BufferPool (BuffyStream, bGain, bOnOff, makeBufferPool)
-import WAGS.Lib.Emitter (Emitter, makeEmitter)
-import WAGS.Lib.Rate (Rate, makeRate)
+import WAGS.Lib.BufferPool (ABufferPool, bGain, bOnOff, makeBufferPool)
+import WAGS.Lib.Cofree (actualize)
+import WAGS.Lib.Emitter (AnEmitter, makeEmitter)
+import WAGS.Lib.Rate (ARate, makeRate)
 import WAGS.Patch (ipatch)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
 
@@ -58,9 +60,9 @@ type SceneType
     }
 
 type Acc
-  = { myRate :: Rate
-    , myEmitter :: Emitter
-    , buffy :: BuffyStream D4 Unit
+  = { myRate :: ARate
+    , myEmitter :: AnEmitter
+    , buffy :: ABufferPool D4 Unit
     }
 
 createFrame :: IxFrame (SceneI Unit Unit) RunAudio RunEngine Frame0 Unit {} SceneType Acc
@@ -72,9 +74,9 @@ createFrame = \(SceneI { time }) ->
             , b2: "bell"
             , b3: "bell"
             }
-            $> { myRate: unwrap $ makeRate { prevTime: 0.0, startsAt: time }
-              , myEmitter: unwrap $ makeEmitter { prevTime: 0.0, startsAt: time }
-              , buffy: unwrap $ makeBufferPool (pure 6.0) empty
+            $> { myRate: makeRate { prevTime: 0.0, startsAt: time }
+              , myEmitter: makeEmitter { prevTime: 0.0, startsAt: time }
+              , buffy: makeBufferPool (pure 6.0) empty
               }
         )
   )
@@ -82,20 +84,20 @@ createFrame = \(SceneI { time }) ->
 piece :: Scene (SceneI Unit Unit) RunAudio RunEngine Frame0 Unit
 piece =
   createFrame
-    @!> iloop \(SceneI { time, headroom }) a ->
+    @!> iloop \e@(SceneI { time, headroom }) a ->
         let
           hr = toNumber headroom / 1000.0
 
-          rate = a.myRate { time, rate: 4.0 + sin (time * pi * 0.25) * 3.5 }
+          rate = actualize a.myRate e (4.0 + sin (time * pi * 0.25) * 3.5)
 
-          emitter = a.myEmitter { time, headroom: hr, rate: 4.0 + cos (time * pi * 0.25) * 3.5 }
+          emitter = actualize a.myEmitter e (4.0 + cos (time * pi * 0.25) * 3.5)
 
-          bufz = a.buffy { time, headroom: hr, offsets: map { rest: unit, offset: _ } (head emitter) }
+          bufz = actualize a.buffy e (map { rest: unit, offset: _ } (unwrap (extract emitter)))
 
-          hbufz = head bufz
+          hbufz = unwrap (extract bufz)
         in
           ichange
-            { oscGain: 0.1 + 0.09 * sin (pi * (head rate))
+            { oscGain: 0.1 + 0.09 * sin (pi * (extract rate))
             , b0Gain: bGain (V.index hbufz d0)
             , b1Gain: bGain (V.index hbufz d1)
             , b2Gain: bGain (V.index hbufz d2)
@@ -105,7 +107,7 @@ piece =
             , b2: bOnOff (V.index hbufz d2)
             , b3: bOnOff (V.index hbufz d3)
             }
-            $> { myRate: tail rate, myEmitter: tail emitter, buffy: tail bufz }
+            $> { myRate: unwrapCofree rate, myEmitter: unwrapCofree emitter, buffy: unwrapCofree bufz }
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =

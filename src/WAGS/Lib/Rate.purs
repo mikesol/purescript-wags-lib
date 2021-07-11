@@ -2,28 +2,61 @@
 module WAGS.Lib.Rate where
 
 import Prelude
-
+import Control.Comonad (class Comonad, class Extend, extract)
 import Control.Comonad.Cofree (Cofree, (:<))
-import Data.Newtype (class Newtype, wrap)
+import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
+import Data.Newtype (class Newtype, unwrap, wrap)
 import WAGS.Lib.Cofree (class Actualize)
 import WAGS.Run (SceneI(..))
 
+newtype MakeRate a
+  = MakeRate ({ time :: Number, rate :: Number } -> a)
 
-type TimeRate
-  = { time :: Number, rate :: Number }
+derive instance newtypeMakeRate :: Newtype (MakeRate a) _
+
+derive instance functorMakeRate :: Functor MakeRate
+
+derive newtype instance semigroupMakeRate :: Semigroup a => Semigroup (MakeRate a)
 
 type Rate
-  = TimeRate -> Cofree ((->) TimeRate) Number
+  = Number
 
-newtype ARate
-  = ARate Rate
+newtype CfRate f a
+  = CfRate (Cofree f a)
 
-derive instance newtypeARate :: Newtype ARate _
+derive instance newtypeCfRate :: Newtype (CfRate MakeRate Rate) _
+
+derive newtype instance functorCfRate :: Functor (CfRate MakeRate)
+
+derive newtype instance extendCfRate :: Extend (CfRate MakeRate)
+
+derive newtype instance comonadCfRate :: Comonad (CfRate MakeRate)
+
+derive newtype instance comonadCofreeCfRate :: ComonadCofree MakeRate (CfRate MakeRate)
+
+type ARate
+  = MakeRate (CfRate MakeRate Rate)
 
 makeRate :: { startsAt :: Number, prevTime :: Number } -> ARate
 makeRate { startsAt, prevTime } = wrap (go startsAt prevTime)
   where
-  go n i { time, rate } = let tnow = (time - i) * rate + n in tnow :< \t -> go tnow time t
+  go n i { time, rate } =
+    let
+      tnow = (time - i) * rate + n
+    in
+      wrap (tnow :< map unwrap (wrap (go tnow time)))
 
-instance actualizeRate :: Actualize ARate (SceneI a b) Number (Cofree ((->) TimeRate) Number) where
-  actualize (ARate r) (SceneI { time }) rate = r { time, rate }
+instance semigroupCfRate :: Semigroup (CfRate MakeRate Rate) where
+  append f0i f1i =
+    let
+      hd = ((extract f0i) + (extract f0i)) / 2.0
+
+      tl = unwrapCofree f0i <> unwrapCofree f1i
+    in
+      wrap (hd :< map unwrap tl)
+
+instance monoidARate :: Monoid ARate where
+  mempty = makeRate { startsAt: 0.0, prevTime: 0.0 }
+
+instance actualizeRate :: Actualize ARate (SceneI a b) Number (CfRate MakeRate Rate) where
+  actualize (MakeRate r) (SceneI { time }) rate = r { time, rate }

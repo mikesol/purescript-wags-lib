@@ -1,97 +1,83 @@
 module WAGS.Lib.Cofree where
 
-import Prelude
+import Prelude (Unit, unit)
 
-import Control.Comonad (class Comonad, class Extend)
+import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree as Cf
+import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
 import Data.Identity (Identity(..))
-import Data.Newtype (class Newtype, wrap)
 import Data.Symbol (class IsSymbol)
 import Heterogeneous.Mapping (class HMap, class Mapping, hmap)
-import Prim.Row (class Lacks, class Union, class Cons)
+import Prim.Ordering (Ordering, LT, EQ, GT)
+import Prim.Row (class Lacks, class Cons)
 import Prim.RowList (class RowToList, RowList)
 import Prim.RowList as RowList
+import Prim.Symbol as Sym
 import Record as Record
 import Type.Proxy (Proxy(..))
 import WAGS.Run (SceneI)
 
-data Tailz = Tailz
+data Tailz
+  = Tailz
 
 instance tailzMapping ::
-  (Tailable n o) =>
-  Mapping Tailz n o where
-  mapping Tailz = tail
+  ComonadCofree f w =>
+  Mapping Tailz (w a) (f (w a)) where
+  mapping Tailz = unwrapCofree
 
 tails :: forall ii oo. HMap Tailz { | ii } { | oo } => { | ii } -> { | oo }
-tails = (hmap :: Tailz -> { | ii } -> { | oo }) Tailz
+tails = hmap Tailz
 
-newtype Simply a
-  = Simply a
+data Headz
+  = Headz
 
-derive instance newtypeSimply :: Newtype (Simply a) _
+instance headzMapping ::
+  Comonad w =>
+  Mapping Headz (w a) a where
+  mapping Headz = extract
 
-derive instance functorSimply :: Functor Simply
-
-instance extendSimply :: Extend Simply where
-  extend ej i = Simply (ej i)
-
-instance comonadSimply :: Comonad Simply where
-  extract (Simply i) = i
-
-class Tailable i o where
-  tail :: i -> o
-
-instance tailableSimply :: Tailable (Simply a) (Simply a) where
-  tail = identity
-
-instance tailableCofree :: Tailable (Cf.Cofree f a) (f (Cf.Cofree f a)) where
-  tail = Cf.tail
-else instance tailableRate :: Newtype n (f (Cf.Cofree f a)) => Tailable (Cf.Cofree f a) n where
-  tail = wrap <<< Cf.tail
+heads :: forall ii oo. HMap Headz { | ii } { | oo } => { | ii } -> { | oo }
+heads = hmap Headz
 
 class Actualize n e r o | n e -> r o where
   actualize :: n -> e -> r -> o
 
-instance actualizeIdentityComonad :: Actualize (Identity (Cf.Cofree Identity Boolean)) e r (Cf.Cofree Identity Boolean) where
+instance actualizeIdentityComonad :: Actualize (Identity (Cf.Cofree Identity a)) e r (Cf.Cofree Identity a) where
   actualize (Identity c) _ _ = c
 
-instance actualizeSimply :: Actualize (Simply r) e r (Simply r) where
-  actualize a _ _ = a
+class ActualizeMany'' (cmp :: Ordering) (rln :: RowList Type) (rlr :: RowList Type) (n :: Row Type) (e :: Type) (r :: Row Type) (o :: Row Type) | rln rlr n e -> r o where
+  actualizeMany'' :: forall proxyCmp proxyRL. proxyCmp cmp -> proxyRL rln -> proxyRL rlr -> { | n } -> e -> { | r } -> { | o }
 
-class Obliterate i where
-  obliterate :: i -> Unit
+-- LT means that there is something in n that is not in r, so we give it unit
+instance actualizeManyLT :: (ActualizeMany' c rowList n (SceneI trigger world) r x, IsSymbol a, Cons a b z' n, Actualize b (SceneI trigger world) Unit o, Lacks a x, Cons a o x yay) => ActualizeMany'' LT (RowList.Cons a b c) rowList n (SceneI trigger world) r yay where
+  actualizeMany'' _ _ _ n e r = Record.insert (Proxy :: _ a) ((actualize :: b -> (SceneI trigger world) -> Unit -> o) (Record.get (Proxy :: _ a) n) e unit) (actualizeMany' (Proxy :: _ c) (Proxy :: _ rowList) n e r)
 
-instance obliterateAll :: Obliterate i where
-  obliterate _ = unit
+-- GT means that there is something in r that is not in n, so we ignore it
+instance actualizeManyGT :: (ActualizeMany' rowList c n (SceneI trigger world) r yay) => ActualizeMany'' GT rowList (RowList.Cons a b c) n (SceneI trigger world) r yay where
+  actualizeMany'' _ _ _ = actualizeMany' (Proxy :: _ rowList) (Proxy :: _ c)
 
-class AddUnit i l r | i l -> r where
-  addUnit :: { | i } -> { | l } -> { | r }
+-- EQ means they must be present in both
+instance actualizeManyEQ :: (ActualizeMany' c v n (SceneI trigger world) r x, IsSymbol a, Cons a b z' n, Cons a m z'' r, Actualize b (SceneI trigger world) m o, Lacks a x, Cons a o x yay) => ActualizeMany'' EQ (RowList.Cons a b c) (RowList.Cons a m v) n (SceneI trigger world) r yay where
+  actualizeMany'' _ _ _ n e r = Record.insert (Proxy :: _ a) ((actualize :: b -> (SceneI trigger world) -> m -> o) (Record.get (Proxy :: _ a) n) e (Record.get (Proxy :: _ a) r)) (actualizeMany' (Proxy :: _ c) (Proxy :: _ v) n e r)
 
-class ObliterateR (i :: RowList Type) (o :: Row Type) | i -> o where
-  obliterateR :: Proxy i -> { | o }
+class ActualizeMany' (rln :: RowList Type) (rlr :: RowList Type) (n :: Row Type) (e :: Type) (r :: Row Type) (o :: Row Type) | rln rlr n e -> r o where
+  actualizeMany' :: forall proxy. proxy rln -> proxy rlr -> { | n } -> e -> { | r } -> { | o }
 
-instance obliterateR'Nil :: ObliterateR RowList.Nil () where
-  obliterateR _ = {}
+instance actualizeMany'NilNil :: ActualizeMany' RowList.Nil RowList.Nil n (SceneI trigger world) r () where
+  actualizeMany' _ _ _ _ _ = {}
 
-instance obliterateR'Cons :: (ObliterateR c x, IsSymbol a, Obliterate b, Lacks a x, Cons a Unit x yay) => ObliterateR (RowList.Cons a b c) yay where
-  obliterateR _ = Record.insert (Proxy :: _ a) unit (obliterateR (Proxy :: _ c))
+instance actualizeMany'NilCons :: ActualizeMany' RowList.Nil (RowList.Cons a b c) n (SceneI trigger world) r () where
+  actualizeMany' _ _ _ _ _ = {}
 
-instance addUnitAll :: (RowToList ii iil, ObliterateR iil oo, Union l oo r) => AddUnit ii l r where
-  addUnit i l = Record.union l (obliterateR (Proxy :: _ iil))
+instance actualizeMany'ConsNil :: (ActualizeMany' c RowList.Nil n (SceneI trigger world) r x, IsSymbol a, Cons a b z' n, Actualize b (SceneI trigger world) Unit o, Lacks a x, Cons a o x yay) => ActualizeMany' (RowList.Cons a b c) RowList.Nil n (SceneI trigger world) r yay where
+  actualizeMany' _ _ n e r = Record.insert (Proxy :: _ a) ((actualize :: b -> (SceneI trigger world) -> Unit -> o) (Record.get (Proxy :: _ a) n) e unit) (actualizeMany' (Proxy :: _ c) (Proxy :: _ RowList.Nil) n e r)
 
-class ActualizeMany' (rl :: RowList Type) (n :: Row Type) (e :: Type) (r :: Row Type) (o :: Row Type) | rl n e -> r o where
-  actualizeMany' :: Proxy rl -> { | n } -> e -> { | r } -> { | o }
+instance actualizeMany'ConsCons :: (Sym.Compare a t cmp
+  , ActualizeMany'' cmp (RowList.Cons a b c) (RowList.Cons t u v) n e r o) => ActualizeMany' (RowList.Cons a b c) (RowList.Cons t u v) n e r o where
+  actualizeMany' = actualizeMany'' (Proxy :: _ cmp)
 
-instance actualizeMany'Nil :: ActualizeMany' RowList.Nil n (SceneI trigger world) r () where
-  actualizeMany' _ _ _ _ = {}
+class Actualizes (n :: Row Type) (e :: Type) (r :: Row Type) (o :: Row Type) | n e -> r o where
+  actualizes :: { | n } -> e -> { | r } -> { | o }
 
-instance actualizeMany'Cons :: (ActualizeMany' c n (SceneI trigger world) r x, IsSymbol a, Cons a b z' n, Cons a m z'' r, Actualize b (SceneI trigger world) m o, Lacks a x, Cons a o x yay) => ActualizeMany' (RowList.Cons a b c) n (SceneI trigger world) r yay where
-  actualizeMany' _ n e r = Record.insert (Proxy :: _ a) ((actualize :: b -> (SceneI trigger world) -> m -> o) (Record.get (Proxy :: _ a) n) e (Record.get (Proxy :: _ a) r)) (actualizeMany' (Proxy :: _ c) n e r)
-
-actualizes ::
-  forall toActualize rl e extraInfo extraInfoWithUnit out.
-  RowToList toActualize rl =>
-  AddUnit toActualize extraInfo extraInfoWithUnit =>
-  ActualizeMany' rl toActualize e extraInfoWithUnit out =>
-  { | toActualize } -> e -> { | extraInfo } -> { | out }
-actualizes toActualize e extraInfo = actualizeMany' (Proxy :: _ rl) toActualize e (addUnit toActualize extraInfo)
+instance actualizesAll :: (RowToList n rln, RowToList r rlr, ActualizeMany' rln rlr n e r o) => Actualizes n e r o where
+  actualizes = actualizeMany' (Proxy :: _ rln) (Proxy :: _ rlr)

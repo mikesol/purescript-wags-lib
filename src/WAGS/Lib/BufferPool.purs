@@ -1,8 +1,10 @@
 module WAGS.Lib.BufferPool where
 
 import Prelude
-
-import Control.Comonad.Cofree (Cofree, head, tail, (:<))
+import Control.Comonad (class Comonad, extract)
+import Control.Comonad.Cofree (Cofree, (:<))
+import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
+import Control.Extend (class Extend)
 import Data.Array as A
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int (toNumber)
@@ -17,116 +19,103 @@ import Data.Vec as V
 import Type.Proxy (Proxy(..))
 import WAGS.Graph.AudioUnit (APOnOff, OnOff(..))
 import WAGS.Graph.Parameter (AudioParameter, AudioParameter_(..), ff)
+import WAGS.Lib.Blip (ABlip, MakeBlip(..), makeBlip)
 import WAGS.Lib.Cofree (class Actualize)
-import WAGS.Lib.Emitter (AnEmitter(..), fEmitter, makeEmitter)
-import WAGS.Lib.Impulse (ABlip(..), makeBlip)
+import WAGS.Lib.Emitter (MakeEmitter(..), AnEmitter, fEmitter, makeEmitter)
 import WAGS.Lib.SFofT (SAPFofT, makePiecewise)
 import WAGS.Run (SceneI(..))
 
--- use array as it is faster
-type TimeHeadroomOffsets (rest :: Type)
+type TimeHeadroomOffsets rest
   = { time :: Number, headroom :: Number, offsets :: Array { offset :: Number, rest :: rest } }
 
 type TimeHeadroomRate
   = { time :: Number, headroom :: Number, rate :: Number }
 
-type BufferInternal (rest :: Type)
+newtype MakeBufferPoolWithRest rest a
+  = MakeBufferPoolWithRest ({ time :: Number, headroom :: Number, offsets :: Array { offset :: Number, rest :: rest } } -> a)
+
+derive instance newtypeMakeBufferPoolWithRest :: Newtype (MakeBufferPoolWithRest rest a) _
+
+derive instance functorMakeBufferPoolWithRest :: Functor (MakeBufferPoolWithRest rest)
+
+derive newtype instance semigroupMakeBufferPoolWithRest :: Semigroup a => Semigroup (MakeBufferPoolWithRest rest a)
+
+newtype MakeBufferPool a
+  = MakeBufferPool (TimeHeadroomRate -> a)
+
+derive instance newtypeMakeBufferPool :: Newtype (MakeBufferPool a) _
+
+derive instance functorMakeBufferPool :: Functor MakeBufferPool
+
+derive newtype instance semigroupMakeBufferPool :: Semigroup a => Semigroup (MakeBufferPool a)
+
+type BufferInternal rest
   = { startedAt :: Number, env :: SAPFofT, rest :: rest }
 
-type Buffy (rest :: Type)
+type Buffy rest
   = { gain :: AudioParameter, onOff :: APOnOff, rest :: rest }
 
 unchangingPiecewise :: NonEmpty List (Number /\ Number)
 unchangingPiecewise = (0.0 /\ 1.0) :| Nil
 
-type InternalState (rest :: Type)
+type InternalState rest
   = { bufferInternal :: Maybe (BufferInternal rest), buffy :: Maybe (Buffy rest) }
 
 notPlaying :: forall (rest :: Type). InternalState rest
 notPlaying = { bufferInternal: Nothing, buffy: Nothing }
 
-type BuffyVec (n :: Type) (rest :: Type)
-  = V.Vec n (Maybe (Buffy rest))
+newtype BuffyVec (n :: Type) (rest :: Type)
+  = BuffyVec (V.Vec n (Maybe (Buffy rest)))
 
-type BuffyStream (n :: Type) (rest :: Type)
-  = TimeHeadroomOffsets rest ->
-    Cofree ((->) (TimeHeadroomOffsets rest)) (BuffyVec n rest)
+derive instance newtypeBuffyVec :: Newtype (BuffyVec n rest) _
 
-type HotBuffyStream (n :: Type)
-  = TimeHeadroomRate ->
-    Cofree ((->) TimeHeadroomRate) (BuffyVec n Unit)
+newtype CfBufferPool f a
+  = CfBufferPool (Cofree f a)
 
-newtype ABufferPool n r
-  = ABufferPool (BuffyStream n r)
+derive instance newtypeCfBufferPool :: Newtype (CfBufferPool (MakeBufferPoolWithRest r) (BuffyVec n r)) _
 
-derive instance newtypeABufferPool :: Newtype (ABufferPool n r) _
+derive newtype instance functorCfBufferPool :: Functor (CfBufferPool MakeBufferPool)
 
-newtype AHotBufferPool n
-  = AHotBufferPool (HotBuffyStream n)
+derive newtype instance extendCfBufferPool :: Extend (CfBufferPool (MakeBufferPoolWithRest r))
 
-derive instance newtypeAHotBufferPool :: Newtype (AHotBufferPool n) _
+derive newtype instance comonadCfBufferPool :: Comonad (CfBufferPool (MakeBufferPoolWithRest r))
 
-newtype ASnappyBufferPool n
-  = ASnappyBufferPool (HotBuffyStream n)
+derive newtype instance comonadCofreeCfBufferPool :: ComonadCofree (MakeBufferPoolWithRest r) (CfBufferPool (MakeBufferPoolWithRest r))
 
-derive instance newtypeASnappyBufferPool :: Newtype (ASnappyBufferPool n) _
+type ABufferPool n rest
+  = MakeBufferPoolWithRest rest (CfBufferPool (MakeBufferPoolWithRest rest) (BuffyVec n rest))
 
-makeHotBufferPool ::
-  forall n.
-  Pos n =>
-  { prevTime :: Number, startsAt :: Number } ->
-  Maybe Number ->
-  Maybe (NonEmpty List (Number /\ Number)) ->
-  AHotBufferPool n
-makeHotBufferPool ptsa dur pwf = AHotBufferPool (go emitter buffer)
-  where
-  (AnEmitter emitter) = makeEmitter ptsa
+newtype CfHotBufferPool f a
+  = CfHotBufferPool (Cofree f a)
 
-  (ABufferPool buffer) = makeBufferPool' (Proxy :: _ n) dur pwf
+derive instance newtypeCfHotBufferPool :: Newtype (CfHotBufferPool MakeBufferPool (BuffyVec n Unit)) _
 
-  go e b { time, headroom, rate } = head bnow :< go (tail enow) (tail bnow)
-    where
-    enow = e { time, headroom, rate }
+derive newtype instance functorCfHotBufferPool :: Functor (CfHotBufferPool MakeBufferPool)
 
-    bnow = b { time, headroom, offsets: map { rest: unit, offset: _ } (head enow) }
+derive newtype instance extendCfHotBufferPool :: Extend (CfHotBufferPool MakeBufferPool)
 
-makeSnappyBufferPool ::
-  forall n.
-  Pos n =>
-  { prevTime :: Number, startsAt :: Number } ->
-  Maybe Number ->
-  Maybe (NonEmpty List (Number /\ Number)) ->
-  ASnappyBufferPool n
-makeSnappyBufferPool ptsa dur pwf = ASnappyBufferPool (go blip buffer)
-  where
-  (ABlip blip) = makeBlip
+derive newtype instance comonadCfHotBufferPool :: Comonad (CfHotBufferPool MakeBufferPool)
 
-  (ABufferPool buffer) = makeBufferPool dur pwf
+derive newtype instance comonadCofreeCfHotBufferPool :: ComonadCofree MakeBufferPool (CfHotBufferPool MakeBufferPool)
 
-  go e b { time, headroom, rate } = head bnow :< go (tail enow) (tail bnow)
-    where
-    emitted = fEmitter rate { time, headroom }
+type AHotBufferPool n
+  = MakeBufferPool (CfHotBufferPool MakeBufferPool (BuffyVec n Unit))
 
-    enow = e (isJust emitted)
+newtype CfSnappyBufferPool f a
+  = CfSnappyBufferPool (Cofree f a)
 
-    bnow =
-      b
-        { time
-        , headroom
-        , offsets:
-            if (head enow) then
-              fromMaybe [] (pure <<< { offset: _, rest: unit } <$> emitted)
-            else
-              []
-        }
+derive instance newtypeCfSnappyBufferPool :: Newtype (CfSnappyBufferPool MakeBufferPool (BuffyVec n Unit)) _
 
-makeBufferPool ::
-  forall n r.
-  Pos n =>
-  Maybe Number ->
-  Maybe (NonEmpty List (Number /\ Number)) ->
-  ABufferPool n r
-makeBufferPool = makeBufferPool' (Proxy :: _ n)
+derive newtype instance functorCfSnappyBufferPool :: Functor (CfSnappyBufferPool MakeBufferPool)
+
+derive newtype instance extendCfSnappyBufferPool :: Extend (CfSnappyBufferPool MakeBufferPool)
+
+derive newtype instance comonadCfSnappyBufferPool :: Comonad (CfSnappyBufferPool MakeBufferPool)
+
+derive newtype instance comonadCofreeCfSnappyBufferPool :: ComonadCofree MakeBufferPool (CfSnappyBufferPool MakeBufferPool)
+
+type ASnappyBufferPool n
+  = MakeBufferPool (CfSnappyBufferPool MakeBufferPool (BuffyVec n Unit))
 
 makeBufferPool' ::
   forall n r.
@@ -135,7 +124,7 @@ makeBufferPool' ::
   Maybe Number ->
   Maybe (NonEmpty List (Number /\ Number)) ->
   ABufferPool n r
-makeBufferPool' _ dur pwf = ABufferPool (go 0 (V.fill (const (Nothing :: Maybe (BufferInternal r)))))
+makeBufferPool' _ dur pwf = MakeBufferPoolWithRest (go 0 (V.fill (const (Nothing :: Maybe (BufferInternal r)))))
   where
   len :: Int
   len = toInt' (Proxy :: _ n)
@@ -150,7 +139,7 @@ makeBufferPool' _ dur pwf = ABufferPool (go 0 (V.fill (const (Nothing :: Maybe (
 
       now = sapfot { time, headroom }
     in
-      { bufferInternal: Just { startedAt: time + offset, env: tail now, rest }, buffy: Just { gain: head now, onOff: ff offset (pure onOff), rest } }
+      { bufferInternal: Just { startedAt: time + offset, env: unwrapCofree now, rest }, buffy: Just { gain: extract now, onOff: ff offset (pure onOff), rest } }
 
   -- cPos myPos
   maybeBufferToGainOnOff ::
@@ -171,89 +160,134 @@ makeBufferPool' _ dur pwf = ABufferPool (go 0 (V.fill (const (Nothing :: Maybe (
       let
         now = env { time, headroom }
       in
-        { bufferInternal: Just { startedAt, env: tail now, rest: prevRest }, buffy: Just { gain: head now, onOff: pure On, rest: prevRest } }
+        { bufferInternal: Just { startedAt, env: unwrapCofree now, rest: prevRest }, buffy: Just { gain: extract now, onOff: pure On, rest: prevRest } }
 
   go ::
     Int ->
     V.Vec n (Maybe (BufferInternal r)) ->
     TimeHeadroomOffsets r ->
-    Cofree ((->) (TimeHeadroomOffsets r)) (V.Vec n (Maybe (Buffy r)))
-  go cIdx v tht@{ offsets } = map _.buffy internalStates :< go ((cIdx + A.length offsets) `mod` len) (map _.bufferInternal internalStates)
+    CfBufferPool (MakeBufferPoolWithRest r) (BuffyVec n r)
+  go cIdx v tht@{ offsets } =
+    CfBufferPool
+      ( (wrap (map _.buffy internalStates))
+          :< map unwrap
+              ( wrap
+                  ( go ((cIdx + A.length offsets) `mod` len)
+                      (map _.bufferInternal internalStates)
+                  )
+              )
+      )
     where
     internalStates = mapWithIndex (maybeBufferToGainOnOff cIdx tht) v
 
--- todo: code dup, merge with below
-appendUBP :: forall nt n. Pos n => Semigroup nt => Newtype nt (TimeHeadroomRate -> Cofree ((->) TimeHeadroomRate) (BuffyVec n Unit)) => nt -> nt -> nt
-appendUBP i0' i1' = wrap f
+makeBufferPool ::
+  forall n r.
+  Pos n =>
+  Maybe Number ->
+  Maybe (NonEmpty List (Number /\ Number)) ->
+  ABufferPool n r
+makeBufferPool = makeBufferPool' (Proxy :: _ n)
+
+makeHotBufferPool ::
+  forall n.
+  Pos n =>
+  { prevTime :: Number, startsAt :: Number } ->
+  Maybe Number ->
+  Maybe (NonEmpty List (Number /\ Number)) ->
+  AHotBufferPool n
+makeHotBufferPool ptsa dur pwf = MakeBufferPool (go emitter buffer)
   where
-  i0 = unwrap i0'
-  i1 = unwrap i1'
-  f :: TimeHeadroomRate -> Cofree ((->) TimeHeadroomRate) (BuffyVec n Unit)
-  f tho =
-    ( V.zipWithE
-        ( \a b -> case a, b of
-            Nothing, Nothing -> Nothing
-            Nothing, Just x -> Just x
-            Just x, Nothing -> Just x
-            Just x, Just y ->
-              Just
-                { gain: x.gain + y.gain / (pure 2.0)
-                , onOff:
-                    case x.onOff, y.onOff of
-                      i@(AudioParameter { param: (Just On) }), j -> i
-                      i, j@(AudioParameter { param: (Just On) }) -> j
-                      i@(AudioParameter { param: (Just OffOn) }), j -> i
-                      i, j@(AudioParameter { param: (Just OffOn) }) -> j
-                      i, j -> i
-                , rest: x.rest <> y.rest
-                }
-        )
-        (head i0r)
-        (head i1r)
-    )
-      :< (unwrap (append ((wrap (tail i0r)) :: nt) (wrap (tail i1r))))
-    where
-    i0r = i0 tho
+  emitter = makeEmitter ptsa
 
-    i1r = i1 tho
+  buffer = makeBufferPool' (Proxy :: _ n) dur pwf
 
-instance semigroupHotBufferPool :: Pos n => Semigroup (AHotBufferPool n) where
-  append = appendUBP
-
-instance semigroupSnappyBufferPool :: Pos n => Semigroup (ASnappyBufferPool n) where
-  append = appendUBP
-
-instance semigroupBufferPool :: (Pos n, Semigroup r) => Semigroup (ABufferPool n r) where
-  append (ABufferPool i0) (ABufferPool i1) = ABufferPool f
-    where
-    f :: TimeHeadroomOffsets r -> Cofree ((->) (TimeHeadroomOffsets r)) (BuffyVec n r)
-    f tho =
-      ( V.zipWithE
-          ( \a b -> case a, b of
-              Nothing, Nothing -> Nothing
-              Nothing, Just x -> Just x
-              Just x, Nothing -> Just x
-              Just x, Just y ->
-                Just
-                  { gain: x.gain + y.gain / (pure 2.0)
-                  , onOff:
-                      case x.onOff, y.onOff of
-                        i@(AudioParameter { param: (Just On) }), j -> i
-                        i, j@(AudioParameter { param: (Just On) }) -> j
-                        i@(AudioParameter { param: (Just OffOn) }), j -> i
-                        i, j@(AudioParameter { param: (Just OffOn) }) -> j
-                        i, j -> i
-                  , rest: x.rest <> y.rest
-                  }
-          )
-          (head i0r)
-          (head i1r)
+  go :: AnEmitter -> ABufferPool n Unit -> TimeHeadroomRate -> CfHotBufferPool MakeBufferPool (BuffyVec n Unit)
+  go (MakeEmitter e) (MakeBufferPoolWithRest b) { time, headroom, rate } =
+    wrap
+      ( extract bnow
+          :< map unwrap (wrap (go (unwrapCofree enow) (unwrapCofree bnow)))
       )
-        :< (unwrap (append ((wrap (tail i0r)) :: ABufferPool n r) (wrap (tail i1r))))
-      where
-      i0r = i0 tho
+    where
+    enow = e { time, headroom, rate }
 
-      i1r = i1 tho
+    bnow = b { time, headroom, offsets: map { rest: unit, offset: _ } (unwrap (extract enow)) }
+
+makeSnappyBufferPool ::
+  forall n.
+  Pos n =>
+  { prevTime :: Number, startsAt :: Number } ->
+  Maybe Number ->
+  Maybe (NonEmpty List (Number /\ Number)) ->
+  ASnappyBufferPool n
+makeSnappyBufferPool ptsa dur pwf = MakeBufferPool (go blip buffer)
+  where
+  blip = makeBlip
+
+  buffer = makeBufferPool dur pwf
+
+  go :: ABlip -> ABufferPool n Unit -> TimeHeadroomRate -> CfSnappyBufferPool MakeBufferPool (BuffyVec n Unit)
+  go (MakeBlip e) (MakeBufferPoolWithRest b) { time, headroom, rate } = wrap (extract bnow :< map unwrap (wrap (go (unwrapCofree enow) (unwrapCofree bnow))))
+    where
+    emitted = fEmitter rate { time, headroom }
+
+    enow = e (isJust emitted)
+
+    bnow =
+      b
+        { time
+        , headroom
+        , offsets:
+            if (extract enow) then
+              fromMaybe [] (pure <<< { offset: _, rest: unit } <$> emitted)
+            else
+              []
+        }
+
+apBV ::
+  forall w f a n.
+  Newtype (w f (BuffyVec n a)) (Cofree f (BuffyVec n a)) =>
+  Semigroup (f (w f (BuffyVec n a))) =>
+  Functor f =>
+  Semigroup a =>
+  ComonadCofree f (w f) =>
+  Comonad (w f) =>
+  w f (BuffyVec n a) -> w f (BuffyVec n a) -> w f (BuffyVec n a)
+apBV i0r i1r =
+  wrap
+    ( ( wrap
+          ( V.zipWithE
+              ( \a b -> case a, b of
+                  Nothing, Nothing -> Nothing
+                  Nothing, Just x -> Just x
+                  Just x, Nothing -> Just x
+                  Just x, Just y ->
+                    Just
+                      { gain: x.gain + y.gain / (pure 2.0)
+                      , onOff:
+                          case x.onOff, y.onOff of
+                            i@(AudioParameter { param: (Just On) }), j -> i
+                            i, j@(AudioParameter { param: (Just On) }) -> j
+                            i@(AudioParameter { param: (Just OffOn) }), j -> i
+                            i, j@(AudioParameter { param: (Just OffOn) }) -> j
+                            i, j -> i
+                      , rest: x.rest <> y.rest
+                      }
+              )
+              (unwrap (extract i0r))
+              (unwrap (extract i1r))
+          )
+      )
+        :< map unwrap (unwrapCofree i0r <> unwrapCofree i1r)
+    )
+
+instance semigroupBufferPool :: (Pos n, Semigroup rest) => Semigroup (CfBufferPool (MakeBufferPoolWithRest rest) (BuffyVec n rest)) where
+  append = apBV
+
+instance semigroupHotBufferPool :: Pos n => Semigroup (CfHotBufferPool MakeBufferPool (BuffyVec n Unit)) where
+  append = apBV
+
+instance semigroupSnappyBufferPool :: Pos n => Semigroup (CfSnappyBufferPool MakeBufferPool (BuffyVec n Unit)) where
+  append = apBV
 
 instance monoidBufferPool :: (Semigroup r, Pos n) => Monoid (ABufferPool n r) where
   mempty = makeBufferPool Nothing Nothing
@@ -270,8 +304,11 @@ bGain = maybe (pure 0.0) _.gain
 bOnOff :: forall r. Maybe (Buffy r) -> APOnOff
 bOnOff = maybe (pure Off) _.onOff
 
-instance actualizeHotBufferPool :: Actualize (AHotBufferPool n) (SceneI a b) Number (Cofree ((->) TimeHeadroomRate) (BuffyVec n Unit)) where
-  actualize (AHotBufferPool r) (SceneI { time, headroom }) rate = r { time, headroom: toNumber headroom / 1000.0, rate }
+instance actualizeBufferPool :: Actualize (ABufferPool n r) (SceneI a b) (Array { offset :: Number, rest :: r }) (CfBufferPool (MakeBufferPoolWithRest r) (BuffyVec n r)) where
+  actualize (MakeBufferPoolWithRest r) (SceneI { time, headroom }) offsets = r { time, headroom: toNumber headroom / 1000.0, offsets }
 
-instance actualizeSnappyBufferPool :: Actualize (ASnappyBufferPool n) (SceneI a b) Number (Cofree ((->) TimeHeadroomRate) (BuffyVec n Unit)) where
-  actualize (ASnappyBufferPool r) (SceneI { time, headroom }) rate = r { time, headroom: toNumber headroom / 1000.0, rate }
+instance actualizeHotBufferPool :: Actualize (AHotBufferPool n) (SceneI a b) Number (CfHotBufferPool MakeBufferPool (BuffyVec n Unit)) where
+  actualize (MakeBufferPool r) (SceneI { time, headroom }) rate = r { time, headroom: toNumber headroom / 1000.0, rate }
+
+instance actualizeSnappyBufferPool :: Actualize (ASnappyBufferPool n) (SceneI a b) Number (CfSnappyBufferPool MakeBufferPool (BuffyVec n Unit)) where
+  actualize (MakeBufferPool r) (SceneI { time, headroom }) rate = r { time, headroom: toNumber headroom / 1000.0, rate }
