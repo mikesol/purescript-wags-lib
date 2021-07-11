@@ -1,62 +1,65 @@
 module WAGS.Lib.Impulse where
 
 import Prelude
-
-import Control.Comonad.Cofree (Cofree, deferCofree, head, tail, (:<))
-import Data.Identity (Identity(..))
+import Control.Comonad (class Comonad)
+import Control.Comonad.Cofree (Cofree, deferCofree, head)
+import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
+import Control.Extend (class Extend)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Tuple.Nested ((/\))
 import WAGS.Lib.Cofree (class Actualize)
 
+newtype MakeImpulse a
+  = MakeImpulse a
+
+derive instance newtypeFofTimeImpulse :: Newtype (MakeImpulse a) _
+
+derive instance functorFofTimeImpulse :: Functor MakeImpulse
+
+newtype Impulse
+  = Impulse Boolean
+
+derive instance newtypeImpulse :: Newtype Impulse _
+
+derive newtype instance heytingAlgebraImpulse :: HeytingAlgebra Impulse
+
+newtype CfImpulse f a
+  = CfImpulse (Cofree f a)
+
+derive instance newtypeCfImpulse :: Newtype (CfImpulse MakeImpulse Impulse) _
+
+derive newtype instance extendCfImpulse :: Extend (CfImpulse MakeImpulse)
+
+derive newtype instance comonadCfImpulse :: Comonad (CfImpulse MakeImpulse)
+
+derive newtype instance comonadCofreeCfImpulse :: ComonadCofree MakeImpulse (CfImpulse MakeImpulse)
+
+type AnImpulse
+  = MakeImpulse (CfImpulse MakeImpulse Impulse)
+
 -- | A single impulse
 makeImpulse :: AnImpulse
-makeImpulse = wrap $ wrap $ go true
+makeImpulse = wrap $ wrap $ go (wrap true)
   where
-  go tf = deferCofree \_ -> tf /\ pure (go false)
+  go tf = deferCofree \_ -> tf /\ wrap (go (wrap false))
 
-newtype AnImpulse
-  = AnImpulse (Identity (Cofree Identity Boolean))
+instance semigroupImpulse :: Semigroup (CfImpulse MakeImpulse Impulse) where
+  append i0r@(CfImpulse i0) i1r@(CfImpulse i1) =
+    wrap
+      ( deferCofree \_ ->
+          let
+            hd = head i0 || head i1
 
-derive instance newtypeAnImpulse :: Newtype AnImpulse _
+            tl = unwrapCofree i0r <> unwrapCofree i1r
+          in
+            hd /\ (map unwrap tl)
+      )
 
-instance semigroupImpulse :: Semigroup AnImpulse where
-  append (AnImpulse i0) (AnImpulse i1) =
-    let
-      i0r = unwrap i0
-
-      i1r = unwrap i1
-    in
-      AnImpulse (wrap (deferCofree \_ -> ((head i0r) || (head i1r)) /\ (unwrap (append ((wrap (tail i0r)) :: AnImpulse) (wrap (tail i1r))))))
+instance semigroupAnImpulse :: Semigroup AnImpulse where
+  append (MakeImpulse i0) (MakeImpulse i1) = MakeImpulse (i0 <> i1)
 
 instance monoidImpulse :: Monoid AnImpulse where
   mempty = makeImpulse
 
-instance actualizeImpulse :: Actualize AnImpulse e r (Cofree Identity Boolean) where
-  actualize (AnImpulse (Identity c)) _ _ = c
-
--- | A stream that sends an impulse when moving from 0 to 1
-makeBlip :: ABlip
-makeBlip = wrap $ go false
-  where
-  go prev cur = (not prev && cur) :< go cur
-
-newtype ABlip
-  = ABlip (Boolean -> Cofree ((->) Boolean) Boolean)
-
-derive instance newtypeABlip :: Newtype ABlip _
-
-instance semigroupBlip :: Semigroup ABlip where
-  append (ABlip i0) (ABlip i1) = ABlip f
-    where
-    f :: Boolean -> Cofree ((->) Boolean) Boolean
-    f tho = ((head i0r) || (head i1r)) :< ((unwrap (append ((wrap (tail i0r)) :: ABlip) (wrap (tail i1r)))))
-      where
-      i0r = i0 tho
-
-      i1r = i1 tho
-
-instance monoidBlip :: Monoid ABlip where
-  mempty = makeBlip
-
-instance actualizeBlip :: Actualize ABlip e Boolean (Cofree ((->) Boolean) Boolean) where
-  actualize (ABlip r) _ b = r b
+instance actualizeImpulse :: Actualize AnImpulse e r (CfImpulse MakeImpulse Impulse) where
+  actualize (MakeImpulse c) _ _ = c

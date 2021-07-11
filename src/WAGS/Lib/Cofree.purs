@@ -1,11 +1,10 @@
 module WAGS.Lib.Cofree where
 
 import Prelude
-
-import Control.Comonad (class Comonad, class Extend)
+import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree as Cf
+import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
 import Data.Identity (Identity(..))
-import Data.Newtype (class Newtype, wrap)
 import Data.Symbol (class IsSymbol)
 import Heterogeneous.Mapping (class HMap, class Mapping, hmap)
 import Prim.Row (class Lacks, class Union, class Cons)
@@ -15,48 +14,33 @@ import Record as Record
 import Type.Proxy (Proxy(..))
 import WAGS.Run (SceneI)
 
-data Tailz = Tailz
+data Tailz
+  = Tailz
 
 instance tailzMapping ::
-  (Tailable n o) =>
-  Mapping Tailz n o where
-  mapping Tailz = tail
+  ComonadCofree f w =>
+  Mapping Tailz (w a) (f (w a)) where
+  mapping Tailz = unwrapCofree
 
 tails :: forall ii oo. HMap Tailz { | ii } { | oo } => { | ii } -> { | oo }
-tails = (hmap :: Tailz -> { | ii } -> { | oo }) Tailz
+tails = hmap Tailz
 
-newtype Simply a
-  = Simply a
+data Headz
+  = Headz
 
-derive instance newtypeSimply :: Newtype (Simply a) _
+instance headzMapping ::
+  Comonad w =>
+  Mapping Headz (w a) a where
+  mapping Headz = extract
 
-derive instance functorSimply :: Functor Simply
-
-instance extendSimply :: Extend Simply where
-  extend ej i = Simply (ej i)
-
-instance comonadSimply :: Comonad Simply where
-  extract (Simply i) = i
-
-class Tailable i o where
-  tail :: i -> o
-
-instance tailableSimply :: Tailable (Simply a) (Simply a) where
-  tail = identity
-
-instance tailableCofree :: Tailable (Cf.Cofree f a) (f (Cf.Cofree f a)) where
-  tail = Cf.tail
-else instance tailableRate :: Newtype n (f (Cf.Cofree f a)) => Tailable (Cf.Cofree f a) n where
-  tail = wrap <<< Cf.tail
+heads :: forall ii oo. HMap Headz { | ii } { | oo } => { | ii } -> { | oo }
+heads = hmap Headz
 
 class Actualize n e r o | n e -> r o where
   actualize :: n -> e -> r -> o
 
 instance actualizeIdentityComonad :: Actualize (Identity (Cf.Cofree Identity Boolean)) e r (Cf.Cofree Identity Boolean) where
   actualize (Identity c) _ _ = c
-
-instance actualizeSimply :: Actualize (Simply r) e r (Simply r) where
-  actualize a _ _ = a
 
 class Obliterate i where
   obliterate :: i -> Unit
