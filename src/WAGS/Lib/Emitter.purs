@@ -30,6 +30,12 @@ newtype Emission
 
 derive instance newtypeEmission :: Newtype Emission _
 
+derive newtype instance eqEmission :: Eq Emission
+
+derive newtype instance ordEmission :: Ord Emission
+
+derive newtype instance showEmission :: Show Emission
+
 newtype CfEmitter f a
   = CfEmitter (Cofree f a)
 
