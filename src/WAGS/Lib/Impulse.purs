@@ -12,21 +12,21 @@ import WAGS.Lib.Cofree (class Actualize)
 newtype MakeImpulse a
   = MakeImpulse a
 
-derive instance newtypeFofTimeImpulse :: Newtype (MakeImpulse a) _
+derive instance newtypeMakeImpulse :: Newtype (MakeImpulse a) _
 
-derive instance functorFofTimeImpulse :: Functor MakeImpulse
+derive instance functorMakeImpulse :: Functor MakeImpulse
 
-newtype Impulse
-  = Impulse Boolean
+derive newtype instance semigroupMakeImpulse :: Semigroup a => Semigroup (MakeImpulse a)
 
-derive instance newtypeImpulse :: Newtype Impulse _
-
-derive newtype instance heytingAlgebraImpulse :: HeytingAlgebra Impulse
+type Impulse
+  = Boolean
 
 newtype CfImpulse f a
   = CfImpulse (Cofree f a)
 
 derive instance newtypeCfImpulse :: Newtype (CfImpulse MakeImpulse Impulse) _
+
+derive instance functorCfImpulse :: Functor (CfImpulse MakeImpulse)
 
 derive newtype instance extendCfImpulse :: Extend (CfImpulse MakeImpulse)
 
@@ -39,9 +39,9 @@ type AnImpulse
 
 -- | A single impulse
 makeImpulse :: AnImpulse
-makeImpulse = wrap $ wrap $ go (wrap true)
+makeImpulse = wrap $ wrap $ go true
   where
-  go tf = deferCofree \_ -> tf /\ wrap (go (wrap false))
+  go tf = deferCofree \_ -> tf /\ wrap (go false)
 
 instance semigroupImpulse :: Semigroup (CfImpulse MakeImpulse Impulse) where
   append i0r@(CfImpulse i0) i1r@(CfImpulse i1) =
@@ -54,9 +54,6 @@ instance semigroupImpulse :: Semigroup (CfImpulse MakeImpulse Impulse) where
           in
             hd /\ (map unwrap tl)
       )
-
-instance semigroupAnImpulse :: Semigroup AnImpulse where
-  append (MakeImpulse i0) (MakeImpulse i1) = MakeImpulse (i0 <> i1)
 
 instance monoidImpulse :: Monoid AnImpulse where
   mempty = makeImpulse

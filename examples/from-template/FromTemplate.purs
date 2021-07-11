@@ -1,11 +1,14 @@
 module WAGS.Lib.Example.FromTemplate where
 
 import Prelude
-import Control.Comonad.Cofree (Cofree, head, mkCofree)
+
+import Control.Comonad (extract)
+import Control.Comonad.Cofree (Cofree, mkCofree)
 import Control.Promise (toAffE)
 import Data.Foldable (for_)
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..))
+import Data.Newtype (unwrap)
 import Data.Typelevel.Num (D20)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
@@ -28,8 +31,8 @@ import WAGS.Create.Optionals (gain, playBuf, speaker, pan)
 import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (AHotBufferPool, BuffyVec, bGain, bOnOff)
 import WAGS.Lib.Cofree (actualizes, tails)
-import WAGS.Template (fromTemplate)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
+import WAGS.Template (fromTemplate)
 
 ntropi :: Behavior Number
 ntropi =
@@ -55,13 +58,13 @@ piece =
         let
           actualized = actualizes a e { hbp: 12.0 * (entropy `pow` 6.0) }
         in
-          ichange (scene entropy (head actualized.hbp)) $> tails actualized
+          ichange (scene entropy (extract actualized.hbp)) $> tails actualized
     )
   where
   scene (entropy :: Number) (v :: BuffyVec D20 Unit) =
     speaker
       { mainBus:
-          fromTemplate (Proxy :: _ "myPool") v \i gor ->
+          fromTemplate (Proxy :: _ "myPool") (unwrap v) \i gor ->
             gain (bGain gor * pure 0.5)
               { myPlayer:
                   pan (entropy * 2.0 - 1.0)

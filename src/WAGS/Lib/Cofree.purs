@@ -39,7 +39,7 @@ heads = hmap Headz
 class Actualize n e r o | n e -> r o where
   actualize :: n -> e -> r -> o
 
-instance actualizeIdentityComonad :: Actualize (Identity (Cf.Cofree Identity Boolean)) e r (Cf.Cofree Identity Boolean) where
+instance actualizeIdentityComonad :: Actualize (Identity (Cf.Cofree Identity a)) e r (Cf.Cofree Identity a) where
   actualize (Identity c) _ _ = c
 
 class Obliterate i where

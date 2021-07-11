@@ -12,19 +12,21 @@ import WAGS.Run (SceneI(..))
 newtype MakeRate a
   = MakeRate ({ time :: Number, rate :: Number } -> a)
 
-derive instance newtypeFofTimeRate :: Newtype (MakeRate a) _
+derive instance newtypeMakeRate :: Newtype (MakeRate a) _
 
-derive instance functorFofTimeRate :: Functor MakeRate
+derive instance functorMakeRate :: Functor MakeRate
 
-newtype Rate
-  = Rate Number
+derive newtype instance semigroupMakeRate :: Semigroup a => Semigroup (MakeRate a)
 
-derive instance newtypeRate :: Newtype Rate _
+type Rate
+  = Number
 
 newtype CfRate f a
   = CfRate (Cofree f a)
 
 derive instance newtypeCfRate :: Newtype (CfRate MakeRate Rate) _
+
+derive newtype instance functorCfRate :: Functor (CfRate MakeRate)
 
 derive newtype instance extendCfRate :: Extend (CfRate MakeRate)
 
@@ -42,19 +44,16 @@ makeRate { startsAt, prevTime } = wrap (go startsAt prevTime)
     let
       tnow = (time - i) * rate + n
     in
-      wrap ((wrap tnow) :< map unwrap (wrap (go tnow time)))
+      wrap (tnow :< map unwrap (wrap (go tnow time)))
 
 instance semigroupCfRate :: Semigroup (CfRate MakeRate Rate) where
   append f0i f1i =
     let
-      hd = wrap ((unwrap (extract f0i) + unwrap (extract f0i)) / 2.0)
+      hd = ((extract f0i) + (extract f0i)) / 2.0
 
       tl = unwrapCofree f0i <> unwrapCofree f1i
     in
       wrap (hd :< map unwrap tl)
-
-instance semigroupARate :: Semigroup ARate where
-  append (MakeRate f0) (MakeRate f1) = wrap ((<>) <$> f0 <*> f1)
 
 instance monoidARate :: Monoid ARate where
   mempty = makeRate { startsAt: 0.0, prevTime: 0.0 }
