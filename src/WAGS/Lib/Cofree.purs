@@ -1,13 +1,16 @@
 module WAGS.Lib.Cofree where
 
-import Prelude (Unit, unit)
-
 import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree as Cf
 import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
+import Data.Either (Either(..))
 import Data.Identity (Identity(..))
 import Data.Symbol (class IsSymbol)
+import Data.Tuple (Tuple(..))
+import Data.Typelevel.Num (class Nat)
+import Data.Vec as V
 import Heterogeneous.Mapping (class HMap, class Mapping, hmap)
+import Prelude (Unit, unit)
 import Prim.Ordering (Ordering, LT, EQ, GT)
 import Prim.Row (class Lacks, class Cons)
 import Prim.RowList (class RowToList, RowList)
@@ -45,6 +48,19 @@ class Actualize n e r o | n e -> r o where
 instance actualizeIdentityComonad :: Actualize (Identity (Cf.Cofree Identity a)) e r (Cf.Cofree Identity a) where
   actualize (Identity c) _ _ = c
 
+instance actualizeTuple :: (Actualize a e c x, Actualize b e d y) => Actualize (Tuple a b) e (Tuple c d) (Tuple x y) where
+  actualize (Tuple a b) e (Tuple c d) = Tuple (actualize a e c) (actualize b e d)
+
+instance actualizeVec :: (Nat n, Actualize a e c x) => Actualize (V.Vec n a) e (V.Vec n c) (V.Vec n x) where
+  actualize n e r = V.zipWithE (\n' r' -> actualize n' e r') n r
+
+instance actualizeEither :: (Actualize a e c x, Actualize b e d y) => Actualize (Either a b) e (Tuple c d) (Either x y) where
+  actualize (Left a) e (Tuple c d) = Left (actualize a e c)
+  actualize (Right b) e (Tuple c d) = Right (actualize b e d)
+
+instance actualizeRow :: Actualizes n e r o => Actualize { | n } e { | r } { | o } where
+  actualize n e r = actualizes n e r
+
 class ActualizeMany'' (cmp :: Ordering) (rln :: RowList Type) (rlr :: RowList Type) (n :: Row Type) (e :: Type) (r :: Row Type) (o :: Row Type) | rln rlr n e -> r o where
   actualizeMany'' :: forall proxyCmp proxyRL. proxyCmp cmp -> proxyRL rln -> proxyRL rlr -> { | n } -> e -> { | r } -> { | o }
 
@@ -72,8 +88,11 @@ instance actualizeMany'NilCons :: ActualizeMany' RowList.Nil (RowList.Cons a b c
 instance actualizeMany'ConsNil :: (ActualizeMany' c RowList.Nil n (SceneI trigger world) r x, IsSymbol a, Cons a b z' n, Actualize b (SceneI trigger world) Unit o, Lacks a x, Cons a o x yay) => ActualizeMany' (RowList.Cons a b c) RowList.Nil n (SceneI trigger world) r yay where
   actualizeMany' _ _ n e r = Record.insert (Proxy :: _ a) ((actualize :: b -> (SceneI trigger world) -> Unit -> o) (Record.get (Proxy :: _ a) n) e unit) (actualizeMany' (Proxy :: _ c) (Proxy :: _ RowList.Nil) n e r)
 
-instance actualizeMany'ConsCons :: (Sym.Compare a t cmp
-  , ActualizeMany'' cmp (RowList.Cons a b c) (RowList.Cons t u v) n e r o) => ActualizeMany' (RowList.Cons a b c) (RowList.Cons t u v) n e r o where
+instance actualizeMany'ConsCons ::
+  ( Sym.Compare a t cmp
+  , ActualizeMany'' cmp (RowList.Cons a b c) (RowList.Cons t u v) n e r o
+  ) =>
+  ActualizeMany' (RowList.Cons a b c) (RowList.Cons t u v) n e r o where
   actualizeMany' = actualizeMany'' (Proxy :: _ cmp)
 
 class Actualizes (n :: Row Type) (e :: Type) (r :: Row Type) (o :: Row Type) | n e -> r o where
