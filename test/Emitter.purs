@@ -3,10 +3,11 @@ module Test.Emitter where
 import Prelude
 import Control.Comonad (extract)
 import Control.Comonad.Cofree.Class (unwrapCofree)
+import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
 import Test.Spec (Spec, describe, it)
 import Test.Util (shouldEqualIsh)
-import WAGS.Lib.Emitter (makeEmitter)
+import WAGS.Lib.Emitter (makeEmitter, fEmitter)
 
 testEmitter :: Spec Unit
 testEmitter = do
@@ -43,3 +44,27 @@ testEmitter = do
       extract r2 `shouldEqualIsh` ([ 0.02 ])
       extract r3 `shouldEqualIsh` ([])
       extract r4 `shouldEqualIsh` ([ 0.01 ])
+    it "Produces the correct emissions for a function emitter" do
+      let
+        r0 = fEmitter 1.0 { time: 0.0, headroom: 0.02 }
+
+        r1 = fEmitter 1.0 { time: 0.1, headroom: 0.02 }
+
+        r2 = fEmitter 1.0 { time: 0.95, headroom: 0.06 }
+      r0 `shouldEqualIsh` (Just 0.0)
+      r1 `shouldEqualIsh` (Nothing)
+      r2 `shouldEqualIsh` (Just 0.05)
+    it "Produces the correct emissions for a 2x speed function emitter" do
+      let
+        r0 = fEmitter 2.0 { time: 0.0, headroom: 0.02 }
+
+        r1 = fEmitter 2.0 { time: 0.1, headroom: 0.02 }
+
+        r2 = fEmitter 2.0 { time: 0.48, headroom: 0.03 }
+
+        r3 = fEmitter 2.0 { time: 0.78, headroom: 0.03 }
+
+      r0 `shouldEqualIsh` (Just 0.0)
+      r1 `shouldEqualIsh` (Nothing)
+      r2 `shouldEqualIsh` (Just 0.02)
+      r3 `shouldEqualIsh` (Nothing)

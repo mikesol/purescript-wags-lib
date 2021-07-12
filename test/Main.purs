@@ -4,9 +4,10 @@ import Prelude
 
 import Effect (Effect)
 import Effect.Aff (launchAff_)
-import Test.BufferPool (testBufferPool)
-import Test.Impulse (testImpulse)
 import Test.Blip (testBlip)
+import Test.BufferPool (testBufferPool)
+import Test.Emitter (testEmitter)
+import Test.Impulse (testImpulse)
 import Test.Piecewise (testPiecewise)
 import Test.Rate (testRate)
 import Test.Spec.Reporter (consoleReporter)
@@ -21,5 +22,6 @@ main = do
         testBufferPool
         testStream
         testImpulse
+        testEmitter
         testBlip
         testPiecewise
