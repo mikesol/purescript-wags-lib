@@ -10,7 +10,6 @@ import Control.Promise (toAffE)
 import Data.Foldable (for_)
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..))
-import Data.Newtype (unwrap)
 import Data.Tuple.Nested (type (/\))
 import Data.Typelevel.Num (D4, d0, d1, d2, d3)
 import Data.Vec as V
@@ -92,9 +91,9 @@ piece =
 
           emitter = actualize a.myEmitter e (4.0 + cos (time * pi * 0.25) * 3.5)
 
-          bufz = actualize a.buffy e (map { rest: unit, offset: _ } (unwrap (extract emitter)))
+          bufz = actualize a.buffy e (map { rest: unit, offset: _ } (extract emitter))
 
-          hbufz = unwrap (extract bufz)
+          hbufz = extract bufz
         in
           ichange
             { oscGain: 0.1 + 0.09 * sin (pi * (extract rate))

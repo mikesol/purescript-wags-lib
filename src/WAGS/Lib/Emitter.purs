@@ -19,22 +19,14 @@ import WAGS.Run (SceneI(..))
 
 -------
 newtype MakeEmitter a
-  = MakeEmitter ({ time :: Number, headroom :: Number, rate :: Number } -> a)
+  = MakeEmitter ({ time :: Number, headroom :: Number, freq :: Number } -> a)
 
 derive instance newtypeFofTimeEmitter :: Newtype (MakeEmitter a) _
 
 derive instance functorFofTimeEmitter :: Functor MakeEmitter
 
-newtype Emission
-  = Emission (Array Number)
-
-derive instance newtypeEmission :: Newtype Emission _
-
-derive newtype instance eqEmission :: Eq Emission
-
-derive newtype instance ordEmission :: Ord Emission
-
-derive newtype instance showEmission :: Show Emission
+type Emission
+  = Array Number
 
 newtype CfEmitter f a
   = CfEmitter (Cofree f a)
@@ -50,29 +42,29 @@ derive newtype instance comonadCofreeCfEmitter :: ComonadCofree MakeEmitter (CfE
 type AnEmitter
   = MakeEmitter (CfEmitter MakeEmitter Emission)
 
-consumeLookahead :: { tnow :: Number, lookahead :: Number, rate :: Number } -> Array Number
-consumeLookahead { lookahead, tnow, rate }
+consumeLookahead :: { tnow :: Number, lookahead :: Number, freq :: Number } -> Array Number
+consumeLookahead { lookahead, tnow, freq }
   | tnow <= lookahead =
-    consumeLookahead { lookahead: lookahead - 1.0, tnow, rate }
-      <> [ (lookahead - tnow) / rate ]
+    consumeLookahead { lookahead: lookahead - 1.0, tnow, freq }
+      <> [ (lookahead - tnow) / freq ]
   | otherwise = []
 
 makeOffsets ::
   { tnow :: Number
   , headroom :: Number
   , clearedSoFar :: Number
-  , rate :: Number
+  , freq :: Number
   } ->
   Array Number /\ Number
-makeOffsets { tnow, headroom, clearedSoFar, rate } =
+makeOffsets { tnow, headroom, clearedSoFar, freq } =
   ( A.replicate urgent 0.0
-      <> if lookahead <= clearedSoFar then [] else consumeLookahead { lookahead, tnow, rate }
+      <> if lookahead <= clearedSoFar then [] else consumeLookahead { lookahead, tnow, freq }
   )
     /\ lookahead
   where
   urgent = DInt.floor (tnow - clearedSoFar)
 
-  lookahead = floor (tnow + headroom * rate)
+  lookahead = floor (tnow + headroom * freq)
 
 makeEmitter :: { startsAt :: Number, prevTime :: Number } -> AnEmitter
 makeEmitter { startsAt, prevTime } =
@@ -85,18 +77,18 @@ makeEmitter { startsAt, prevTime } =
   where
   floorStartsAt = floor startsAt
 
-  go clearedSoFar n i { time, headroom, rate } =
+  go clearedSoFar n i { time, headroom, freq } =
     let
-      tnow = (time - i) * rate + n
+      tnow = (time - i) * freq + n
 
-      offsets /\ newCleared = makeOffsets { tnow, headroom, clearedSoFar, rate }
+      offsets /\ newCleared = makeOffsets { tnow, headroom, clearedSoFar, freq }
     in
-      wrap ((wrap offsets) :< map unwrap (wrap (go newCleared tnow time)))
+      wrap (offsets :< map unwrap (wrap (go newCleared tnow time)))
 
 instance semigroupCfEmitter :: Semigroup (CfEmitter MakeEmitter Emission) where
   append f0i f1i =
     let
-      hd = wrap ((unwrap (extract f0i) <> unwrap (extract f0i)))
+      hd = extract f0i <> extract f0i
 
       tl = unwrapCofree f0i <> unwrapCofree f1i
     in
@@ -109,14 +101,16 @@ instance monoidAEmitter :: Monoid AnEmitter where
   mempty = makeEmitter { startsAt: 0.0, prevTime: 0.0 }
 
 fEmitter' :: { sensitivity :: Number } -> Number -> { time :: Number, headroom :: Number } -> Maybe Number
-fEmitter' { sensitivity } gapInSeconds { time, headroom } = if dist < sensitivity then Just (if tGapInSeconds < (gapInSeconds / 2.0) then 0.0 else (gapInSeconds - tGapInSeconds)) else Nothing
+fEmitter' { sensitivity } freq { time, headroom } = if dist < sensitivity then Just (if tGap < (gap / 2.0) then 0.0 else (gap - tGap)) else Nothing
   where
-  dist = Math.abs ((time + headroom) `Math.remainder` gapInSeconds)
+  gap = 1.0 / freq
 
-  tGapInSeconds = time `Math.remainder` gapInSeconds
+  dist = Math.abs ((time + headroom) `Math.remainder` gap)
+
+  tGap = time `Math.remainder` gap
 
 fEmitter :: Number -> { time :: Number, headroom :: Number } -> Maybe Number
 fEmitter = fEmitter' { sensitivity: 0.04 }
 
 instance actualizeEmitter :: Actualize AnEmitter (SceneI a b) Number (CfEmitter MakeEmitter Emission) where
-  actualize (MakeEmitter r) (SceneI { time, headroom }) rate = r { time, headroom: toNumber headroom / 1000.0, rate }
+  actualize (MakeEmitter r) (SceneI { time, headroom }) freq = r { time, headroom: toNumber headroom / 1000.0, freq }
