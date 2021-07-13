@@ -32,7 +32,7 @@ type TimeHeadroomFreq
   = { time :: Number, headroom :: Number, freq :: Number }
 
 newtype MakeBufferPoolWithRest rest a
-  = MakeBufferPoolWithRest ({ time :: Number, headroom :: Number, offsets :: Array { offset :: Number, rest :: rest } } -> a)
+  = MakeBufferPoolWithRest (TimeHeadroomOffsets rest -> a)
 
 derive instance newtypeMakeBufferPoolWithRest :: Newtype (MakeBufferPoolWithRest rest a) _
 
@@ -224,11 +224,10 @@ makeHotBufferPool ptsa dur pwf = wrap (go emitter buffer)
 makeSnappyBufferPool ::
   forall n.
   Pos n =>
-  { prevTime :: Number, startsAt :: Number } ->
   Maybe Number ->
   Maybe (NonEmpty List (Number /\ Number)) ->
   ASnappyBufferPool n
-makeSnappyBufferPool ptsa dur pwf = wrap (go blip buffer)
+makeSnappyBufferPool dur pwf = wrap (go blip buffer)
   where
   blip = makeBlip
 
@@ -304,7 +303,7 @@ instance monoidHotBufferPool :: (Pos n) => Monoid (AHotBufferPool n) where
   mempty = makeHotBufferPool { startsAt: 0.0, prevTime: 0.0 } Nothing Nothing
 
 instance monoidSnappyBufferPool :: (Pos n) => Monoid (ASnappyBufferPool n) where
-  mempty = makeSnappyBufferPool { startsAt: 0.0, prevTime: 0.0 } Nothing Nothing
+  mempty = makeSnappyBufferPool Nothing Nothing
 
 bGain :: forall r. Maybe (Buffy r) -> AudioParameter
 bGain = maybe (pure 0.0) (unwrap >>> _.gain)
@@ -318,5 +317,5 @@ instance actualizeBufferPool :: Actualize (ABufferPool n r) (SceneI a b) (Array 
 instance actualizeHotBufferPool :: Actualize (AHotBufferPool n) (SceneI a b) Number (CfHotBufferPool MakeHotBufferPool (BuffyVec n Unit)) where
   actualize (MakeHotBufferPool r) (SceneI { time, headroom }) freq = r { time, headroom: toNumber headroom / 1000.0, freq }
 
-instance actualizeSnappyBufferPool :: Actualize (ASnappyBufferPool n) (SceneI a b) { freq :: Number } (CfSnappyBufferPool MakeSnappyBufferPool (BuffyVec n Unit)) where
-  actualize (MakeSnappyBufferPool r) (SceneI { time, headroom }) { freq } = r { time, headroom: toNumber headroom / 1000.0, freq }
+instance actualizeSnappyBufferPool :: Actualize (ASnappyBufferPool n) (SceneI a b) Number (CfSnappyBufferPool MakeSnappyBufferPool (BuffyVec n Unit)) where
+  actualize (MakeSnappyBufferPool r) (SceneI { time, headroom }) freq = r { time, headroom: toNumber headroom / 1000.0, freq }

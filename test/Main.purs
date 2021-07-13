@@ -13,6 +13,7 @@ import Test.Rate (testRate)
 import Test.Spec.Reporter (consoleReporter)
 import Test.Spec.Runner (runSpec)
 import Test.Stream (testStream)
+import Test.Trigger (testTrigger)
 
 main :: Effect Unit
 main = do
@@ -25,3 +26,4 @@ main = do
         testEmitter
         testBlip
         testPiecewise
+        testTrigger
