@@ -2,7 +2,6 @@
 module WAGS.Lib.Piecewise where
 
 import Prelude
-
 import Data.Foldable (foldl)
 import Data.List (List(..))
 import Data.List.NonEmpty (NonEmptyList(..), sortBy)
@@ -16,7 +15,7 @@ import Data.Set as Set
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\), type (/\))
 import Math ((%))
-import WAGS.Graph.Parameter (AudioParameterTransition(..), AudioParameter, AudioParameter_(..))
+import WAGS.Graph.Parameter (AudioParameterTransition(..), AudioParameter_(..), AudioParameter)
 import WAGS.Math (calcSlope)
 
 type TimeHeadroom
@@ -24,11 +23,6 @@ type TimeHeadroom
 
 type APFofT
   = TimeHeadroom -> AudioParameter
-
-makeLoopingPiecewise :: NonEmpty List (Number /\ Number) -> APFofT
-makeLoopingPiecewise l { time, headroom } = makePiecewise l { time: time % (foldl max 0.0 (map fst l)), headroom }
-
-infixl 6 makeLoopingPiecewise as /@:<
 
 newtype PWChunk
   = PWChunk { left :: Number, right :: Number, apfot :: APFofT }
@@ -46,8 +40,11 @@ instance ordPWChunk :: Ord PWChunk where
 lookupLE :: forall a. Ord a => a -> Set a -> Maybe a
 lookupLE a s = map _.key (Map.lookupLE a (toMap s))
 
-makeChunks :: NonEmpty List (Number /\ Number) -> NonEmpty List PWChunk
-makeChunks l' = map PWChunk (go sorted)
+type TLR_AP
+  = { time :: Number, left :: Number /\ Number, right :: Number /\ Number } -> AudioParameter
+
+makeChunks' :: TLR_AP -> TLR_AP -> NonEmpty List (Number /\ Number) -> NonEmpty List PWChunk
+makeChunks' spillover inChunk l' = map PWChunk (go sorted)
   where
   (NonEmptyList sorted) = sortBy (\a b -> compare (fst a) (fst b)) (NonEmptyList l')
 
@@ -69,14 +66,11 @@ makeChunks l' = map PWChunk (go sorted)
                                       lookahead = time + headroom
                                     in
                                       ( if lookahead >= fst a then
-                                          AudioParameter
-                                            { param: Just (snd a)
-                                            , timeOffset: (fst a) - time
-                                            , transition: LinearRamp
-                                            }
+                                          spillover
                                         else
-                                          AudioParameter { param: Just (calcSlope (fst cur) (snd cur) (fst a) (snd a) time), timeOffset: 0.0, transition: LinearRamp }
+                                          inChunk
                                       )
+                                        { time, left: cur, right: a }
                               }
                     }
                 )
@@ -87,10 +81,65 @@ makeChunks l' = map PWChunk (go sorted)
             <> pure { right: maxValue, left: (fst $ NEL.last (wrap l)), apfot: const (pure (snd $ NEL.last (wrap l))) }
         )
 
-makePiecewise :: NonEmpty List (Number /\ Number) -> APFofT
-makePiecewise l = go
+type MakeChunks
+  = NonEmpty List (Number /\ Number) -> NonEmpty List PWChunk
+
+makeChunks :: MakeChunks
+makeChunks =
+  makeChunks'
+    ( \{ time, right } ->
+        AudioParameter
+          { param: Just (snd right)
+          , timeOffset: (fst right) - time
+          , transition: LinearRamp
+          }
+    ) \{ time, left, right } ->
+    AudioParameter
+      { param: Just (calcSlope (fst left) (snd left) (fst right) (snd right) time)
+      , timeOffset: 0.0
+      , transition: LinearRamp
+      }
+
+makeChunksL :: MakeChunks
+makeChunksL =
+  makeChunks'
+    ( \{ time, left, right } ->
+        AudioParameter
+          { param: Just (snd left)
+          , timeOffset: (fst right) - time
+          , transition: LinearRamp
+          }
+    ) \{ time, left, right } ->
+    AudioParameter
+      { param: Just (snd left)
+      , timeOffset: 0.0
+      , transition: LinearRamp
+      }
+
+makeChunksR :: MakeChunks
+makeChunksR =
+  makeChunks'
+    ( \{ time, right } ->
+        AudioParameter
+          { param: Just (snd right)
+          , timeOffset: (fst right) - time
+          , transition: LinearRamp
+          }
+    ) \{ time, left, right } ->
+    AudioParameter
+      { param: Just (snd left)
+      , timeOffset: 0.0
+      , transition: LinearRamp
+      }
+
+type MakePiecewise
+  = NonEmpty List (Number /\ Number) -> APFofT
+
+makePiecewise' :: MakeChunks -> MakePiecewise
+makePiecewise' mkc l = go
   where
-  chunks = makeChunks l
+  chunks = mkc l
+
   asSet = Set.fromFoldable chunks
 
   apfot' = const (pure 1.0)
@@ -99,4 +148,23 @@ makePiecewise l = go
     Nothing -> pure 1.0
     Just (PWChunk { apfot }) -> apfot th
 
-infixl 6 makePiecewise as /:<
+makeLoopingPiecewise' :: MakePiecewise -> MakePiecewise
+makeLoopingPiecewise' mpw l { time, headroom } = mpw l { time: time % (foldl max 0.0 (map fst l)), headroom }
+
+makePiecewise :: MakePiecewise
+makePiecewise = makePiecewise' makeChunks
+
+makeLoopingPiecewise :: MakePiecewise
+makeLoopingPiecewise = makeLoopingPiecewise' makePiecewise
+
+makeTerracedL :: MakePiecewise
+makeTerracedL = makePiecewise' makeChunksL
+
+makeLoopingTerracedL :: MakePiecewise
+makeLoopingTerracedL = makeLoopingPiecewise' makeTerracedL
+
+makeTerracedR :: MakePiecewise
+makeTerracedR = makePiecewise' makeChunksR
+
+makeLoopingTerracedR :: MakePiecewise
+makeLoopingTerracedR = makeLoopingPiecewise' makeTerracedR
