@@ -8,7 +8,6 @@ import Control.Promise (toAffE)
 import Data.Foldable (for_)
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..))
-import Data.Newtype (unwrap)
 import Data.Typelevel.Num (D20)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
@@ -64,7 +63,7 @@ piece =
   scene (entropy :: Number) (v :: BuffyVec D20 Unit) =
     speaker
       { mainBus:
-          fromTemplate (Proxy :: _ "myPool") (unwrap v) \i gor ->
+          fromTemplate (Proxy :: _ "myPool") v \i gor ->
             gain (bGain gor * pure 0.5)
               { myPlayer:
                   pan (entropy * 2.0 - 1.0)

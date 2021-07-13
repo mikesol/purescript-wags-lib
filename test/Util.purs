@@ -12,8 +12,6 @@ import Effect.Exception (Error)
 import Test.Spec.Assertions (fail, shouldEqual)
 import WAGS.Graph.AudioUnit (OnOff)
 import WAGS.Graph.Parameter (AudioParameter_(..))
-import WAGS.Lib.Emitter (Emission(..))
-
 
 epsilon :: forall e. EuclideanRing e => e
 epsilon = one `div` (sixteen * sixteen)
@@ -27,15 +25,13 @@ class ShouldEqualIsh t where
 
 instance shouldEqualIshArray :: (ShouldEqualIsh t) => ShouldEqualIsh (Array t) where
   shouldEqualIsh v1 v2 = map fold $ sequence $ zipWith shouldEqualIsh v1 v2
-else instance shouldEqualIshEmission :: ShouldEqualIsh Emission where
-  shouldEqualIsh (Emission v1) (Emission v2) = shouldEqualIsh v1 v2
 else instance shouldEqualIshOnOff :: ShouldEqualIsh OnOff where
   shouldEqualIsh = shouldEqual
-else instance shouldEqualIshMaybe :: (ShouldEqualIsh t) => ShouldEqualIsh (Maybe t) where
+else instance shouldEqualIshMaybe :: (ShouldEqualIsh t, Show t) => ShouldEqualIsh (Maybe t) where
   shouldEqualIsh (Just v1) (Just v2) = shouldEqualIsh v1 v2
   shouldEqualIsh Nothing Nothing = pure unit
-  shouldEqualIsh _ _ = fail "Not equalish - one is nothing, the other is something"
-else instance shouldEqualIshAP :: (ShouldEqualIsh t) => ShouldEqualIsh (AudioParameter_ t) where
+  shouldEqualIsh a b = fail ("Not equalish - one is " <> show a <> " the other is " <> show b)
+else instance shouldEqualIshAP :: (ShouldEqualIsh t, Show t) => ShouldEqualIsh (AudioParameter_ t) where
   shouldEqualIsh (AudioParameter v1) (AudioParameter v2) = do
     shouldEqualIsh v1.timeOffset v2.timeOffset
     shouldEqualIsh v1.param v2.param
