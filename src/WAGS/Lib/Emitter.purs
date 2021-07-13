@@ -64,7 +64,7 @@ makeOffsets { tnow, headroom, clearedSoFar, freq } =
   where
   urgent = DInt.floor (tnow - clearedSoFar)
 
-  lookahead = floor (tnow + headroom * freq)
+  lookahead = floor (tnow + (headroom * freq))
 
 makeEmitter :: { startsAt :: Number, prevTime :: Number } -> AnEmitter
 makeEmitter { startsAt, prevTime } =
