@@ -73,12 +73,7 @@ piece =
                           , playbackRate: (1.0 + (toNumber (i + 1) * 0.1 + entropy))
                           }
                           "bells"
-                    }fewfwefefewfewfewfwefewf
-
-
-
-
-                    
+                    }
               }
       }
 
