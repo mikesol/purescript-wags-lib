@@ -11,7 +11,7 @@ import Data.Vec as V
 import Test.Spec (Spec, describe, it)
 import Test.Util (shouldEqualIsh)
 import WAGS.Graph.AudioUnit (OnOff(..))
-import WAGS.Lib.BufferPool (ABufferPool, bGain, bOnOff, makeBufferPool)
+import WAGS.Lib.BufferPool (ABufferPool, bOnOff, makeBufferPool)
 
 testBufferPool :: Spec Unit
 testBufferPool = do
@@ -27,20 +27,12 @@ testBufferPool = do
         b2 = unwrap (unwrapCofree b1) { time: 0.34, headroom: 0.02, offsets: [ { offset: 0.0, rest: unit } ] }
 
         b3 = unwrap (unwrapCofree b2) { time: 0.41, headroom: 0.02, offsets: [] }
-      bGain (V.index (extract b0) d0) `shouldEqualIsh` (pure 1.0)
-      bGain (V.index (extract b0) d1) `shouldEqualIsh` (pure 0.0)
-      bGain (V.index (extract b1) d0) `shouldEqualIsh` (pure 1.0)
-      bGain (V.index (extract b1) d1) `shouldEqualIsh` (pure 0.0)
-      bGain (V.index (extract b2) d0) `shouldEqualIsh` (pure 1.0)
-      bGain (V.index (extract b2) d1) `shouldEqualIsh` (pure 1.0)
-      bGain (V.index (extract b3) d0) `shouldEqualIsh` (pure 0.0)
-      bGain (V.index (extract b3) d1) `shouldEqualIsh` (pure 1.0)
       --
-      bOnOff (V.index (extract b0) d0) `shouldEqualIsh` (pure On)
-      bOnOff (V.index (extract b0) d1) `shouldEqualIsh` (pure Off)
-      bOnOff (V.index (extract b1) d0) `shouldEqualIsh` (pure On)
-      bOnOff (V.index (extract b1) d1) `shouldEqualIsh` (pure Off)
-      bOnOff (V.index (extract b2) d0) `shouldEqualIsh` (pure On)
-      bOnOff (V.index (extract b2) d1) `shouldEqualIsh` (pure On)
-      bOnOff (V.index (extract b3) d0) `shouldEqualIsh` (pure Off)
-      bOnOff (V.index (extract b3) d1) `shouldEqualIsh` (pure On)
+      bOnOff 0.0 (V.index (extract b0) d0) `shouldEqualIsh` (pure OffOn)
+      bOnOff 0.0 (V.index (extract b0) d1) `shouldEqualIsh` (pure Off)
+      bOnOff 0.3 (V.index (extract b1) d0) `shouldEqualIsh` (pure On)
+      bOnOff 0.3 (V.index (extract b1) d1) `shouldEqualIsh` (pure Off)
+      bOnOff 0.34 (V.index (extract b2) d0) `shouldEqualIsh` (pure On)
+      bOnOff 0.34 (V.index (extract b2) d1) `shouldEqualIsh` (pure OffOn)
+      bOnOff 0.41 (V.index (extract b3) d0) `shouldEqualIsh` (pure On)
+      bOnOff 0.41 (V.index (extract b3) d1) `shouldEqualIsh` (pure On)

@@ -30,7 +30,7 @@ import WAGS.Control.Indexed (IxFrame)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (TGain, TPlayBuf, TSinOsc, TSpeaker)
 import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
-import WAGS.Lib.BufferPool (ABufferPool, bGain, bOnOff, makeBufferPool)
+import WAGS.Lib.BufferPool (ABufferPool, bOnOff, makeBufferPool)
 import WAGS.Lib.Cofree (actualize)
 import WAGS.Lib.Emitter (AnEmitter, makeEmitter)
 import WAGS.Lib.Rate (ARate, makeRate)
@@ -97,14 +97,14 @@ piece =
         in
           ichange
             { oscGain: 0.1 + 0.09 * sin (pi * (extract rate))
-            , b0Gain: bGain (V.index hbufz d0)
-            , b1Gain: bGain (V.index hbufz d1)
-            , b2Gain: bGain (V.index hbufz d2)
-            , b3Gain: bGain (V.index hbufz d3)
-            , b0: bOnOff (V.index hbufz d0)
-            , b1: bOnOff (V.index hbufz d1)
-            , b2: bOnOff (V.index hbufz d2)
-            , b3: bOnOff (V.index hbufz d3)
+            , b0Gain: 1.0
+            , b1Gain: 1.0
+            , b2Gain: 1.0
+            , b3Gain: 1.0
+            , b0: bOnOff time (V.index hbufz d0)
+            , b1: bOnOff time (V.index hbufz d1)
+            , b2: bOnOff time (V.index hbufz d2)
+            , b3: bOnOff time (V.index hbufz d3)
             }
             $> { myRate: unwrapCofree rate, myEmitter: unwrapCofree emitter, buffy: unwrapCofree bufz }
 

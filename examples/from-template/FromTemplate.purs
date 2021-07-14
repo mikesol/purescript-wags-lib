@@ -28,7 +28,7 @@ import WAGS.Control.Functions (iloop, startUsingWithHint)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Create.Optionals (gain, playBuf, speaker, pan)
 import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
-import WAGS.Lib.BufferPool (AHotBufferPool, BuffyVec, bGain, bOnOff)
+import WAGS.Lib.BufferPool (AHotBufferPool, BuffyVec, bOnOff)
 import WAGS.Lib.Cofree (actualizes, tails)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
 import WAGS.Template (fromTemplate)
@@ -57,19 +57,19 @@ piece =
         let
           actualized = actualizes a e { hbp: 12.0 * (entropy `pow` 6.0) }
         in
-          ichange (scene entropy (extract actualized.hbp)) $> tails actualized
+          ichange (scene time entropy (extract actualized.hbp)) $> tails actualized
     )
   where
-  scene (entropy :: Number) (v :: BuffyVec D20 Unit) =
+  scene (time :: Number) (entropy :: Number) (v :: BuffyVec D20 Unit) =
     speaker
       { mainBus:
           fromTemplate (Proxy :: _ "myPool") v \i gor ->
-            gain (bGain gor * pure 0.5)
+            gain 0.5
               { myPlayer:
                   pan (entropy * 2.0 - 1.0)
                     { panny:
                         playBuf
-                          { onOff: bOnOff gor
+                          { onOff: bOnOff time gor
                           , playbackRate: (1.0 + (toNumber (i + 1) * 0.1 + entropy))
                           }
                           "bells"

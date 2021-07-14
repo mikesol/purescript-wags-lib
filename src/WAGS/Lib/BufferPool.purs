@@ -8,21 +8,19 @@ import Control.Extend (class Extend)
 import Data.Array as A
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int (toNumber)
-import Data.Lens (_1, over)
-import Data.List (List(..))
+import Data.List (List)
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
-import Data.NonEmpty (NonEmpty, (:|))
-import Data.Tuple.Nested (type (/\), (/\))
+import Data.NonEmpty (NonEmpty)
+import Data.Tuple.Nested (type (/\))
 import Data.Typelevel.Num (class Pos, toInt')
 import Data.Vec as V
 import Type.Proxy (Proxy(..))
 import WAGS.Graph.AudioUnit (APOnOff, OnOff(..))
-import WAGS.Graph.Parameter (AudioParameter, AudioParameter_(..), ff)
+import WAGS.Graph.Parameter (ff)
 import WAGS.Lib.Blip (ABlip, MakeBlip(..), makeBlip)
 import WAGS.Lib.Cofree (class Actualize)
 import WAGS.Lib.Emitter (MakeEmitter(..), AnEmitter, fEmitter, makeEmitter)
-import WAGS.Lib.SFofT (SAPFofT, makePiecewise)
 import WAGS.Run (SceneI(..))
 
 type TimeHeadroomOffsets rest
@@ -58,22 +56,10 @@ derive instance functorMakeSnappyBufferPool :: Functor MakeSnappyBufferPool
 
 derive newtype instance semigroupMakeSnappyBufferPool :: Semigroup a => Semigroup (MakeSnappyBufferPool a)
 
-type BufferInternal rest
-  = { startedAt :: Number, env :: SAPFofT, rest :: rest }
-
 newtype Buffy rest
-  = Buffy { gain :: AudioParameter, onOff :: APOnOff, rest :: rest }
+  = Buffy { starting :: Boolean, startTime :: Number, rest :: rest }
 
 derive instance newtypeBuffy :: Newtype (Buffy rest) _
-
-unchangingPiecewise :: NonEmpty List (Number /\ Number)
-unchangingPiecewise = (0.0 /\ 1.0) :| Nil
-
-type InternalState rest
-  = { bufferInternal :: Maybe (BufferInternal rest), buffy :: Maybe (Buffy rest) }
-
-notPlaying :: forall (rest :: Type). InternalState rest
-notPlaying = { bufferInternal: Nothing, buffy: Nothing }
 
 type BuffyVec (n :: Type) (rest :: Type)
   = V.Vec n (Maybe (Buffy rest))
@@ -133,58 +119,36 @@ makeBufferPool' ::
   Maybe Number ->
   Maybe (NonEmpty List (Number /\ Number)) ->
   ABufferPool n r
-makeBufferPool' _ dur pwf = MakeBufferPoolWithRest (go 0 (V.fill (const (Nothing :: Maybe (BufferInternal r)))))
+makeBufferPool' _ dur pwf = MakeBufferPoolWithRest (go 0 (V.fill (const (Nothing :: Maybe (Buffy r)))))
   where
   len :: Int
   len = toInt' (Proxy :: _ n)
-
-  realPwf :: NonEmpty List (Number /\ Number)
-  realPwf = fromMaybe unchangingPiecewise pwf
-
-  refresh :: { time :: Number, headroom :: Number, offset :: Number, rest :: r } -> OnOff -> InternalState r
-  refresh { time, headroom, offset, rest } onOff =
-    let
-      sapfot = makePiecewise (map (over _1 (add (time + offset))) realPwf)
-
-      now = sapfot { time, headroom }
-    in
-      { bufferInternal: Just { startedAt: time + offset, env: unwrapCofree now, rest }, buffy: Just $ wrap { gain: extract now, onOff: ff offset (pure onOff), rest } }
 
   -- cPos myPos
   maybeBufferToGainOnOff ::
     Int ->
     TimeHeadroomOffsets r ->
     Int ->
-    Maybe (BufferInternal r) ->
-    InternalState r
+    Maybe (Buffy r) ->
+    Maybe (Buffy r)
   maybeBufferToGainOnOff cPos { time, headroom, offsets } myPos Nothing
-    | Just { offset, rest } <- A.index offsets (myPos - cPos `mod` len) = refresh { time, headroom, offset, rest } On
-    | otherwise = notPlaying
+    | Just { offset, rest } <- A.index offsets (myPos - cPos `mod` len) = Just (Buffy { startTime: time, starting: true, rest })
+    | otherwise = Nothing
 
-  maybeBufferToGainOnOff cPos { time, headroom, offsets } myPos (Just { startedAt, env, rest: prevRest })
-    | Just { offset, rest } <- A.index offsets (myPos - cPos `mod` len) = refresh { time, headroom, offset, rest } OffOn
-    | Just dur' <- dur
-    , time - startedAt > dur' = notPlaying
-    | otherwise =
-      let
-        now = env { time, headroom }
-      in
-        { bufferInternal: Just { startedAt, env: unwrapCofree now, rest: prevRest }, buffy: Just $ wrap { gain: extract now, onOff: pure On, rest: prevRest } }
+  maybeBufferToGainOnOff cPos { time, headroom, offsets } myPos (Just (Buffy b))
+    | Just { offset, rest } <- A.index offsets (myPos - cPos `mod` len) = Just (Buffy { startTime: time, starting: true, rest })
+    | otherwise = Just (Buffy { startTime: b.startTime, rest: b.rest, starting: false })
 
   go ::
     Int ->
-    V.Vec n (Maybe (BufferInternal r)) ->
+    V.Vec n (Maybe (Buffy r)) ->
     TimeHeadroomOffsets r ->
     CfBufferPool (MakeBufferPoolWithRest r) (BuffyVec n r)
   go cIdx v tht@{ offsets } =
     CfBufferPool
-      ( map _.buffy internalStates
+      ( internalStates
           :< map unwrap
-              ( wrap
-                  ( go ((cIdx + A.length offsets) `mod` len)
-                      (map _.bufferInternal internalStates)
-                  )
-              )
+              (wrap (go ((cIdx + A.length offsets) `mod` len) internalStates))
       )
     where
     internalStates = mapWithIndex (maybeBufferToGainOnOff cIdx tht) v
@@ -270,14 +234,8 @@ apBV i0r i1r =
               Just (Buffy x), Just (Buffy y) ->
                 Just
                   $ wrap
-                      { gain: x.gain + y.gain / (pure 2.0)
-                      , onOff:
-                          case x.onOff, y.onOff of
-                            i@(AudioParameter { param: (Just On) }), j -> i
-                            i, j@(AudioParameter { param: (Just On) }) -> j
-                            i@(AudioParameter { param: (Just OffOn) }), j -> i
-                            i, j@(AudioParameter { param: (Just OffOn) }) -> j
-                            i, j -> i
+                      { starting: x.starting || y.starting
+                      , startTime: min x.startTime y.startTime
                       , rest: x.rest <> y.rest
                       }
           )
@@ -305,11 +263,11 @@ instance monoidHotBufferPool :: (Pos n) => Monoid (AHotBufferPool n) where
 instance monoidSnappyBufferPool :: (Pos n) => Monoid (ASnappyBufferPool n) where
   mempty = makeSnappyBufferPool Nothing Nothing
 
-bGain :: forall r. Maybe (Buffy r) -> AudioParameter
-bGain = maybe (pure 0.0) (unwrap >>> _.gain)
+type Time
+  = Number
 
-bOnOff :: forall r. Maybe (Buffy r) -> APOnOff
-bOnOff = maybe (pure Off) (unwrap >>> _.onOff)
+bOnOff :: forall r. Time -> Maybe (Buffy r) -> APOnOff
+bOnOff time = maybe (pure Off) (unwrap >>> \{ starting, startTime } -> if starting then ff (max (startTime - time) 0.0) (pure OffOn) else pure On)
 
 instance actualizeBufferPool :: Actualize (ABufferPool n r) (SceneI a b) (Array { offset :: Number, rest :: r }) (CfBufferPool (MakeBufferPoolWithRest r) (BuffyVec n r)) where
   actualize (MakeBufferPoolWithRest r) (SceneI { time, headroom }) offsets = r { time, headroom: toNumber headroom / 1000.0, offsets }
