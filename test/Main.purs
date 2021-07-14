@@ -8,6 +8,7 @@ import Test.Blip (testBlip)
 import Test.BufferPool (testBufferPool)
 import Test.Emitter (testEmitter)
 import Test.Impulse (testImpulse)
+import Test.Latch (testLatch)
 import Test.Piecewise (testPiecewise)
 import Test.Rate (testRate)
 import Test.Spec.Reporter (consoleReporter)
@@ -27,3 +28,4 @@ main = do
         testBlip
         testPiecewise
         testTrigger
+        testLatch
