@@ -20,27 +20,39 @@ import Record as Record
 import Type.Proxy (Proxy(..))
 import WAGS.Run (SceneI)
 
+--- heads and tails needs recursion down records to work
+--- otherwise namespacing is impossible
 data Tailz
   = Tailz
 
-instance tailzMapping ::
-  ComonadCofree f w =>
-  Mapping Tailz (w a) (f (w a)) where
-  mapping Tailz = unwrapCofree
+class Tailable a b | a -> b where
+  tails :: a -> b
 
-tails :: forall ii oo. HMap Tailz { | ii } { | oo } => { | ii } -> { | oo }
-tails = hmap Tailz
+instance tailableRow :: HMap Tailz { | ii } { | oo } => Tailable { | ii } { | oo } where
+  tails = hmap Tailz
+else instance tailableCf :: ComonadCofree f w => Tailable (w a) (f (w a)) where
+  tails = unwrapCofree
+
+instance tailzMapping ::
+  Tailable i o =>
+  Mapping Tailz i o where
+  mapping Tailz = tails
 
 data Headz
   = Headz
 
-instance headzMapping ::
-  Comonad w =>
-  Mapping Headz (w a) a where
-  mapping Headz = extract
+class Headable a b | a -> b where
+  heads :: a -> b
 
-heads :: forall ii oo. HMap Headz { | ii } { | oo } => { | ii } -> { | oo }
-heads = hmap Headz
+instance headableRow :: HMap Headz { | ii } { | oo } => Headable { | ii } { | oo } where
+  heads = hmap Headz
+else instance headableCf :: Comonad w => Headable (w a) a where
+  heads = extract
+
+instance headzMapping ::
+  Headable i o =>
+  Mapping Headz i o where
+  mapping Headz = heads
 
 class Actualize n e r o | n e -> r o where
   actualize :: n -> e -> r -> o
