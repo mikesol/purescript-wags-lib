@@ -1,9 +1,10 @@
 module WAGS.Lib.Latch where
 
 import Prelude
-import Control.Comonad (class Comonad)
+
+import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree (Cofree, (:<))
-import Control.Comonad.Cofree.Class (class ComonadCofree)
+import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
 import Control.Extend (class Extend)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap, wrap)
@@ -58,6 +59,18 @@ makeLatchAPWithoutInitialBlip = wrap (\p -> go (Just p) p)
   where
   go :: LatchAP v -> AudioParameter_ v -> CfLatchAP (MakeLatchAP v) (LatchAP v)
   go old new = wrap ((if old `cmpAP` Just new then Nothing else Just new) :< map unwrap (wrap (go (Just new))))
+
+instance semigroupCfRate :: Semigroup v => Semigroup (CfLatchAP (MakeLatchAP v) (LatchAP v)) where
+  append f0i f1i =
+    let
+      hd = ((extract f0i) <> (extract f0i))
+
+      tl = unwrapCofree f0i <> unwrapCofree f1i
+    in
+      wrap (hd :< map unwrap tl)
+
+instance monoidARate :: (Semigroup v, Eq v) => Monoid (ALatchAP v) where
+  mempty = makeLatchAP
 
 instance actualizeLatchAP :: Actualize (ALatchAP v) e (AudioParameter_ v) (CfLatchAP (MakeLatchAP v) (LatchAP v)) where
   actualize (MakeLatchAP r) _ b = r b
