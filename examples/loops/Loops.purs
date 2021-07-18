@@ -211,11 +211,9 @@ actualizer ::
   Extern ->
   { | Acc } ->
   { instruments :: Instruments CfCtrl }
-actualizer e@(SceneI { time: time', headroom: headroom' }) { instruments } = { instruments: step1 `zipRecord` instruments }
+actualizer e@(SceneI { time: time', headroomInSeconds: headroom }) { instruments } = { instruments: step1 `zipRecord` instruments }
   where
   time = time'
-
-  headroom = toNumber headroom' / 1000.0
 
   step1 = hmap (actualizePWF e { time, headroom }) pwfs
 
@@ -250,7 +248,7 @@ piece =
     Extern ->
     { x :: Number, y :: Number } ->
     { instruments :: Instruments { latch :: LatchAP GOO, buffers :: BuffyVec NBuf RBuf } } -> _
-  scene (SceneI { time, headroom: headroom' }) p { instruments } =
+  scene (SceneI { time, headroomInSeconds: headroom }) p { instruments } =
     speaker (gain (if time < 5.0 then time / 5.0 else 1.0)
       ( fromTemplate (Proxy :: _ "instruments") instruments \name { buffers } ->
           fromTemplate (Proxy :: _ "buffers") buffers \_ -> case _ of
@@ -269,8 +267,6 @@ piece =
                 )
             Nothing -> gain 0.0 (playBuf { onOff: Off } name)
       ))
-    where
-    headroom = toNumber headroom' / 1000.0
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =

@@ -83,10 +83,8 @@ createFrame = \(SceneI { time }) ->
 piece :: Scene (SceneI Unit Unit) RunAudio RunEngine Frame0 Unit
 piece =
   createFrame
-    @!> iloop \e@(SceneI { time, headroom }) a ->
+    @!> iloop \e@(SceneI { time, headroomInSeconds: hr }) a ->
         let
-          hr = toNumber headroom / 1000.0
-
           rate = actualize a.myRate e (4.0 + sin (time * pi * 0.25) * 3.5)
 
           emitter = actualize a.myEmitter e (4.0 + cos (time * pi * 0.25) * 3.5)

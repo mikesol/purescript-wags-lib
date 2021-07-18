@@ -7,7 +7,6 @@ import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
 import Control.Extend (class Extend)
 import Data.Array as A
 import Data.FunctorWithIndex (mapWithIndex)
-import Data.Int (toNumber)
 import Data.List (List)
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
@@ -270,10 +269,10 @@ bOnOff :: forall r. Time -> Maybe (Buffy r) -> APOnOff
 bOnOff time = maybe (pure Off) (unwrap >>> \{ starting, startTime } -> if starting then ff (max (startTime - time) 0.0) (pure OffOn) else pure On)
 
 instance actualizeBufferPool :: Actualize (ABufferPool n r) (SceneI a b) (Array { offset :: Number, rest :: r }) (CfBufferPool (MakeBufferPoolWithRest r) (BuffyVec n r)) where
-  actualize (MakeBufferPoolWithRest r) (SceneI { time, headroom }) offsets = r { time, headroom: toNumber headroom / 1000.0, offsets }
+  actualize (MakeBufferPoolWithRest r) (SceneI { time, headroomInSeconds: headroom }) offsets = r { time, headroom, offsets }
 
 instance actualizeHotBufferPool :: Actualize (AHotBufferPool n) (SceneI a b) Number (CfHotBufferPool MakeHotBufferPool (BuffyVec n Unit)) where
-  actualize (MakeHotBufferPool r) (SceneI { time, headroom }) freq = r { time, headroom: toNumber headroom / 1000.0, freq }
+  actualize (MakeHotBufferPool r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }
 
 instance actualizeSnappyBufferPool :: Actualize (ASnappyBufferPool n) (SceneI a b) Number (CfSnappyBufferPool MakeSnappyBufferPool (BuffyVec n Unit)) where
-  actualize (MakeSnappyBufferPool r) (SceneI { time, headroom }) freq = r { time, headroom: toNumber headroom / 1000.0, freq }
+  actualize (MakeSnappyBufferPool r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }

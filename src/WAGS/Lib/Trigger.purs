@@ -7,7 +7,6 @@ import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
 import Control.Extend (class Extend)
-import Data.Int (toNumber)
 import Data.Maybe (Maybe(..), isJust)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import WAGS.Lib.Blip (ABlip, MakeBlip(..), makeBlip)
@@ -137,4 +136,4 @@ instance actualizeTrigger :: Actualize ATrigger (SceneI a b) (Maybe Number) (CfT
   actualize (MakeTriggerWithOffset r) (SceneI { time }) offset = r { time, offset }
 
 instance actualizeSnappyTrigger :: Actualize ASnappyTrigger (SceneI a b) Number (CfSnappyTrigger MakeSnappyTrigger Time) where
-  actualize (MakeSnappyTrigger r) (SceneI { time, headroom }) freq = r { time, headroom: toNumber headroom / 1000.0, freq }
+  actualize (MakeSnappyTrigger r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }

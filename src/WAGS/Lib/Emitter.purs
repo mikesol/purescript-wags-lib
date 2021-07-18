@@ -7,7 +7,6 @@ import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
 import Control.Extend (class Extend)
 import Data.Array as A
-import Data.Int (toNumber)
 import Data.Int as DInt
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap, wrap)
@@ -113,4 +112,4 @@ fEmitter :: Number -> { time :: Number, headroom :: Number } -> Maybe Number
 fEmitter = fEmitter' { sensitivity: 0.04 }
 
 instance actualizeEmitter :: Actualize AnEmitter (SceneI a b) Number (CfEmitter MakeEmitter Emission) where
-  actualize (MakeEmitter r) (SceneI { time, headroom }) freq = r { time, headroom: toNumber headroom / 1000.0, freq }
+  actualize (MakeEmitter r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }
