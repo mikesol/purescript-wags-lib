@@ -36,3 +36,28 @@ testBlip = do
       extract r5 `shouldEqual` false
       extract r6 `shouldEqual` false
       extract r7 `shouldEqual` true
+    it "Starts blip correctly" do
+      let
+        r0 = unwrap makeBlip true
+
+        r1 = unwrap (unwrapCofree r0) false
+
+        r2 = unwrap (unwrapCofree r1) true
+
+        r3 = unwrap (unwrapCofree r2) true
+
+        r4 = unwrap (unwrapCofree r3) true
+
+        r5 = unwrap (unwrapCofree r4) false
+
+        r6 = unwrap (unwrapCofree r5) false
+
+        r7 = unwrap (unwrapCofree r6) true
+      extract r0 `shouldEqual` true
+      extract r1 `shouldEqual` false
+      extract r2 `shouldEqual` true
+      extract r3 `shouldEqual` false
+      extract r4 `shouldEqual` false
+      extract r5 `shouldEqual` false
+      extract r6 `shouldEqual` false
+      extract r7 `shouldEqual` true
