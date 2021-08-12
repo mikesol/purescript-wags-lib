@@ -13,6 +13,7 @@ import Data.Lens.Record (prop)
 import Data.Lens.Setter (set)
 import Data.List (List(..), (:))
 import Data.List as List
+import Data.Unfoldable as UF
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, wrap)
 import Data.NonEmpty (NonEmpty, (:|))
@@ -379,11 +380,6 @@ type CfCtrl
     , buffers :: CfBufferPool (MakeBufferPoolWithRest RBuf) (BuffyVec NBuf RBuf)
     }
 
-m2a :: Maybe ~> Array
-m2a = case _ of
-  Just x -> [ x ]
-  Nothing -> []
-
 actualizePWF ::
   Extern ->
   TimeHeadroom ->
@@ -394,7 +390,7 @@ actualizePWF e th f a =
   { latch
   , buffers:
       actualize a.buffers e
-        ( m2a
+        ( UF.fromMaybe
             ( do
                 AudioParameter { param, timeOffset } <- extract latch
                 rest <- param
