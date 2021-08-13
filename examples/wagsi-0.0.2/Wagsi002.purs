@@ -1,4 +1,4 @@
-module WAGSI.LiveCodeHere.Wagsi002 where
+module WAGS.Lib.Example.Wagsi002 where
 
 import Prelude
 import WAGS.Create.Optionals
