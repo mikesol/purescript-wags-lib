@@ -7,6 +7,7 @@ import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
 import Control.Parallel (parallel, sequential)
 import Control.Promise (toAffE)
+import Data.Array.NonEmpty as NEA
 import Data.List ((:), List(..))
 import Data.Maybe (Maybe(..), isJust)
 import Data.NonEmpty ((:|))
@@ -41,6 +42,7 @@ import WAGS.Lib.Cofree (actualize, heads, tails)
 import WAGS.Lib.Emitter (fEmitter, fEmitter')
 import WAGS.Lib.Latch (ALatchAP, CfLatchAP(..), MakeLatchAP, LatchAP)
 import WAGS.Lib.Piecewise (makeLoopingTerracedR)
+import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
 import WAGS.Template (fromTemplate)
 
@@ -54,8 +56,7 @@ type RBuf
 
 --- room0
 type Acc0 r
-  = ( room0KickLatch :: ALatchAP (First (Maybe Boolean))
-    , room0KickBuffers :: ABufferPool NBuf RBuf
+  = ( room0KickBuf :: SimpleBuffer NBuf
     | r
     )
 
@@ -63,38 +64,27 @@ actualizer0 ::
   forall trigger world r.
   SceneI trigger world ->
   { | Acc0 r } ->
-  { room0KickLatch :: CfLatchAP (MakeLatchAP (First (Maybe Boolean))) (LatchAP (First (Maybe Boolean)))
-  , room0KickBuffers :: CfBufferPool (MakeBufferPoolWithRest RBuf) (BuffyVec NBuf RBuf)
+  { room0KickBuf :: SimpleBufferCf NBuf
   }
-actualizer0 e@(SceneI e') a =
-  { room0KickLatch
-  , room0KickBuffers:
-      actualize
-        a.room0KickBuffers
+actualizer0 e { room0KickBuf } =
+  { room0KickBuf:
+      actualizeSimpleBuffer
+        (NEA.fromNonEmpty (0.0 :| [ 0.832 ]))
+        2.0
         e
-        $ UF.fromMaybe do
-            AudioParameter { param, timeOffset } <- extract room0KickLatch
-            (First param') <- param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
-            _ <- param'
-            pure { offset: timeOffset, rest: unit }
+        room0KickBuf
   }
-  where
-  kicks =
-    makeLoopingTerracedR
-      $ ( (0.0 /\ First (Just true))
-            :| (0.832 /\ First (Just false))
-            : (2.0 /\ First (Just true))
-            : Nil
-        )
 
-  fromPW = kicks { time: e'.time, headroom: e'.headroomInSeconds }
-
-  room0KickLatch = actualize a.room0KickLatch e fromPW
-
-graph0 :: forall trigger world r. SceneI trigger world -> { room0KickLatch :: (LatchAP (First (Maybe Boolean))), room0KickBuffers :: BuffyVec NBuf RBuf | r } -> _
-graph0 (SceneI { time }) { room0KickBuffers } =
+graph0 ::
+  forall trigger world r.
+  SceneI trigger world ->
+  { room0KickBuf :: SimpleBufferHead NBuf
+  | r
+  } ->
+  _
+graph0 (SceneI { time }) { room0KickBuf: { buffers } } =
   { room0Kick:
-      fromTemplate (Proxy :: _ "room0KickBuffs") room0KickBuffers \_ -> case _ of
+      fromTemplate (Proxy :: _ "room0KickBuffs") buffers \_ -> case _ of
         Just (Buffy { starting, startTime }) ->
           gain 1.0
             ( playBuf
@@ -134,9 +124,6 @@ actualizer1 e@(SceneI e') a =
         a.room1ClapBuffers
         e
         $ UF.fromMaybe do
-            -- param (Maybe v)
-            -- v = First (Maybe Boolean)
-            -- param (Maybe (First (Maybe Boolean)))
             AudioParameter { param, timeOffset } <- extract room1ClapLatch
             (First param') <- param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
             _ <- param'
@@ -198,9 +185,6 @@ actualizer2 e@(SceneI e') a =
         a.room2HiHatBuffers
         e
         $ UF.fromMaybe do
-            -- param (Maybe v)
-            -- v = First (Maybe Boolean)
-            -- param (Maybe (First (Maybe Boolean)))
             AudioParameter { param, timeOffset } <- extract room2HiHatLatch
             (First param') <- param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
             _ <- param'
