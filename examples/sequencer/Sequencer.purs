@@ -15,6 +15,7 @@ import Data.Maybe (Maybe(..), isJust, maybe)
 import Data.NonEmpty ((:|))
 import Data.Semigroup.First (First(..))
 import Data.Traversable (for_, sequence, traverse)
+import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
 import Data.Typelevel.Num (D2, D3, D7, toInt')
 import Data.Unfoldable as UF
@@ -88,6 +89,16 @@ type KeyBufs r
 
 nps = 3.0 :: Number
 
+buffersActualized :: forall trigger world. V.Vec NKeys (SceneI trigger world -> SimpleBuffer NBuf -> SimpleBufferCf NBuf)
+buffersActualized =
+  V.fill \i' ->
+    let
+      i = toNumber i'
+    in
+      actualizeSimpleBuffer
+        (NEA.singleton (i / nps))
+        ((toNumber $ toInt' (Proxy :: _ NKeys)) / nps)
+
 keyBufsActualize ::
   forall trigger r.
   SceneI trigger World ->
@@ -97,23 +108,15 @@ keyBufsActualize ::
   }
 keyBufsActualize e@(SceneI e') { keyBufs, rate } =
   { keyBufs:
-      mapWithIndex
-        ( \i' ->
-            let
-              i = toNumber i'
-            in
-              actualizeSimpleBuffer
-                (NEA.singleton (i / nps))
-                ((toNumber $ toInt' (Proxy :: _ NKeys)) / nps)
-                (timeIs (extract rate') e)
-        )
-        keyBufs
+      map (\(Tuple f x) -> f newE x) (V.zipWithE Tuple buffersActualized keyBufs)
   , rate: rate'
   }
   where
   freq = 1.0 + maybe 0.0 (\{ y } -> toNumber y / 1000.0) e'.world.mickey
 
   rate' = actualize rate e freq
+
+  newE = timeIs (extract rate') e
 
 keyBufGraph ::
   forall trigger r.
