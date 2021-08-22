@@ -89,7 +89,9 @@ type KeyBufs r
 
 nps = 3.0 :: Number
 
-buffersActualized :: forall trigger world. V.Vec NKeys (SceneI trigger world -> SimpleBuffer NBuf -> SimpleBufferCf NBuf)
+buffersActualized ::
+  forall trigger world.
+  V.Vec NKeys (SceneI trigger world -> SimpleBuffer NBuf -> SimpleBufferCf NBuf)
 buffersActualized =
   V.fill \i' ->
     let
