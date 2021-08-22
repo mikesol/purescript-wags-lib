@@ -109,8 +109,7 @@ keyBufsActualize ::
   , rate :: CfRate MakeRate Rate
   }
 keyBufsActualize e@(SceneI e') { keyBufs, rate } =
-  { keyBufs:
-      map (\(Tuple f x) -> f newE x) (V.zipWithE Tuple buffersActualized keyBufs)
+  { keyBufs: V.zipWithE (\f x -> f newE x) buffersActualized keyBufs
   , rate: rate'
   }
   where
