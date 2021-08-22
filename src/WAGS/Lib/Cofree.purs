@@ -1,5 +1,7 @@
 module WAGS.Lib.Cofree where
 
+import Prelude
+
 import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree as Cf
 import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
@@ -30,6 +32,8 @@ class Tailable a b | a -> b where
 
 instance tailableRow :: HMap Tailz { | ii } { | oo } => Tailable { | ii } { | oo } where
   tails = hmap Tailz
+else instance tailableVec :: (Nat n, Tailable i o) => Tailable (V.Vec n i) (V.Vec n o) where
+  tails = map tails 
 else instance tailableCf :: ComonadCofree f w => Tailable (w a) (f (w a)) where
   tails = unwrapCofree
 
@@ -46,6 +50,8 @@ class Headable a b | a -> b where
 
 instance headableRow :: HMap Headz { | ii } { | oo } => Headable { | ii } { | oo } where
   heads = hmap Headz
+else instance headableVec :: (Nat n, Headable i o) => Headable (V.Vec n i) (V.Vec n o) where
+  heads = map heads 
 else instance headableCf :: Comonad w => Headable (w a) a where
   heads = extract
 
@@ -67,8 +73,8 @@ instance actualizeVec :: (Nat n, Actualize a e c x) => Actualize (V.Vec n a) e (
   actualize n e r = V.zipWithE (\n' r' -> actualize n' e r') n r
 
 instance actualizeEither :: (Actualize a e c x, Actualize b e d y) => Actualize (Either a b) e (Tuple c d) (Either x y) where
-  actualize (Left a) e (Tuple c d) = Left (actualize a e c)
-  actualize (Right b) e (Tuple c d) = Right (actualize b e d)
+  actualize (Left a) e (Tuple c _) = Left (actualize a e c)
+  actualize (Right b) e (Tuple _ d) = Right (actualize b e d)
 
 instance actualizeRow :: Actualizes n e r o => Actualize { | n } e { | r } { | o } where
   actualize n e r = actualizes n e r

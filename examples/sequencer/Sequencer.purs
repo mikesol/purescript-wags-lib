@@ -8,25 +8,34 @@ import Control.Comonad.Cofree (Cofree, mkCofree)
 import Control.Parallel (parallel, sequential)
 import Control.Promise (toAffE)
 import Data.Array.NonEmpty as NEA
+import Data.FunctorWithIndex (mapWithIndex)
+import Data.Int (floor, toNumber)
 import Data.List ((:), List(..))
-import Data.Maybe (Maybe(..), isJust)
+import Data.Maybe (Maybe(..), isJust, maybe)
 import Data.NonEmpty ((:|))
 import Data.Semigroup.First (First(..))
 import Data.Traversable (for_, sequence, traverse)
 import Data.Tuple.Nested ((/\))
-import Data.Typelevel.Num (D2, D3, D7)
+import Data.Typelevel.Num (D2, D3, D7, toInt')
 import Data.Unfoldable as UF
+import Data.Vec as V
+import Debug.Trace (spy)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
-import FRP.Event (subscribe)
+import Effect.Random (random)
+import FRP.Behavior (Behavior, behavior)
+import FRP.Behavior.Mouse (position)
+import FRP.Event (makeEvent, subscribe)
+import FRP.Event.Mouse (getMouse)
 import Foreign.Object (fromHomogeneous)
 import Halogen as H
 import Halogen.Aff (awaitBody, runHalogenAff)
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.VDom.Driver (runUI)
-import Math (pi, sin, cos, (%))
+import Math (cos, pi, pow, sin, (%))
+import Math as Math
 import Record.Builder as Record
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
@@ -42,14 +51,28 @@ import WAGS.Lib.Cofree (actualize, heads, tails)
 import WAGS.Lib.Emitter (fEmitter, fEmitter')
 import WAGS.Lib.Latch (ALatchAP, CfLatchAP(..), MakeLatchAP, LatchAP)
 import WAGS.Lib.Piecewise (makeLoopingTerracedR)
+import WAGS.Lib.Rate (ARate, CfRate, MakeRate, Rate, timeIs)
 import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
+import WAGS.Math (calcSlope)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
 import WAGS.Template (fromTemplate)
+
+ntropi :: Behavior Number
+ntropi =
+  behavior \e ->
+    makeEvent \f ->
+      e `subscribe` \a2b -> (a2b <$> random) >>= f
+
+type World
+  = { ntropi :: Number
+    , mickey :: Maybe { x :: Int, y :: Int }
+    , change :: Number
+    }
 
 globalFF = 0.03 :: Number
 
 type NKeys
-  = D7 -- 3 buffers
+  = D7 -- 7 keys
 
 type NBuf
   = D2 -- 3 buffers
@@ -57,54 +80,82 @@ type NBuf
 type RBuf
   = Unit -- no extra info needed
 
---- room0
 type KeyBufs r
-  = ( keyBufs :: SimpleBuffer NBuf
+  = ( keyBufs :: V.Vec NKeys (SimpleBuffer NBuf)
+    , rate :: ARate
     | r
     )
 
+nps = 3.0 :: Number
+
 keyBufsActualize ::
-  forall trigger world r.
-  SceneI trigger world ->
+  forall trigger r.
+  SceneI trigger World ->
   { | KeyBufs r } ->
-  { keyBufs :: SimpleBufferCf NBuf
+  { keyBufs :: V.Vec NKeys (SimpleBufferCf NBuf)
+  , rate :: CfRate MakeRate Rate
   }
-keyBufsActualize e { keyBufs } =
+keyBufsActualize e@(SceneI e') { keyBufs, rate } =
   { keyBufs:
-      actualizeSimpleBuffer
-        (NEA.fromNonEmpty (0.0 :| [ 0.832 ]))
-        2.0
-        e
+      mapWithIndex
+        ( \i' ->
+            let
+              i = toNumber i'
+            in
+              actualizeSimpleBuffer
+                (NEA.singleton (i / nps))
+                ((toNumber $ toInt' (Proxy :: _ NKeys)) / nps)
+                (timeIs (extract rate') e)
+        )
         keyBufs
+  , rate: rate'
   }
+  where
+  freq = 1.0 + maybe 0.0 (\{ y } -> toNumber y / 1000.0) e'.world.mickey
+
+  rate' = actualize rate e freq
 
 keyBufGraph ::
-  forall trigger world r.
-  SceneI trigger world ->
-  { keyBufs :: SimpleBufferHead NBuf
+  forall trigger r.
+  SceneI trigger World ->
+  { keyBufs :: V.Vec NKeys (SimpleBufferHead NBuf)
+  , rate :: Rate
   | r
   } ->
   _
-keyBufGraph (SceneI { time }) { keyBufs: { buffers } } =
-  { room0Kick:
-      fromTemplate (Proxy :: _ "keyBufs") buffers \_ -> case _ of
-        Just (Buffy { starting, startTime }) ->
-          gain 1.0
-            ( playBuf
-                { onOff:
-                    ff globalFF
-                      $ if starting then
-                          ff (max 0.0 (startTime - time)) (pure OffOn)
-                        else if time - startTime > 1.0 then
-                          pure Off
-                        else
-                          pure On
-                , playbackRate: 1.0
-                }
-                "kick1"
-            )
-        Nothing -> gain 0.0 (playBuf { onOff: Off } "kick1")
+keyBufGraph (SceneI { world }) { keyBufs, rate } =
+  { keyBufs:
+      fromTemplate (Proxy :: _ "instruments") keyBufs \i { buffers } ->
+        fromTemplate (Proxy :: _ "buffers") buffers \_ -> case _ of
+          Just (Buffy { starting, startTime }) ->
+            let
+              pos = max 0.0 (startTime - time)
+
+              nk = toNumber $ toInt' (Proxy :: _ NKeys)
+
+              endT = startTime + (nk / nps)
+            in
+              gain (ff (globalFF + pos) (pure (max 0.0 $ calcSlope startTime 1.0 endT 0.0 time)))
+                ( playBuf
+                    { onOff:
+                        ff globalFF
+                          $ if starting then
+                              ff pos (pure OffOn)
+                            else
+                              pure On
+                    , playbackRate: 1.0
+                    }
+                    if xpos < world.ntropi then
+                      ("note" <> show i)
+                    else
+                      ("note" <> show (floor $ world.change * nk))
+                )
+          Nothing -> gain 0.0 (playBuf { onOff: Off } ("note" <> show i))
   }
+  where
+  xpos = maybe 0.0 (\{ x } -> toNumber x / 1000.0) world.mickey
+
+  time = rate
 
 ---
 -- change this to make sound
@@ -118,7 +169,7 @@ type Acc
 acc :: { | Acc }
 acc = mempty
 
-scene :: forall trigger world. SceneI trigger world -> { | Acc } -> _
+scene :: forall trigger. SceneI trigger World -> { | Acc } -> _
 scene e a =
   let
     actualizer = {}
@@ -135,7 +186,7 @@ scene e a =
     scene =
       speaker
         { masterGain:
-            gain 0.5
+            gain 1.0
               ( Record.build
                   ( Record.union (keyBufGraph e headz)
                   )
@@ -145,7 +196,7 @@ scene e a =
   in
     tails actualized /\ scene
 
-piece :: forall env world. Scene (SceneI env world) RunAudio RunEngine Frame0 Unit
+piece :: forall env. Scene (SceneI env World) RunAudio RunEngine Frame0 Unit
 piece =
   startUsingWithHint
     scene
@@ -199,7 +250,7 @@ render :: forall m. State -> H.ComponentHTML Action () m
 render _ = do
   HH.div_
     [ HH.h1_
-        [ HH.text "Loop" ]
+        [ HH.text "ꦒꦩꦼꦭꦤ꧀" ]
     , HH.button
         [ HE.onClick \_ -> StartAudio ]
         [ HH.text "Start audio" ]
@@ -216,29 +267,27 @@ handleAction = case _ of
     unitCache <- H.liftEffect makeUnitCache
     let
       sounds' =
-        { kick1: "https://freesound.org/data/previews/171/171104_2394245-hq.mp3"
-        , sideStick: "https://freesound.org/data/previews/209/209890_3797507-hq.mp3"
-        , snare: "https://freesound.org/data/previews/495/495777_10741529-hq.mp3"
-        , clap: "https://freesound.org/data/previews/183/183102_2394245-hq.mp3"
-        , snareRoll: "https://freesound.org/data/previews/50/50710_179538-hq.mp3"
-        , kick2: "https://freesound.org/data/previews/148/148634_2614600-hq.mp3"
-        , closedHH: "https://freesound.org/data/previews/269/269720_4965320-hq.mp3"
-        , shaker: "https://freesound.org/data/previews/432/432205_8738244-hq.mp3"
-        , openHH: "https://freesound.org/data/previews/416/416249_8218607-hq.mp3"
-        , tamb: "https://freesound.org/data/previews/207/207925_19852-hq.mp3"
-        , crash: "https://freesound.org/data/previews/528/528490_3797507-hq.mp3"
-        , ride: "https://freesound.org/data/previews/270/270138_1125482-hq.mp3"
-        , trumpet: "https://freesound.org/data/previews/331/331146_3931578-hq.mp3"
-        , pad: "https://freesound.org/data/previews/110/110212_1751865-hq.mp3"
-        , impulse0: "https://freesound.org/data/previews/382/382907_2812020-hq.mp3"
+        { note0: "https://freesound.org/data/previews/24/24620_130612-hq.mp3"
+        , note1: "https://freesound.org/data/previews/24/24622_130612-hq.mp3"
+        , note2: "https://freesound.org/data/previews/24/24623_130612-hq.mp3"
+        , note3: "https://freesound.org/data/previews/24/24624_130612-hq.mp3"
+        , note4: "https://freesound.org/data/previews/24/24625_130612-hq.mp3"
+        , note5: "https://freesound.org/data/previews/24/24626_130612-hq.mp3"
+        , note6: "https://freesound.org/data/previews/24/24627_130612-hq.mp3"
         }
     sounds <- H.liftAff $ sequential $ traverse (parallel <<< toAffE <<< decodeAudioDataFromUri audioCtx) $ fromHomogeneous sounds'
     let
       ffiAudio = (defaultFFIAudio audioCtx unitCache) { buffers = pure sounds }
+    mouse' <- H.liftEffect getMouse
     unsubscribe <-
       H.liftEffect
         $ subscribe
-            ( run (pure unit) (pure unit)
+            ( run (pure unit)
+                ( { ntropi: _, mickey: _, change: _ }
+                    <$> ntropi
+                    <*> position mouse'
+                    <*> ntropi
+                )
                 { easingAlgorithm }
                 (FFIAudio ffiAudio)
                 piece

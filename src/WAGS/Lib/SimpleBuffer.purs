@@ -48,19 +48,12 @@ actualizeSimpleBuffer ::
   SceneI trigger world ->
   SimpleBuffer nbuf ->
   SimpleBufferCf nbuf
-actualizeSimpleBuffer nea end' e@(SceneI e') { latch: latch', buffers } =
-  { latch
-  , buffers:
-      actualize
-        buffers
-        e
-        $ UF.fromMaybe do
-            AudioParameter { param, timeOffset } <- extract latch
-            (First param') <- param
-            _ <- param'
-            pure { offset: timeOffset, rest: unit }
-  }
+actualizeSimpleBuffer nea' end'' = go
   where
+  nea = if NEA.length nea' == 1 then nea' <> map (add end'') nea' else nea'
+
+  end' = if NEA.length nea' == 1 then 2.0 * end'' else end''
+
   end = if NEA.last nea >= end' then NEA.last nea + 0.0001 else end'
 
   step0 = over neaHead (\a -> if a < 0.0 then 0.0 else a) nea
@@ -73,8 +66,21 @@ actualizeSimpleBuffer nea end' e@(SceneI e') { latch: latch', buffers } =
 
   (NEL.NonEmptyList step4) = nea2nel step3
 
-  kicks = makeLoopingTerracedR step4
+  loopingTerraced = makeLoopingTerracedR step4
 
-  fromPW = kicks { time: e'.time, headroom: e'.headroomInSeconds }
+  go e@(SceneI e') { latch: latch', buffers } =
+    { latch
+    , buffers:
+        actualize
+          buffers
+          e
+          $ UF.fromMaybe do
+              AudioParameter { param, timeOffset } <- extract latch
+              (First param') <- param
+              _ <- param'
+              pure { offset: timeOffset, rest: unit }
+    }
+    where
+    fromPW = loopingTerraced { time: e'.time, headroom: e'.headroomInSeconds }
 
-  latch = actualize latch' e fromPW
+    latch = actualize latch' e fromPW

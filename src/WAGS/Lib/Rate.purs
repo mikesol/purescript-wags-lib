@@ -60,3 +60,6 @@ instance monoidARate :: Monoid ARate where
 
 instance actualizeRate :: Actualize ARate (SceneI a b) Number (CfRate MakeRate Rate) where
   actualize (MakeRate r) (SceneI { time }) rate = r { time, rate }
+
+timeIs :: forall trigger world. Number -> SceneI trigger world -> SceneI trigger world
+timeIs time (SceneI x) = SceneI (x { time = time })
