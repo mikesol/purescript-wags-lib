@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.14] - 2021-08-22
 
-- adds sequencer example.
+- adds sector example.
 - upgrades to newest wags.
 - reduces number of computations.
 

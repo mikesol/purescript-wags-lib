@@ -1,4 +1,4 @@
-module Sequencer.App where
+module Sector.App where
 
 import Prelude
 import Control.Applicative.Indexed ((:*>))

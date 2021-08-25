@@ -1,4 +1,4 @@
-name: Deploys sequencer
+name: Deploys sector
 on:
   push:
     branches:
@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./examples/sequencer
+        working-directory: ./examples/sector
     strategy:
       matrix:
         node-version: [14.x]
