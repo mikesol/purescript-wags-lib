@@ -1,29 +1,21 @@
 module WAGS.Lib.Example.Sequencer where
 
 import Prelude
-import WAGS.Create.Optionals
-
-import Control.Alternative (guard)
+import WAGS.Create.Optionals (gain, playBuf, speaker)
 import Control.Applicative.Indexed ((:*>))
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
 import Control.Parallel (parallel, sequential)
 import Control.Promise (toAffE)
 import Data.Array.NonEmpty as NEA
-import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int (floor, toNumber)
 import Data.List ((:), List(..))
-import Data.Maybe (Maybe(..), isJust, maybe)
+import Data.Maybe (Maybe(..), maybe)
 import Data.Monoid.Additive (Additive(..))
-import Data.NonEmpty ((:|))
-import Data.Semigroup.First (First(..))
-import Data.Traversable (for_, sequence, traverse)
-import Data.Tuple (Tuple(..))
+import Data.Traversable (for_, traverse)
 import Data.Tuple.Nested ((/\))
-import Data.Typelevel.Num (D2, D3, D7, toInt')
-import Data.Unfoldable as UF
+import Data.Typelevel.Num (D2, D7, toInt')
 import Data.Vec as V
-import Debug.Trace (spy)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
@@ -39,8 +31,6 @@ import Halogen.Aff (awaitBody, runHalogenAff)
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.VDom.Driver (runUI)
-import Math (cos, pi, pow, sin, (%))
-import Math as Math
 import Record.Builder as Record
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
@@ -49,14 +39,10 @@ import WAGS.Control.Functions (imodifyRes)
 import WAGS.Control.Functions.Validated (iloop, startUsingWithHint)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (OnOff(..))
-import WAGS.Graph.Parameter (AudioParameter_(..))
 import WAGS.Graph.Parameter (ff)
 import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
-import WAGS.Lib.BufferPool (ABufferPool, Buffy(..), BuffyVec, CfBufferPool, MakeBufferPoolWithRest)
+import WAGS.Lib.BufferPool (Buffy(..))
 import WAGS.Lib.Cofree (actualize, heads, tails)
-import WAGS.Lib.Emitter (fEmitter, fEmitter')
-import WAGS.Lib.Latch (ALatchAP, CfLatchAP(..), MakeLatchAP, LatchAP)
-import WAGS.Lib.Piecewise (makeLoopingTerracedR)
 import WAGS.Lib.Rate (ARate, CfRate, MakeRate, Rate, timeIs)
 import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
 import WAGS.Math (calcSlope)
@@ -192,7 +178,7 @@ scene e a =
 
     headz = heads actualized
 
-    scene =
+    scene' =
       speaker
         { masterGain:
             gain 1.0
@@ -203,11 +189,12 @@ scene e a =
               )
         }
   in
-    tails actualized /\ scene
+    tails actualized /\ scene'
 
-baseCoord = { x: Additive 0, y: Additive 0 }
+type Res
+  = { x :: Additive Int, y :: Additive Int }
 
-piece :: forall env. Scene (SceneI env World) RunAudio RunEngine Frame0 ({ x :: Additive Int, y :: Additive Int })
+piece :: forall env. Scene (SceneI env World) RunAudio RunEngine Frame0 Res
 piece =
   startUsingWithHint
     scene
@@ -219,7 +206,7 @@ piece =
             in
               imodifyRes
                 ( const
-                    ( maybe baseCoord
+                    ( maybe mempty
                         (\{ x, y } -> { x: Additive x, y: Additive y })
                         e'.world.mickey
                     )

@@ -13,7 +13,7 @@ To see how to bundle this library on your site, please visit the [examples](./ex
 To compile the JS for the hello world example, issue the following command:
 
 ```bash
-spago -x examples.dhall bundle-app \
+npx spago -x examples.dhall bundle-app \
   --main WAGS.Lib.Example.HelloWorld \
   --to examples/hello-world/index.js
 ```
