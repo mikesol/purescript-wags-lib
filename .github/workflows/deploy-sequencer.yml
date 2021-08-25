@@ -20,11 +20,5 @@ jobs:
         run: npx spago build
       - name: Webpack build
         run: npm run build
-      - name: mv dist build
-        run: mv dist build
-      - name: Deploy Netlify
-        uses: danakim/gh-action-deploy-netlify@master
-        with:
-          AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          SITE_ID: ${{ secrets.NETLIFY_SEQUENCER_SITE_ID }}
-          DEPLOY_PROD: true
+      - name: deploy to netlify
+        run: NETLIFY_SITE_ID=${{ secrets.NETLIFY_SEQUENCER_SITE_ID }} NETLIFY_AUTH_TOKEN=${{ secrets.NETLIFY_AUTH_TOKEN }} npm install -g netlify-cli && netlify deploy --dir=dist --prod --auth=${NETLIFY_AUTH_TOKEN}
