@@ -2,7 +2,9 @@ module WAGS.Lib.Example.Sequencer where
 
 import Prelude
 import WAGS.Create.Optionals
+
 import Control.Alternative (guard)
+import Control.Applicative.Indexed ((:*>))
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
 import Control.Parallel (parallel, sequential)
@@ -12,6 +14,7 @@ import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int (floor, toNumber)
 import Data.List ((:), List(..))
 import Data.Maybe (Maybe(..), isJust, maybe)
+import Data.Monoid.Additive (Additive(..))
 import Data.NonEmpty ((:|))
 import Data.Semigroup.First (First(..))
 import Data.Traversable (for_, sequence, traverse)
@@ -24,6 +27,7 @@ import Debug.Trace (spy)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
+import Effect.Class.Console as Log
 import Effect.Random (random)
 import FRP.Behavior (Behavior, behavior)
 import FRP.Behavior.Mouse (position)
@@ -41,6 +45,7 @@ import Record.Builder as Record
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 import WAGS.Change (ichange)
+import WAGS.Control.Functions (imodifyRes)
 import WAGS.Control.Functions.Validated (iloop, startUsingWithHint)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (OnOff(..))
@@ -200,17 +205,26 @@ scene e a =
   in
     tails actualized /\ scene
 
-piece :: forall env. Scene (SceneI env World) RunAudio RunEngine Frame0 Unit
+baseCoord = { x: Additive 0, y: Additive 0 }
+
+piece :: forall env. Scene (SceneI env World) RunAudio RunEngine Frame0 ({ x :: Additive Int, y :: Additive Int })
 piece =
   startUsingWithHint
     scene
     acc
     ( iloop
-        ( \e a ->
+        ( \e@(SceneI e') a ->
             let
               acc /\ graph = scene e a
             in
-              ichange graph $> acc
+              imodifyRes
+                ( const
+                    ( maybe baseCoord
+                        (\{ x, y } -> { x: Additive x, y: Additive y })
+                        e'.world.mickey
+                    )
+                )
+                :*> (ichange graph $> acc)
         )
     )
 
@@ -296,7 +310,7 @@ handleAction = case _ of
                 (FFIAudio ffiAudio)
                 piece
             )
-            (const $ pure unit)
+            (\{ res } -> Log.info $ show res)
     H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
   StopAudio -> do
     { unsubscribe, audioCtx } <- H.get
