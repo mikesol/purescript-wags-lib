@@ -21,4 +21,4 @@ jobs:
       - name: Webpack build
         run: npm run build
       - name: deploy to netlify
-        run: NETLIFY_SITE_ID=${{ secrets.NETLIFY_SEQUENCER_SITE_ID }} NETLIFY_AUTH_TOKEN=${{ secrets.NETLIFY_AUTH_TOKEN }} npm install -g netlify-cli && netlify deploy --dir=dist --prod --auth=${NETLIFY_AUTH_TOKEN}
+        run: NETLIFY_SITE_ID=${{ secrets.NETLIFY_SEQUENCER_SITE_ID }} NETLIFY_AUTH_TOKEN=${{ secrets.NETLIFY_AUTH_TOKEN }} netlify deploy --dir=dist --prod
