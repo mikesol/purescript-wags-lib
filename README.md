@@ -10,12 +10,9 @@ This library has utilities for creating functions of time and pools of buffers.
 
 To see how to bundle this library on your site, please visit the [examples](./examples) directory.
 
-To compile the JS for the hello world example, issue the following command:
+Each example is a self-contained project and can be started using the following commands:
 
 ```bash
-npx spago -x examples.dhall bundle-app \
-  --main WAGS.Lib.Example.HelloWorld \
-  --to examples/hello-world/index.js
+npm install
+npm start
 ```
-
-Then, to access the example, you can run a http server from the directory and navigate to the url, ie `cd examples/hello-world && python -m http.server` and then navigate to localhost:8000.

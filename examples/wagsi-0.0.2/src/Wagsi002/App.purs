@@ -1,18 +1,17 @@
-module WAGS.Lib.Example.Wagsi002 where
+module Wagsi002.App where
 
 import Prelude
-import WAGS.Create.Optionals
-import Control.Alternative (guard)
+import WAGS.Create.Optionals (gain, loopBuf, playBuf, speaker)
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
 import Control.Parallel (parallel, sequential)
 import Control.Promise (toAffE)
 import Data.Array.NonEmpty as NEA
 import Data.List ((:), List(..))
-import Data.Maybe (Maybe(..), isJust)
+import Data.Maybe (Maybe(..))
 import Data.NonEmpty ((:|))
 import Data.Semigroup.First (First(..))
-import Data.Traversable (for_, sequence, traverse)
+import Data.Traversable (for_, traverse)
 import Data.Tuple.Nested ((/\))
 import Data.Typelevel.Num (D3)
 import Data.Unfoldable as UF
@@ -24,9 +23,10 @@ import Foreign.Object (fromHomogeneous)
 import Halogen as H
 import Halogen.Aff (awaitBody, runHalogenAff)
 import Halogen.HTML as HH
+import Halogen.HTML.Properties as HP
 import Halogen.HTML.Events as HE
 import Halogen.VDom.Driver (runUI)
-import Math (pi, sin, cos, (%))
+import Math (pi, sin, (%))
 import Record.Builder as Record
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
@@ -34,13 +34,11 @@ import WAGS.Change (ichange)
 import WAGS.Control.Functions.Validated (iloop, startUsingWithHint)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (OnOff(..))
-import WAGS.Graph.Parameter (AudioParameter_(..))
-import WAGS.Graph.Parameter (ff)
+import WAGS.Graph.Parameter (AudioParameter_(..), ff)
 import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (ABufferPool, Buffy(..), BuffyVec, CfBufferPool, MakeBufferPoolWithRest)
 import WAGS.Lib.Cofree (actualize, heads, tails)
-import WAGS.Lib.Emitter (fEmitter, fEmitter')
-import WAGS.Lib.Latch (ALatchAP, CfLatchAP(..), MakeLatchAP, LatchAP)
+import WAGS.Lib.Latch (ALatchAP, CfLatchAP, MakeLatchAP, LatchAP)
 import WAGS.Lib.Piecewise (makeLoopingTerracedR)
 import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
@@ -362,17 +360,30 @@ initialState _ =
   , audioCtx: Nothing
   }
 
+classes :: forall r p. Array String -> HP.IProp ( class :: String | r ) p
+classes = HP.classes <<< map H.ClassName
+
 render :: forall m. State -> H.ComponentHTML Action () m
-render _ = do
-  HH.div_
-    [ HH.h1_
-        [ HH.text "Loop" ]
-    , HH.button
-        [ HE.onClick \_ -> StartAudio ]
-        [ HH.text "Start audio" ]
-    , HH.button
-        [ HE.onClick \_ -> StopAudio ]
-        [ HH.text "Stop audio" ]
+render _ = HH.div [ classes [ "w-screen", "h-screen" ] ]
+    [ HH.div [ classes [ "flex", "flex-col", "w-full", "h-full" ] ]
+        [ HH.div [ classes [ "flex-grow" ] ] []
+        , HH.div [ classes [ "flex-grow-0", "flex", "flex-row" ] ]
+            [ HH.div [ classes [ "flex-grow" ] ]
+                []
+            , HH.div [ classes [ "flex", "flex-col" ] ]
+                [ HH.h1 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
+                    [ HH.text "wagsi-0.0.2" ]
+                , HH.button
+                    [ classes [ "text-2xl", "m-5", "bg-indigo-500", "p-3", "rounded-lg", "text-white", "hover:bg-indigo-400" ], HE.onClick \_ -> StartAudio ]
+                    [ HH.text "Start audio" ]
+                , HH.button
+                    [ classes [ "text-2xl", "m-5", "bg-pink-500", "p-3", "rounded-lg", "text-white", "hover:bg-pink-400" ] , HE.onClick \_ -> StopAudio ]
+                    [ HH.text "Stop audio" ]
+                ]
+            , HH.div [ classes [ "flex-grow" ] ] []
+            ]
+        , HH.div [ classes [ "flex-grow" ] ] []
+        ]
     ]
 
 handleAction :: forall output m. MonadEffect m => MonadAff m => Action -> H.HalogenM State Action () output m Unit

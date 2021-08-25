@@ -1,4 +1,4 @@
-module WAGS.Lib.Example.FromTemplate where
+module Grains.App where
 
 import Prelude
 
@@ -83,12 +83,6 @@ easingAlgorithm =
     fOf initialTime = mkCofree initialTime \adj -> fOf $ max 20 (initialTime - adj)
   in
     fOf 20
-
-main :: Effect Unit
-main =
-  runHalogenAff do
-    body <- awaitBody
-    runUI component unit body
 
 type State
   = { unsubscribe :: Effect Unit
