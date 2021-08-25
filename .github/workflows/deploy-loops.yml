@@ -1,5 +1,8 @@
 name: Deploys loops
-on: push
+on:
+  push:
+    branches:
+      - main
 jobs:
   container-job:
     runs-on: ubuntu-latest

@@ -1,5 +1,8 @@
 name: Deploys wagsi-0.0.2
-on: push
+on:
+  push:
+    branches:
+      - main
 jobs:
   container-job:
     runs-on: ubuntu-latest
