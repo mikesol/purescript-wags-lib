@@ -1,8 +1,6 @@
 name: Deploys sector
-on:
-  push:
-    branches:
-      - main
+on: push
+
 jobs:
   container-job:
     runs-on: ubuntu-latest
@@ -24,4 +22,5 @@ jobs:
       - name: Webpack build
         run: npm run build
       - name: deploy to netlify
+        if: github.ref == 'refs/heads/main'
         run: NETLIFY_SITE_ID=${{ secrets.NETLIFY_SEQUENCER_SITE_ID }} NETLIFY_AUTH_TOKEN=${{ secrets.NETLIFY_AUTH_TOKEN }} netlify deploy --dir=dist --prod
