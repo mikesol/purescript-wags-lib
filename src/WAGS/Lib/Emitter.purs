@@ -111,5 +111,5 @@ fEmitter' { sensitivity } freq { time, headroom } = if dist < sensitivity then J
 fEmitter :: Number -> { time :: Number, headroom :: Number } -> Maybe Number
 fEmitter = fEmitter' { sensitivity: 0.04 }
 
-instance actualizeEmitter :: Actualize AnEmitter (SceneI a b) Number (CfEmitter MakeEmitter Emission) where
+instance actualizeEmitter :: Actualize AnEmitter (SceneI a b c) Number (CfEmitter MakeEmitter Emission) where
   actualize (MakeEmitter r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }

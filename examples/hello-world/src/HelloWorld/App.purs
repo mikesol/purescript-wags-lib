@@ -1,6 +1,7 @@
 module HelloWorld.App where
 
 import Prelude
+
 import Control.Applicative.Indexed ((:*>))
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
@@ -8,7 +9,6 @@ import Control.Comonad.Cofree.Class (unwrapCofree)
 import Control.Plus (empty)
 import Control.Promise (toAffE)
 import Data.Foldable (for_)
-import Data.Int (toNumber)
 import Data.Maybe (Maybe(..))
 import Data.Tuple.Nested (type (/\))
 import Data.Typelevel.Num (D4, d0, d1, d2, d3)
@@ -17,25 +17,23 @@ import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
 import FRP.Event (subscribe)
-import Foreign.Object as O
 import Halogen as H
-import Halogen.Aff (awaitBody, runHalogenAff)
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
-import Halogen.VDom.Driver (runUI)
 import Math (cos, pi, sin)
 import WAGS.Change (ichange)
 import WAGS.Control.Functions.Validated (iloop, (@!>))
 import WAGS.Control.Indexed (IxFrame)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (TGain, TPlayBuf, TSinOsc, TSpeaker)
-import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
+import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (ABufferPool, bOnOff, makeBufferPool)
 import WAGS.Lib.Cofree (actualize)
 import WAGS.Lib.Emitter (AnEmitter, makeEmitter)
 import WAGS.Lib.Rate (ARate, makeRate)
 import WAGS.Patch (ipatch)
-import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
+import WAGS.Run (RunAudio, RunEngine, SceneI(..), Run, run)
+import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
 type SceneType
   = { speaker ::
@@ -64,14 +62,16 @@ type Acc
     , buffy :: ABufferPool D4 Unit
     }
 
-createFrame :: IxFrame (SceneI Unit Unit) RunAudio RunEngine Frame0 Unit {} SceneType Acc
-createFrame = \(SceneI { time }) ->
-  ( ipatch
+type World = { bell :: BrowserAudioBuffer }
+
+createFrame :: IxFrame (SceneI Unit World ()) RunAudio RunEngine Frame0 Unit {} SceneType Acc
+createFrame = \(SceneI { time, world : { bell } }) ->
+  ( ipatch { microphone: empty }
       :*> ( ichange
-            { b0: "bell"
-            , b1: "bell"
-            , b2: "bell"
-            , b3: "bell"
+            { b0: bell
+            , b1: bell
+            , b2: bell
+            , b3: bell
             }
             $> { myRate: makeRate { prevTime: 0.0, startsAt: time }
               , myEmitter: makeEmitter { prevTime: 0.0, startsAt: time }
@@ -80,10 +80,10 @@ createFrame = \(SceneI { time }) ->
         )
   )
 
-piece :: Scene (SceneI Unit Unit) RunAudio RunEngine Frame0 Unit
+piece :: Scene (SceneI Unit World ()) RunAudio RunEngine Frame0 Unit
 piece =
   createFrame
-    @!> iloop \e@(SceneI { time, headroomInSeconds: hr }) a ->
+    @!> iloop \e@(SceneI { time }) a ->
         let
           rate = actualize a.myRate e (4.0 + sin (time * pi * 0.25) * 3.5)
 
@@ -137,7 +137,7 @@ initialState _ =
   }
 
 render :: forall m. State -> H.ComponentHTML Action () m
-render state = do
+render _ = do
   HH.div_
     [ HH.h1_
         [ HH.text "Hello world" ]
@@ -160,12 +160,12 @@ handleAction = case _ of
             audioCtx
             "https://freesound.org/data/previews/339/339809_5121236-hq.mp3"
     let
-      ffiAudio = (defaultFFIAudio audioCtx unitCache) { buffers = pure (O.singleton "bell" bell) }
+      ffiAudio = defaultFFIAudio audioCtx unitCache
     unsubscribe <-
       H.liftEffect
         $ subscribe
-            (run (pure unit) (pure unit) { easingAlgorithm } (FFIAudio ffiAudio) piece)
-            (const $ pure unit)
+            (run (pure unit) (pure { bell }) { easingAlgorithm } ffiAudio piece)
+            (\(_ :: Run Unit ()) -> pure unit)
     H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
   StopAudio -> do
     { unsubscribe, audioCtx } <- H.get

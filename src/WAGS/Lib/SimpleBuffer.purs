@@ -41,11 +41,11 @@ nea2nel :: NEA.NonEmptyArray ~> NEL.NonEmptyList
 nea2nel x = let (a :| b) = NEA.toNonEmpty x in NEL.NonEmptyList (a :| L.fromFoldable b)
 
 actualizeSimpleBuffer ::
-  forall trigger world nbuf.
+  forall trigger world analyserCallbacks nbuf.
   Pos nbuf =>
   NEA.NonEmptyArray Number ->
   Number ->
-  SceneI trigger world ->
+  SceneI trigger world analyserCallbacks ->
   SimpleBuffer nbuf ->
   SimpleBufferCf nbuf
 actualizeSimpleBuffer nea' end'' = go

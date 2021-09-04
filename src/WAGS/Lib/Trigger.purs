@@ -132,8 +132,8 @@ instance monoidTrigger :: Monoid ATrigger where
 instance monoidSnappyTrigger :: Monoid ASnappyTrigger where
   mempty = makeSnappyTrigger
 
-instance actualizeTrigger :: Actualize ATrigger (SceneI a b) (Maybe Number) (CfTrigger MakeTriggerWithOffset Time) where
+instance actualizeTrigger :: Actualize ATrigger (SceneI a b c) (Maybe Number) (CfTrigger MakeTriggerWithOffset Time) where
   actualize (MakeTriggerWithOffset r) (SceneI { time }) offset = r { time, offset }
 
-instance actualizeSnappyTrigger :: Actualize ASnappyTrigger (SceneI a b) Number (CfSnappyTrigger MakeSnappyTrigger Time) where
+instance actualizeSnappyTrigger :: Actualize ASnappyTrigger (SceneI a b c) Number (CfSnappyTrigger MakeSnappyTrigger Time) where
   actualize (MakeSnappyTrigger r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }
