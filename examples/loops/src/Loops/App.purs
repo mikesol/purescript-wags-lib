@@ -5,6 +5,7 @@ import Prelude
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
 import Control.Parallel (parallel, sequential)
+import Control.Plus (empty)
 import Control.Promise (toAffE)
 import Data.Foldable (for_)
 import Data.Int (toNumber)
@@ -19,26 +20,28 @@ import Data.Newtype (class Newtype, wrap)
 import Data.NonEmpty (NonEmpty, (:|))
 import Data.Profunctor (lcmap)
 import Data.Symbol (class IsSymbol)
-import Data.Traversable (sequence, traverse)
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D5)
 import Data.Unfoldable as UF
 import Effect (Effect)
+import Effect.Aff (ParAff)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
 import FRP.Behavior.Mouse (position)
 import FRP.Event (subscribe)
 import FRP.Event.Mouse (getMouse)
-import Foreign.Object (fromHomogeneous)
 import Halogen as H
 import Halogen.Aff (awaitBody, runHalogenAff)
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
-import Heterogeneous.Mapping (hmap, hmapWithIndex, class MappingWithIndex)
+import Heterogeneous.Folding (class FoldingWithIndex, hfoldlWithIndex)
+import Heterogeneous.Mapping (class MappingWithIndex, hmap, hmapWithIndex)
+import Prim.Row (class Cons, class Lacks)
 import Prim.Row as Row
+import Record as Rec
 import Record as Record
 import Type.Proxy (Proxy(..))
 import WAGS.Change (ichange)
@@ -47,22 +50,39 @@ import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Create.Optionals (gain, playBuf, speaker)
 import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (AudioParameter_(..), ff)
-import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
+import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (ABufferPool, Buffy(Buffy), BuffyVec, CfBufferPool, MakeBufferPoolWithRest)
 import WAGS.Lib.Cofree (actualize, heads, tails)
 import WAGS.Lib.Latch (ALatchAP, CfLatchAP, LatchAP, MakeLatchAP)
 import WAGS.Lib.Piecewise (APFofT, TimeHeadroom, makeLoopingTerracedR, makePiecewise, makeTerracedR)
-import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
+import WAGS.Run (RunAudio, RunEngine, SceneI(..), run, Run)
 import WAGS.Template (fromTemplate)
+import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
 type Trigger
   = Unit
 
 type World
-  = { position :: Maybe { x :: Int, y :: Int } }
+  =
+  { position :: Maybe { x :: Int, y :: Int }
+  , sounds :: 
+    { kick1:: BrowserAudioBuffer
+    , sideStick:: BrowserAudioBuffer
+    , snare:: BrowserAudioBuffer
+    , clap:: BrowserAudioBuffer
+    , snareRoll:: BrowserAudioBuffer
+    , kick2:: BrowserAudioBuffer
+    , closedHH:: BrowserAudioBuffer
+    , shaker:: BrowserAudioBuffer
+    , openHH:: BrowserAudioBuffer
+    , tamb:: BrowserAudioBuffer
+    , crash:: BrowserAudioBuffer
+    , ride:: BrowserAudioBuffer
+    }
+  }
 
 type Extern
-  = SceneI Trigger World
+  = SceneI Trigger World ()
 
 newtype ZipProps fns
   = ZipProps { | fns }
@@ -71,6 +91,23 @@ instance zipProps ::
   (IsSymbol sym, Row.Cons sym (a -> b) x fns) =>
   MappingWithIndex (ZipProps fns) (Proxy sym) a b where
   mappingWithIndex (ZipProps fns) p = Record.get p fns
+
+newtype ExpandInstruments r
+  = ExpandInstruments { | r }
+
+instance expandInstruments ::
+  (IsSymbol sym, Row.Cons sym { | IActualized } x r) =>
+  MappingWithIndex (ExpandInstruments r) (Proxy sym) BrowserAudioBuffer { buf :: BrowserAudioBuffer | IActualized } where
+  mappingWithIndex (ExpandInstruments r) p buf = { buffers, latch, buf }
+    where
+    ({ buffers, latch } :: { | IActualized }) = Record.get p r
+
+data TraverseH f = TraverseH f
+
+instance foldTraverseH ::
+  (IsSymbol sym, Lacks sym r1, Cons sym b r1 r2, Apply m, Functor m) =>
+  FoldingWithIndex (TraverseH (a -> m b)) (Proxy sym) (m {|r1}) a (m {|r2}) where
+  foldingWithIndex (TraverseH f) prop rec a = Rec.insert prop <$> f a <*> rec
 
 type Instruments'' a r
   = ( kick1 :: a, sideStick :: a, snare :: a, clap :: a, snareRoll :: a, kick2 :: a, closedHH :: a, shaker :: a, openHH :: a, tamb :: a, crash :: a, ride :: a | r )
@@ -431,10 +468,13 @@ slideTime =
         SceneI (r { time = time - 0.25 + 0.6 * (normalizePosition p).y })
     )
 
+type IActualized = (latch :: LatchAP GOO, buffers :: BuffyVec NBuf RBuf)
+
 piece :: Scene Extern RunAudio RunEngine Frame0 Unit
 piece =
   startUsingWithHint
     scene
+    { microphone: empty }
     acc
     ( iloop
         ( slideTime \e@(SceneI { time, world: { position: p } }) (a :: { | Acc }) ->
@@ -448,11 +488,13 @@ piece =
   scene ::
     Extern ->
     { x :: Number, y :: Number } ->
-    { instruments :: Instruments { latch :: LatchAP GOO, buffers :: BuffyVec NBuf RBuf } } -> _
-  scene (SceneI { time, headroomInSeconds: headroom }) p { instruments } =
+    { instruments :: Instruments { | IActualized } } -> _
+  scene (SceneI { time, headroomInSeconds: headroom, world }) p { instruments } =
+    let (withBuffers :: Instruments { buf :: BrowserAudioBuffer, latch :: LatchAP GOO, buffers :: BuffyVec NBuf RBuf }) = hmapWithIndex (ExpandInstruments instruments) world.sounds in
     speaker
       ( gain (if time < 5.0 then time / 5.0 else 1.0)
-          ( fromTemplate (Proxy :: _ "instruments") instruments \name { buffers } ->
+          -- todo: use ffi to speed up
+          ( fromTemplate (Proxy :: _ "instruments") withBuffers \_ { buffers, buf } ->
               fromTemplate (Proxy :: _ "buffers") buffers \_ -> case _ of
                 Just (Buffy { starting, startTime, rest: GOO goo }) ->
                   gain (ff globalFF $ goo.gain { time: time - startTime, headroom })
@@ -465,9 +507,9 @@ piece =
                                   goo.onOff { time: time - startTime, headroom }
                         , playbackRate: 0.8 + 0.2 * p.x
                         }
-                        name
+                        buf
                     )
-                Nothing -> gain 0.0 (playBuf { onOff: Off } name)
+                Nothing -> gain 0.0 (playBuf { onOff: Off } buf)
           )
       )
 
@@ -554,14 +596,14 @@ handleAction = case _ of
         , crash: "https://freesound.org/data/previews/528/528490_3797507-hq.mp3"
         , ride: "https://freesound.org/data/previews/270/270138_1125482-hq.mp3"
         }
-    sounds <- H.liftAff $ sequential $ traverse (parallel <<< toAffE <<< decodeAudioDataFromUri audioCtx) $ fromHomogeneous sounds'
+    sounds <- H.liftAff $ sequential $ hfoldlWithIndex (TraverseH (parallel <<< toAffE <<< decodeAudioDataFromUri audioCtx)) (pure {} :: ParAff {}) sounds'
     let
-      ffiAudio = (defaultFFIAudio audioCtx unitCache) { buffers = pure sounds }
+      ffiAudio = (defaultFFIAudio audioCtx unitCache)
     unsubscribe <-
       H.liftEffect
         $ subscribe
-            (run (pure unit) ({ position: _ } <$> position mouse) { easingAlgorithm } (FFIAudio ffiAudio) piece)
-            (const $ pure unit)
+            (run (pure unit) ({ position: _, sounds } <$> position mouse) { easingAlgorithm } ( ffiAudio) piece)
+            (\(_ :: Run Unit ()) -> pure unit)
     H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
   StopAudio -> do
     { unsubscribe, audioCtx } <- H.get
