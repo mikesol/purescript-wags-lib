@@ -118,7 +118,7 @@ makeBufferPool' ::
   Maybe Number ->
   Maybe (NonEmpty List (Number /\ Number)) ->
   ABufferPool n r
-makeBufferPool' _ dur pwf = MakeBufferPoolWithRest (go 0 (V.fill (const (Nothing :: Maybe (Buffy r)))))
+makeBufferPool' _ _ _ = MakeBufferPoolWithRest (go 0 (V.fill (const (Nothing :: Maybe (Buffy r)))))
   where
   len :: Int
   len = toInt' (Proxy :: _ n)
@@ -130,11 +130,11 @@ makeBufferPool' _ dur pwf = MakeBufferPoolWithRest (go 0 (V.fill (const (Nothing
     Int ->
     Maybe (Buffy r) ->
     Maybe (Buffy r)
-  maybeBufferToGainOnOff cPos { time, headroom, offsets } myPos Nothing
+  maybeBufferToGainOnOff cPos { time, offsets } myPos Nothing
     | Just { offset, rest } <- A.index offsets (myPos - cPos `mod` len) = Just (Buffy { startTime: time, starting: true, rest })
     | otherwise = Nothing
 
-  maybeBufferToGainOnOff cPos { time, headroom, offsets } myPos (Just (Buffy b))
+  maybeBufferToGainOnOff cPos { time, offsets } myPos (Just (Buffy b))
     | Just { offset, rest } <- A.index offsets (myPos - cPos `mod` len) = Just (Buffy { startTime: time, starting: true, rest })
     | otherwise = Just (Buffy { startTime: b.startTime, rest: b.rest, starting: false })
 
@@ -268,11 +268,11 @@ type Time
 bOnOff :: forall r. Time -> Maybe (Buffy r) -> APOnOff
 bOnOff time = maybe (pure Off) (unwrap >>> \{ starting, startTime } -> if starting then ff (max (startTime - time) 0.0) (pure OffOn) else pure On)
 
-instance actualizeBufferPool :: Actualize (ABufferPool n r) (SceneI a b) (Array { offset :: Number, rest :: r }) (CfBufferPool (MakeBufferPoolWithRest r) (BuffyVec n r)) where
+instance actualizeBufferPool :: Actualize (ABufferPool n r) (SceneI a b c) (Array { offset :: Number, rest :: r }) (CfBufferPool (MakeBufferPoolWithRest r) (BuffyVec n r)) where
   actualize (MakeBufferPoolWithRest r) (SceneI { time, headroomInSeconds: headroom }) offsets = r { time, headroom, offsets }
 
-instance actualizeHotBufferPool :: Actualize (AHotBufferPool n) (SceneI a b) Number (CfHotBufferPool MakeHotBufferPool (BuffyVec n Unit)) where
+instance actualizeHotBufferPool :: Actualize (AHotBufferPool n) (SceneI a b c) Number (CfHotBufferPool MakeHotBufferPool (BuffyVec n Unit)) where
   actualize (MakeHotBufferPool r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }
 
-instance actualizeSnappyBufferPool :: Actualize (ASnappyBufferPool n) (SceneI a b) Number (CfSnappyBufferPool MakeSnappyBufferPool (BuffyVec n Unit)) where
+instance actualizeSnappyBufferPool :: Actualize (ASnappyBufferPool n) (SceneI a b c) Number (CfSnappyBufferPool MakeSnappyBufferPool (BuffyVec n Unit)) where
   actualize (MakeSnappyBufferPool r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }

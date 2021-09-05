@@ -58,8 +58,8 @@ instance semigroupCfRate :: Semigroup (CfRate MakeRate Rate) where
 instance monoidARate :: Monoid ARate where
   mempty = makeRate { startsAt: 0.0, prevTime: 0.0 }
 
-instance actualizeRate :: Actualize ARate (SceneI a b) Number (CfRate MakeRate Rate) where
+instance actualizeRate :: Actualize ARate (SceneI a b c) Number (CfRate MakeRate Rate) where
   actualize (MakeRate r) (SceneI { time }) rate = r { time, rate }
 
-timeIs :: forall trigger world. Number -> SceneI trigger world -> SceneI trigger world
+timeIs :: forall trigger world analyserCallbacks. Number -> SceneI trigger world analyserCallbacks -> SceneI trigger world analyserCallbacks
 timeIs time (SceneI x) = SceneI (x { time = time })

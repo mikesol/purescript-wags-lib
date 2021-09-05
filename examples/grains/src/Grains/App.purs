@@ -15,23 +15,21 @@ import Effect.Class (class MonadEffect)
 import Effect.Random (random)
 import FRP.Behavior (Behavior, behavior)
 import FRP.Event (makeEvent, subscribe)
-import Foreign.Object as O
 import Halogen as H
-import Halogen.Aff (awaitBody, runHalogenAff)
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
-import Halogen.VDom.Driver (runUI)
 import Math (pow)
 import Type.Proxy (Proxy(..))
 import WAGS.Change (ichange)
 import WAGS.Control.Functions (iloop, startUsingWithHint)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Create.Optionals (gain, playBuf, speaker, pan)
-import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
+import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (AHotBufferPool, BuffyVec, bOnOff)
 import WAGS.Lib.Cofree (actualizes, tails)
-import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
+import WAGS.Run (RunAudio, RunEngine, SceneI(..), Run, run)
 import WAGS.Template (fromTemplate)
+import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
 ntropi :: Behavior Number
 ntropi =
@@ -46,21 +44,22 @@ acc :: Acc
 acc = { hbp: mempty }
 
 type World
-  = { entropy :: Number }
+  = { entropy :: Number, buffers :: { bells :: BrowserAudioBuffer } }
 
-piece :: Scene (SceneI Unit World) RunAudio RunEngine Frame0 Unit
+piece :: Scene (SceneI Unit World ()) RunAudio RunEngine Frame0 Unit
 piece =
   startUsingWithHint
     scene
+    { microphone: Nothing }
     acc
-    ( iloop \e@(SceneI { time, world: { entropy } }) (a :: Acc) ->
+    ( iloop \e@(SceneI { time, world: { entropy, buffers: { bells } } }) (a :: Acc) ->
         let
           actualized = actualizes a e { hbp: 12.0 * (entropy `pow` 6.0) }
         in
-          ichange (scene time entropy (extract actualized.hbp)) $> tails actualized
+          ichange (scene time bells entropy (extract actualized.hbp)) $> tails actualized
     )
   where
-  scene (time :: Number) (entropy :: Number) (v :: BuffyVec D20 Unit) =
+  scene (time :: Number) (bells :: BrowserAudioBuffer) (entropy :: Number) (v :: BuffyVec D20 Unit) =
     speaker
       { mainBus:
           fromTemplate (Proxy :: _ "myPool") v \i gor ->
@@ -72,7 +71,7 @@ piece =
                           { onOff: bOnOff time gor
                           , playbackRate: (1.0 + (toNumber (i + 1) * 0.1 + entropy))
                           }
-                          "bells"
+                          bells
                     }
               }
       }
@@ -108,7 +107,7 @@ initialState _ =
   }
 
 render :: forall m. State -> H.ComponentHTML Action () m
-render state = do
+render _ = do
   HH.div_
     [ HH.h1_
         [ HH.text "Grains" ]
@@ -131,12 +130,12 @@ handleAction = case _ of
             audioCtx
             "https://freesound.org/data/previews/339/339822_5121236-lq.mp3"
     let
-      ffiAudio = (defaultFFIAudio audioCtx unitCache) { buffers = pure $ O.singleton "bells" bells }
+      ffiAudio = (defaultFFIAudio audioCtx unitCache) 
     unsubscribe <-
       H.liftEffect
         $ subscribe
-            (run (pure unit) ({ entropy: _ } <$> ntropi) { easingAlgorithm } (FFIAudio ffiAudio) piece)
-            (const $ pure unit)
+            (run (pure unit) ({ entropy: _, buffers: { bells } } <$> ntropi) { easingAlgorithm } (ffiAudio) piece)
+            (\(_ :: Run Unit ()) -> pure unit)
     H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
   StopAudio -> do
     { unsubscribe, audioCtx } <- H.get

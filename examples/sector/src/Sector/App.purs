@@ -1,19 +1,24 @@
 module Sector.App where
 
 import Prelude
+
 import Control.Applicative.Indexed ((:*>))
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
 import Control.Parallel (parallel, sequential)
+import Control.Plus (empty)
 import Control.Promise (toAffE)
+import Data.Array as A
 import Data.Array.NonEmpty as NEA
 import Data.Int (floor, toNumber)
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Monoid.Additive (Additive(..))
 import Data.Traversable (for_, traverse)
 import Data.Tuple.Nested ((/\))
 import Data.Typelevel.Num (D2, D7, toInt')
+import Data.Vec ((+>))
 import Data.Vec as V
+import Data.Vec as Vec
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
@@ -23,11 +28,11 @@ import FRP.Behavior (Behavior, behavior)
 import FRP.Behavior.Mouse (position)
 import FRP.Event (makeEvent, subscribe)
 import FRP.Event.Mouse (getMouse)
-import Foreign.Object (fromHomogeneous)
 import Halogen as H
 import Halogen.HTML as HH
-import Halogen.HTML.Properties as HP
 import Halogen.HTML.Events as HE
+import Halogen.HTML.Properties as HP
+import Record as R
 import Record.Builder as Record
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
@@ -38,26 +43,21 @@ import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Create.Optionals (gain, playBuf, speaker)
 import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (ff)
-import WAGS.Interpret (AudioContext, FFIAudio(..), close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
+import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (Buffy(..))
 import WAGS.Lib.Cofree (actualize, heads, tails)
 import WAGS.Lib.Rate (ARate, CfRate, MakeRate, Rate, timeIs)
 import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
 import WAGS.Math (calcSlope)
-import WAGS.Run (RunAudio, RunEngine, SceneI(..), run)
+import WAGS.Run (RunAudio, RunEngine, SceneI(..), Run, run)
 import WAGS.Template (fromTemplate)
+import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
 ntropi :: Behavior Number
 ntropi =
   behavior \e ->
     makeEvent \f ->
       e `subscribe` \a2b -> (a2b <$> random) >>= f
-
-type World
-  = { ntropi :: Number
-    , mickey :: Maybe { x :: Int, y :: Int }
-    , change :: Number
-    }
 
 globalFF = 0.03 :: Number
 
@@ -70,6 +70,13 @@ type NBuf
 type RBuf
   = Unit -- no extra info needed
 
+type World
+  = { ntropi :: Number
+    , mickey :: Maybe { x :: Int, y :: Int }
+    , change :: Number
+    , buffers :: V.Vec NKeys BrowserAudioBuffer
+    }
+
 type KeyBufs r
   = ( keyBufs :: V.Vec NKeys (SimpleBuffer NBuf)
     , rate :: ARate
@@ -79,8 +86,8 @@ type KeyBufs r
 nps = 3.0 :: Number
 
 buffersActualized ::
-  forall trigger world.
-  V.Vec NKeys (SceneI trigger world -> SimpleBuffer NBuf -> SimpleBufferCf NBuf)
+  forall trigger world analyserCbs.
+  V.Vec NKeys (SceneI trigger world analyserCbs -> SimpleBuffer NBuf -> SimpleBufferCf NBuf)
 buffersActualized =
   V.fill \i' ->
     let
@@ -91,8 +98,8 @@ buffersActualized =
         ((toNumber $ toInt' (Proxy :: _ NKeys)) / nps)
 
 keyBufsActualize ::
-  forall trigger r.
-  SceneI trigger World ->
+  forall trigger analyserCbs r.
+  SceneI trigger World analyserCbs ->
   { | KeyBufs r } ->
   { keyBufs :: V.Vec NKeys (SimpleBufferCf NBuf)
   , rate :: CfRate MakeRate Rate
@@ -109,8 +116,8 @@ keyBufsActualize e@(SceneI e') { keyBufs, rate } =
   newE = timeIs (extract rate') e
 
 keyBufGraph ::
-  forall trigger r.
-  SceneI trigger World ->
+  forall trigger analyserCbs r.
+  SceneI trigger World analyserCbs ->
   { keyBufs :: V.Vec NKeys (SimpleBufferHead NBuf)
   , rate :: Rate
   | r
@@ -118,7 +125,7 @@ keyBufGraph ::
   _
 keyBufGraph (SceneI { world }) { keyBufs, rate } =
   { keyBufs:
-      fromTemplate (Proxy :: _ "instruments") keyBufs \i { buffers } ->
+      fromTemplate (Proxy :: _ "instruments") (V.zipWithE (R.insert (Proxy :: _ "browserBuf")) world.buffers keyBufs) \i { buffers, browserBuf } ->
         fromTemplate (Proxy :: _ "buffers") buffers \_ -> case _ of
           Just (Buffy { starting, startTime }) ->
             let
@@ -139,11 +146,11 @@ keyBufGraph (SceneI { world }) { keyBufs, rate } =
                     , playbackRate: 1.0
                     }
                     if xpos < world.ntropi then
-                      ("note" <> show i)
+                      browserBuf
                     else
-                      ("note" <> show (floor $ world.change * nk))
+                      fromMaybe browserBuf (A.index (Vec.toArray world.buffers) (floor $ world.change * nk))
                 )
-          Nothing -> gain 0.0 (playBuf { onOff: Off } ("note" <> show i))
+          Nothing -> gain 0.0 (playBuf { onOff: Off } browserBuf) 
   }
   where
   xpos = maybe 0.0 (\{ x } -> toNumber x / 1000.0) world.mickey
@@ -162,7 +169,7 @@ type Acc
 acc :: { | Acc }
 acc = mempty
 
-scene :: forall trigger. SceneI trigger World -> { | Acc } -> _
+scene :: forall trigger analyserCbs. SceneI trigger World analyserCbs -> { | Acc } -> _
 scene e a =
   let
     actualizer = {}
@@ -192,10 +199,11 @@ scene e a =
 type Res
   = { x :: Additive Int, y :: Additive Int }
 
-piece :: forall env. Scene (SceneI env World) RunAudio RunEngine Frame0 Res
+piece :: forall env analyserCbs. Scene (SceneI env World analyserCbs) RunAudio RunEngine Frame0 Res
 piece =
   startUsingWithHint
     scene
+    { microphone: empty }
     acc
     ( iloop
         ( \e@(SceneI e') a ->
@@ -277,33 +285,32 @@ handleAction = case _ of
     audioCtx <- H.liftEffect context
     unitCache <- H.liftEffect makeUnitCache
     let
-      sounds' =
-        { note0: "https://freesound.org/data/previews/24/24620_130612-hq.mp3"
-        , note1: "https://freesound.org/data/previews/24/24622_130612-hq.mp3"
-        , note2: "https://freesound.org/data/previews/24/24623_130612-hq.mp3"
-        , note3: "https://freesound.org/data/previews/24/24624_130612-hq.mp3"
-        , note4: "https://freesound.org/data/previews/24/24625_130612-hq.mp3"
-        , note5: "https://freesound.org/data/previews/24/24626_130612-hq.mp3"
-        , note6: "https://freesound.org/data/previews/24/24627_130612-hq.mp3"
-        }
-    sounds <- H.liftAff $ sequential $ traverse (parallel <<< toAffE <<< decodeAudioDataFromUri audioCtx) $ fromHomogeneous sounds'
+      sounds' = "https://freesound.org/data/previews/24/24620_130612-hq.mp3" +>
+         "https://freesound.org/data/previews/24/24622_130612-hq.mp3" +>
+         "https://freesound.org/data/previews/24/24623_130612-hq.mp3" +>
+         "https://freesound.org/data/previews/24/24624_130612-hq.mp3" +>
+         "https://freesound.org/data/previews/24/24625_130612-hq.mp3" +>
+         "https://freesound.org/data/previews/24/24626_130612-hq.mp3" +>
+         "https://freesound.org/data/previews/24/24627_130612-hq.mp3"+> V.empty
+        
+    sounds <- H.liftAff $ sequential $ traverse (parallel <<< toAffE <<< decodeAudioDataFromUri audioCtx) sounds'
     let
-      ffiAudio = (defaultFFIAudio audioCtx unitCache) { buffers = pure sounds }
+      ffiAudio = defaultFFIAudio audioCtx unitCache 
     mouse' <- H.liftEffect getMouse
     unsubscribe <-
       H.liftEffect
         $ subscribe
             ( run (pure unit)
-                ( { ntropi: _, mickey: _, change: _ }
+                ( { ntropi: _, mickey: _, change: _, buffers:  sounds }
                     <$> ntropi
                     <*> position mouse'
                     <*> ntropi
                 )
                 { easingAlgorithm }
-                (FFIAudio ffiAudio)
+                ffiAudio
                 piece
             )
-            (\{ res } -> Log.info $ show res)
+            (\({ res } :: Run Res ()) -> Log.info $ show res)
     H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
   StopAudio -> do
     { unsubscribe, audioCtx } <- H.get
