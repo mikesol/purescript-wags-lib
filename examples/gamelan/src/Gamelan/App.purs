@@ -1,4 +1,4 @@
-module Sector.App where
+module Gamelan.App where
 
 import Prelude
 
