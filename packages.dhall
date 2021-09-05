@@ -150,7 +150,7 @@ let additions =
           , "simple-json"
           ]
         , repo = "https://github.com/mikesol/purescript-wags.git"
-        , version = "v0.4.1"
+        , version = "v0.4.2"
         }
       , typelevel-peano =
         { dependencies =
