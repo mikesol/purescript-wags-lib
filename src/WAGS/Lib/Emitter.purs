@@ -87,7 +87,7 @@ makeEmitter { startsAt, prevTime } =
 instance semigroupCfEmitter :: Semigroup (CfEmitter MakeEmitter Emission) where
   append f0i f1i =
     let
-      hd = extract f0i <> extract f0i
+      hd = extract f0i <> extract f1i
 
       tl = unwrapCofree f0i <> unwrapCofree f1i
     in

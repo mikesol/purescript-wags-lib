@@ -42,9 +42,9 @@ type ALatchAP v
 cmpAP :: forall v. Eq v => Maybe (AudioParameter_ v) -> Maybe (AudioParameter_ v) -> Boolean
 cmpAP Nothing Nothing = true
 
-cmpAP (Just t) (Nothing) = false
+cmpAP (Just _) (Nothing) = false
 
-cmpAP (Nothing) (Just t) = false
+cmpAP (Nothing) (Just _) = false
 
 cmpAP (Just (AudioParameter { param: p0 })) (Just (AudioParameter { param: p1 })) = p0 == p1
 
@@ -63,7 +63,7 @@ makeLatchAPWithoutInitialBlip = wrap (\p -> go (Just p) p)
 instance semigroupCfRate :: Semigroup v => Semigroup (CfLatchAP (MakeLatchAP v) (LatchAP v)) where
   append f0i f1i =
     let
-      hd = ((extract f0i) <> (extract f0i))
+      hd = ((extract f0i) <> (extract f1i))
 
       tl = unwrapCofree f0i <> unwrapCofree f1i
     in

@@ -44,7 +44,7 @@ makeBlip = wrap (go false)
 instance semigroupCfBlip :: Semigroup (CfBlip MakeBlip Blip) where
   append f0i f1i =
     let
-      hd = extract f0i || extract f0i
+      hd = extract f0i || extract f1i
 
       tl = unwrapCofree f0i <> unwrapCofree f1i
     in

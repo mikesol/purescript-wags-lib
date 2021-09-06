@@ -49,7 +49,7 @@ makeRate { startsAt, prevTime } = wrap (go startsAt prevTime)
 instance semigroupCfRate :: Semigroup (CfRate MakeRate Rate) where
   append f0i f1i =
     let
-      hd = ((extract f0i) + (extract f0i)) / 2.0
+      hd = ((extract f0i) + (extract f1i)) / 2.0
 
       tl = unwrapCofree f0i <> unwrapCofree f1i
     in
