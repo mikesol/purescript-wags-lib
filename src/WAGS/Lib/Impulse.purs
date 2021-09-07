@@ -7,7 +7,6 @@ import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
 import Control.Extend (class Extend)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Tuple.Nested ((/\))
-import WAGS.Lib.Cofree (class Actualize)
 
 newtype MakeImpulse a
   = MakeImpulse a
@@ -58,5 +57,7 @@ instance semigroupImpulse :: Semigroup (CfImpulse MakeImpulse Impulse) where
 instance monoidImpulse :: Monoid AnImpulse where
   mempty = makeImpulse
 
+{-
 instance actualizeImpulse :: Actualize AnImpulse e r (CfImpulse MakeImpulse Impulse) where
   actualize (MakeImpulse c) _ _ = c
+-}

@@ -10,6 +10,7 @@ import Control.Plus (empty)
 import Control.Promise (toAffE)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
+import Data.Newtype (unwrap)
 import Data.Tuple.Nested (type (/\))
 import Data.Typelevel.Num (D4, d0, d1, d2, d3)
 import Data.Vec as V
@@ -28,7 +29,6 @@ import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (TGain, TPlayBuf, TSinOsc, TSpeaker)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (ABufferPool, bOnOff, makeBufferPool)
-import WAGS.Lib.Cofree (actualize)
 import WAGS.Lib.Emitter (AnEmitter, makeEmitter)
 import WAGS.Lib.Rate (ARate, makeRate)
 import WAGS.Patch (ipatch)
@@ -83,13 +83,13 @@ createFrame = \(SceneI { time, world : { bell } }) ->
 piece :: Scene (SceneI Unit World ()) RunAudio RunEngine Frame0 Unit
 piece =
   createFrame
-    @!> iloop \e@(SceneI { time }) a ->
+    @!> iloop \e@(SceneI { time, headroomInSeconds: headroom }) a ->
         let
-          rate = actualize a.myRate e (4.0 + sin (time * pi * 0.25) * 3.5)
+          rate = unwrap a.myRate { time, rate: 4.0 + sin (time * pi * 0.25) * 3.5 }
 
-          emitter = actualize a.myEmitter e (4.0 + cos (time * pi * 0.25) * 3.5)
+          emitter = unwrap a.myEmitter { time, headroom, freq: 4.0 + cos (time * pi * 0.25) * 3.5 }
 
-          bufz = actualize a.buffy e (map { rest: unit, offset: _ } (extract emitter))
+          bufz = unwrap a.buffy { time, headroom, rest: unit, offset: extract emitter }
 
           hbufz = extract bufz
         in

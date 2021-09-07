@@ -13,6 +13,7 @@ import Data.Array.NonEmpty as NEA
 import Data.Int (floor, toNumber)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Monoid.Additive (Additive(..))
+import Data.Newtype (unwrap)
 import Data.Traversable (for_, traverse)
 import Data.Tuple.Nested ((/\))
 import Data.Typelevel.Num (D2, D7, toInt')
@@ -45,7 +46,7 @@ import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (ff)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (Buffy(..))
-import WAGS.Lib.Cofree (actualize, heads, tails)
+import WAGS.Lib.Cofree (heads, tails)
 import WAGS.Lib.Rate (ARate, CfRate, MakeRate, Rate, timeIs)
 import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
 import WAGS.Math (calcSlope)
@@ -104,14 +105,14 @@ keyBufsActualize ::
   { keyBufs :: V.Vec NKeys (SimpleBufferCf NBuf)
   , rate :: CfRate MakeRate Rate
   }
-keyBufsActualize e@(SceneI e') { keyBufs, rate } =
+keyBufsActualize e@(SceneI e'@ { time }) { keyBufs, rate } =
   { keyBufs: V.zipWithE (\f x -> f newE x) buffersActualized keyBufs
   , rate: rate'
   }
   where
   freq = 1.0 + maybe 0.0 (\{ y } -> toNumber y / 1000.0) e'.world.mickey
 
-  rate' = actualize rate e freq
+  rate' = unwrap rate { time, freq }
 
   newE = timeIs (extract rate') e
 

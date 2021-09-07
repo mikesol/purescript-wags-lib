@@ -10,6 +10,7 @@ import Control.Promise (toAffE)
 import Data.Array.NonEmpty as NEA
 import Data.List ((:), List(..))
 import Data.Maybe (Maybe(..))
+import Data.Newtype (unwrap)
 import Data.NonEmpty ((:|))
 import Data.Semigroup.First (First(..))
 import Data.Symbol (class IsSymbol)
@@ -43,7 +44,7 @@ import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (AudioParameter_(..), ff)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (ABufferPool, Buffy(..), BuffyVec, CfBufferPool, MakeBufferPoolWithRest)
-import WAGS.Lib.Cofree (actualize, heads, tails)
+import WAGS.Lib.Cofree (heads, tails)
 import WAGS.Lib.Latch (ALatchAP, CfLatchAP, MakeLatchAP, LatchAP)
 import WAGS.Lib.Piecewise (makeLoopingTerracedR)
 import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
@@ -60,35 +61,36 @@ type RBuf
   = Unit -- no extra info needed
 
 type World =
-  { kick1:: BrowserAudioBuffer
-  , sideStick:: BrowserAudioBuffer
-  , snare:: BrowserAudioBuffer
-  , clap:: BrowserAudioBuffer
-  , snareRoll:: BrowserAudioBuffer
-  , kick2:: BrowserAudioBuffer
-  , closedHH:: BrowserAudioBuffer
-  , shaker:: BrowserAudioBuffer
-  , openHH:: BrowserAudioBuffer
-  , tamb:: BrowserAudioBuffer
-  , crash:: BrowserAudioBuffer
-  , ride:: BrowserAudioBuffer
-  , trumpet:: BrowserAudioBuffer
-  , pad:: BrowserAudioBuffer
-  , impulse0:: BrowserAudioBuffer
+  { kick1 :: BrowserAudioBuffer
+  , sideStick :: BrowserAudioBuffer
+  , snare :: BrowserAudioBuffer
+  , clap :: BrowserAudioBuffer
+  , snareRoll :: BrowserAudioBuffer
+  , kick2 :: BrowserAudioBuffer
+  , closedHH :: BrowserAudioBuffer
+  , shaker :: BrowserAudioBuffer
+  , openHH :: BrowserAudioBuffer
+  , tamb :: BrowserAudioBuffer
+  , crash :: BrowserAudioBuffer
+  , ride :: BrowserAudioBuffer
+  , trumpet :: BrowserAudioBuffer
+  , pad :: BrowserAudioBuffer
+  , impulse0 :: BrowserAudioBuffer
   }
 
 --- room0
 type Acc0 r
-  = ( room0KickBuf :: SimpleBuffer NBuf
-    | r
-    )
+  =
+  ( room0KickBuf :: SimpleBuffer NBuf
+  | r
+  )
 
-actualizer0 ::
-  forall trigger world aCb r.
-  SceneI trigger world aCb ->
-  { | Acc0 r } ->
-  { room0KickBuf :: SimpleBufferCf NBuf
-  }
+actualizer0
+  :: forall trigger world aCb r
+   . SceneI trigger world aCb
+  -> { | Acc0 r }
+  -> { room0KickBuf :: SimpleBufferCf NBuf
+     }
 actualizer0 e { room0KickBuf } =
   { room0KickBuf:
       actualizeSimpleBuffer
@@ -98,13 +100,13 @@ actualizer0 e { room0KickBuf } =
         room0KickBuf
   }
 
-graph0 ::
-  forall trigger aCb r.
-  SceneI trigger World aCb ->
-  { room0KickBuf :: SimpleBufferHead NBuf
-  | r
-  } ->
-  _
+graph0
+  :: forall trigger aCb r
+   . SceneI trigger World aCb
+  -> { room0KickBuf :: SimpleBufferHead NBuf
+     | r
+     }
+  -> _
 graph0 (SceneI { time, world }) { room0KickBuf: { buffers } } =
   { room0Kick:
       fromTemplate (Proxy :: _ "room0KickBuffs") buffers \_ -> case _ of
@@ -113,7 +115,8 @@ graph0 (SceneI { time, world }) { room0KickBuf: { buffers } } =
             ( playBuf
                 { onOff:
                     ff globalFF
-                      $ if starting then
+                      $
+                        if starting then
                           ff (max 0.0 (startTime - time)) (pure OffOn)
                         else if time - startTime > 1.0 then
                           pure Off
@@ -128,42 +131,46 @@ graph0 (SceneI { time, world }) { room0KickBuf: { buffers } } =
 
 --- room1
 type Acc1 r
-  = ( room1ClapLatch :: ALatchAP (First (Maybe Boolean))
-    , room1ClapBuffers :: ABufferPool NBuf RBuf
-    | r
-    )
+  =
+  ( room1ClapLatch :: ALatchAP (First (Maybe Boolean))
+  , room1ClapBuffers :: ABufferPool NBuf RBuf
+  | r
+  )
 
-actualizer1 ::
-  forall trigger world aCb r.
-  SceneI trigger world aCb ->
-  { | Acc1 r } ->
-  { room1ClapLatch :: CfLatchAP (MakeLatchAP (First (Maybe Boolean))) (LatchAP (First (Maybe Boolean)))
-  , room1ClapBuffers :: CfBufferPool (MakeBufferPoolWithRest RBuf) (BuffyVec NBuf RBuf)
-  }
-actualizer1 e@(SceneI e') a =
+actualizer1
+  :: forall trigger world aCb r
+   . SceneI trigger world aCb
+  -> { | Acc1 r }
+  -> { room1ClapLatch :: CfLatchAP (MakeLatchAP (First (Maybe Boolean))) (LatchAP (First (Maybe Boolean)))
+     , room1ClapBuffers :: CfBufferPool (MakeBufferPoolWithRest RBuf) (BuffyVec NBuf RBuf)
+     }
+actualizer1 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
   { room1ClapLatch
   , room1ClapBuffers:
-      actualize
+      unwrap
         a.room1ClapBuffers
-        e
-        $ UF.fromMaybe do
+        { time
+        , headroom
+        , offsets: UF.fromMaybe do
             AudioParameter { param, timeOffset } <- extract room1ClapLatch
             (First param') <- param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
             _ <- param'
             pure { offset: timeOffset, rest: unit }
+        }
   }
   where
   claps =
     makeLoopingTerracedR
-      $ ( (0.0 /\ First Nothing)
+      $
+        ( (0.0 /\ First Nothing)
             :| (1.0 /\ First (Just true))
-            : (2.0 /\ First Nothing)
-            : Nil
+              : (2.0 /\ First Nothing)
+              : Nil
         )
 
   fromPW = claps { time: e'.time, headroom: e'.headroomInSeconds }
 
-  room1ClapLatch = actualize a.room1ClapLatch e fromPW
+  room1ClapLatch = unwrap a.room1ClapLatch fromPW
 
 graph1 :: forall trigger aCb r. SceneI trigger World aCb -> { room1ClapLatch :: (LatchAP (First (Maybe Boolean))), room1ClapBuffers :: BuffyVec NBuf RBuf | r } -> _
 graph1 (SceneI { time, world }) { room1ClapBuffers } =
@@ -174,7 +181,8 @@ graph1 (SceneI { time, world }) { room1ClapBuffers } =
             ( playBuf
                 { onOff:
                     ff globalFF
-                      $ if starting then
+                      $
+                        if starting then
                           ff (max 0.0 (startTime - time)) (pure OffOn)
                         else if time - startTime > 1.0 then
                           pure Off
@@ -189,44 +197,49 @@ graph1 (SceneI { time, world }) { room1ClapBuffers } =
 
 -- room2
 type Acc2 r
-  = ( room2HiHatLatch :: ALatchAP (First (Maybe Boolean))
-    , room2HiHatBuffers :: ABufferPool NBuf RBuf
-    | r
-    )
+  =
+  ( room2HiHatLatch :: ALatchAP (First (Maybe Boolean))
+  , room2HiHatBuffers :: ABufferPool NBuf RBuf
+  | r
+  )
 
-actualizer2 ::
-  forall trigger world aCb r.
-  SceneI trigger world aCb ->
-  { | Acc2 r } ->
-  { room2HiHatLatch :: CfLatchAP (MakeLatchAP (First (Maybe Boolean))) (LatchAP (First (Maybe Boolean)))
-  , room2HiHatBuffers :: CfBufferPool (MakeBufferPoolWithRest RBuf) (BuffyVec NBuf RBuf)
-  }
-actualizer2 e@(SceneI e') a =
+actualizer2
+  :: forall trigger world aCb r
+   . SceneI trigger world aCb
+  -> { | Acc2 r }
+  -> { room2HiHatLatch :: CfLatchAP (MakeLatchAP (First (Maybe Boolean))) (LatchAP (First (Maybe Boolean)))
+     , room2HiHatBuffers :: CfBufferPool (MakeBufferPoolWithRest RBuf) (BuffyVec NBuf RBuf)
+     }
+actualizer2 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
   { room2HiHatLatch
   , room2HiHatBuffers:
-      actualize
+      unwrap
         a.room2HiHatBuffers
-        e
-        $ UF.fromMaybe do
+        { time
+        , headroom
+        , offsets: UF.fromMaybe do
             AudioParameter { param, timeOffset } <- extract room2HiHatLatch
             (First param') <- param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
             _ <- param'
             pure { offset: timeOffset, rest: unit }
+        }
+
   }
   where
   hiHats =
     makeLoopingTerracedR
-      $ ( (0.0 /\ First Nothing)
+      $
+        ( (0.0 /\ First Nothing)
             :| (0.15 /\ First (Just true))
-            : (0.2 /\ First Nothing)
-            : (0.3 /\ First (Just false))
-            : (0.4 /\ First Nothing)
-            : Nil
+              : (0.2 /\ First Nothing)
+              : (0.3 /\ First (Just false))
+              : (0.4 /\ First Nothing)
+              : Nil
         )
 
   fromPW = hiHats { time: e'.time, headroom: e'.headroomInSeconds }
 
-  room2HiHatLatch = actualize a.room2HiHatLatch e fromPW
+  room2HiHatLatch = unwrap a.room2HiHatLatch fromPW
 
 graph2 :: forall trigger aCb r. SceneI trigger World aCb -> { room2HiHatLatch :: (LatchAP (First (Maybe Boolean))), room2HiHatBuffers :: BuffyVec NBuf RBuf | r } -> _
 graph2 (SceneI { time, world }) { room2HiHatBuffers } =
@@ -237,7 +250,8 @@ graph2 (SceneI { time, world }) { room2HiHatBuffers } =
             ( playBuf
                 { onOff:
                     ff globalFF
-                      $ if starting then
+                      $
+                        if starting then
                           ff (max 0.0 (startTime - time)) (pure OffOn)
                         else if time - startTime > 1.0 then
                           pure Off
@@ -251,11 +265,11 @@ graph2 (SceneI { time, world }) { room2HiHatBuffers } =
   }
 
 -- room3
-actualizer3 ::
-  forall trigger world aCb r.
-  SceneI trigger world aCb ->
-  { | r } ->
-  {}
+actualizer3
+  :: forall trigger world aCb r
+   . SceneI trigger world aCb
+  -> { | r }
+  -> {}
 actualizer3 e _ = {}
 
 pbFotTpt t
@@ -270,11 +284,11 @@ graph3 (SceneI { time, world }) _ =
   }
 
 -- room4
-actualizer4 ::
-  forall trigger world aCb r.
-  SceneI trigger world aCb ->
-  { | r } ->
-  {}
+actualizer4
+  :: forall trigger world aCb r
+   . SceneI trigger world aCb
+  -> { | r }
+  -> {}
 actualizer4 e _ = {}
 
 pbFotPad t
@@ -293,9 +307,10 @@ graph4 (SceneI { time, world }) _ =
 -- for example, you can try:
 -- a /@\ speaker { unit0: gain (cos (pi * e.time) * -0.02 + 0.02) { osc0: sinOsc 440.0 } }
 type Acc
-  = (
-    | Acc0 + Acc1 + Acc2 + ()
-    )
+  =
+  (
+  | Acc0 + Acc1 + Acc2 + ()
+  )
 
 acc :: { | Acc }
 acc = mempty
@@ -364,9 +379,10 @@ main =
     runUI component unit body
 
 type State
-  = { unsubscribe :: Effect Unit
-    , audioCtx :: Maybe AudioContext
-    }
+  =
+  { unsubscribe :: Effect Unit
+  , audioCtx :: Maybe AudioContext
+  }
 
 data Action
   = StartAudio
@@ -386,37 +402,42 @@ initialState _ =
   , audioCtx: Nothing
   }
 
-classes :: forall r p. Array String -> HP.IProp ( class :: String | r ) p
+classes :: forall r p. Array String -> HP.IProp (class :: String | r) p
 classes = HP.classes <<< map H.ClassName
 
 render :: forall m. State -> H.ComponentHTML Action () m
 render _ = HH.div [ classes [ "w-screen", "h-screen" ] ]
-    [ HH.div [ classes [ "flex", "flex-col", "w-full", "h-full" ] ]
-        [ HH.div [ classes [ "flex-grow" ] ] []
-        , HH.div [ classes [ "flex-grow-0", "flex", "flex-row" ] ]
-            [ HH.div [ classes [ "flex-grow" ] ]
-                []
-            , HH.div [ classes [ "flex", "flex-col" ] ]
-                [ HH.h1 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
-                    [ HH.text "wagsi-0.0.2" ]
-                , HH.button
-                    [ classes [ "text-2xl", "m-5", "bg-indigo-500", "p-3", "rounded-lg", "text-white", "hover:bg-indigo-400" ], HE.onClick \_ -> StartAudio ]
-                    [ HH.text "Start audio" ]
-                , HH.button
-                    [ classes [ "text-2xl", "m-5", "bg-pink-500", "p-3", "rounded-lg", "text-white", "hover:bg-pink-400" ] , HE.onClick \_ -> StopAudio ]
-                    [ HH.text "Stop audio" ]
-                ]
-            , HH.div [ classes [ "flex-grow" ] ] []
-            ]
-        , HH.div [ classes [ "flex-grow" ] ] []
-        ]
-    ]
+  [ HH.div [ classes [ "flex", "flex-col", "w-full", "h-full" ] ]
+      [ HH.div [ classes [ "flex-grow" ] ] []
+      , HH.div [ classes [ "flex-grow-0", "flex", "flex-row" ] ]
+          [ HH.div [ classes [ "flex-grow" ] ]
+              []
+          , HH.div [ classes [ "flex", "flex-col" ] ]
+              [ HH.h1 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
+                  [ HH.text "wagsi-0.0.2" ]
+              , HH.button
+                  [ classes [ "text-2xl", "m-5", "bg-indigo-500", "p-3", "rounded-lg", "text-white", "hover:bg-indigo-400" ], HE.onClick \_ -> StartAudio ]
+                  [ HH.text "Start audio" ]
+              , HH.button
+                  [ classes [ "text-2xl", "m-5", "bg-pink-500", "p-3", "rounded-lg", "text-white", "hover:bg-pink-400" ], HE.onClick \_ -> StopAudio ]
+                  [ HH.text "Stop audio" ]
+              ]
+          , HH.div [ classes [ "flex-grow" ] ] []
+          ]
+      , HH.div [ classes [ "flex-grow" ] ] []
+      ]
+  ]
 
 data TraverseH f = TraverseH f
 
 instance foldTraverseH ::
-  (IsSymbol sym, Lacks sym r1, Cons sym b r1 r2, Apply m, Functor m) =>
-  FoldingWithIndex (TraverseH (a -> m b)) (Proxy sym) (m {|r1}) a (m {|r2}) where
+  ( IsSymbol sym
+  , Lacks sym r1
+  , Cons sym b r1 r2
+  , Apply m
+  , Functor m
+  ) =>
+  FoldingWithIndex (TraverseH (a -> m b)) (Proxy sym) (m { | r1 }) a (m { | r2 }) where
   foldingWithIndex (TraverseH f) prop rec a = Rec.insert prop <$> f a <*> rec
 
 handleAction :: forall output m. MonadEffect m => MonadAff m => Action -> H.HalogenM State Action () output m Unit
