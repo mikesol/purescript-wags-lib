@@ -1,13 +1,14 @@
 module WAGS.Lib.Impulse where
 
 import Prelude
+
 import Control.Comonad (class Comonad)
 import Control.Comonad.Cofree (Cofree, deferCofree, head)
 import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
 import Control.Extend (class Extend)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Tuple.Nested ((/\))
-import WAGS.Lib.Cofree (class Actualize)
+import WAGS.Lib.Cofree (class Actualize, class ActualizeE, actualizeE)
 
 newtype MakeImpulse a
   = MakeImpulse a
@@ -58,5 +59,8 @@ instance semigroupImpulse :: Semigroup (CfImpulse MakeImpulse Impulse) where
 instance monoidImpulse :: Monoid AnImpulse where
   mempty = makeImpulse
 
-instance actualizeImpulse :: Actualize AnImpulse e r (CfImpulse MakeImpulse Impulse) where
-  actualize (MakeImpulse c) _ _ = c
+instance actualizeImpulse :: Actualize (MakeImpulse out) e r out where
+  actualize = actualizeE
+
+instance actualizeImpulseE :: ActualizeE (MakeImpulse) e r where
+  actualizeE (MakeImpulse c) _ _ = c

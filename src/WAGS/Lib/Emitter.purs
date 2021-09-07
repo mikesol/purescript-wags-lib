@@ -2,6 +2,7 @@
 module WAGS.Lib.Emitter where
 
 import Prelude
+
 import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
@@ -13,7 +14,7 @@ import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Tuple.Nested ((/\), type (/\))
 import Math (floor)
 import Math as Math
-import WAGS.Lib.Cofree (class Actualize)
+import WAGS.Lib.Cofree (class Actualize, class ActualizeE, actualizeE)
 import WAGS.Run (SceneI(..))
 
 -------
@@ -111,5 +112,8 @@ fEmitter' { sensitivity } freq { time, headroom } = if dist < sensitivity then J
 fEmitter :: Number -> { time :: Number, headroom :: Number } -> Maybe Number
 fEmitter = fEmitter' { sensitivity: 0.04 }
 
-instance actualizeEmitter :: Actualize AnEmitter (SceneI a b c) Number (CfEmitter MakeEmitter Emission) where
-  actualize (MakeEmitter r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }
+instance actualizeEmitter :: Actualize (MakeEmitter out) (SceneI a b c) Number out where
+  actualize = actualizeE
+
+instance actualizeEmitterE :: ActualizeE (MakeEmitter) (SceneI a b c) Number where
+  actualizeE (MakeEmitter r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }

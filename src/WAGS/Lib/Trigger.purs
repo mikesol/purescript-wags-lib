@@ -10,7 +10,7 @@ import Control.Extend (class Extend)
 import Data.Maybe (Maybe(..), isJust)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import WAGS.Lib.Blip (ABlip, MakeBlip(..), makeBlip)
-import WAGS.Lib.Cofree (class Actualize)
+import WAGS.Lib.Cofree (class Actualize, class ActualizeE, actualizeE)
 import WAGS.Lib.Emitter (fEmitter)
 import WAGS.Run (SceneI(..))
 
@@ -132,8 +132,14 @@ instance monoidTrigger :: Monoid ATrigger where
 instance monoidSnappyTrigger :: Monoid ASnappyTrigger where
   mempty = makeSnappyTrigger
 
-instance actualizeTrigger :: Actualize ATrigger (SceneI a b c) (Maybe Number) (CfTrigger MakeTriggerWithOffset Time) where
-  actualize (MakeTriggerWithOffset r) (SceneI { time }) offset = r { time, offset }
+instance actualizeTrigger :: Actualize (MakeTriggerWithOffset out) (SceneI a b c) (Maybe Number) out where
+  actualize = actualizeE
 
-instance actualizeSnappyTrigger :: Actualize ASnappyTrigger (SceneI a b c) Number (CfSnappyTrigger MakeSnappyTrigger Time) where
-  actualize (MakeSnappyTrigger r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }
+instance actualizeSnappyTrigger :: Actualize (MakeSnappyTrigger out) (SceneI a b c) Number out where
+  actualize = actualizeE
+
+instance actualizeTriggerE :: ActualizeE (MakeTriggerWithOffset) (SceneI a b c) (Maybe Number) where
+  actualizeE (MakeTriggerWithOffset r) (SceneI { time }) offset = r { time, offset }
+
+instance actualizeSnappyTriggerE :: ActualizeE (MakeSnappyTrigger) (SceneI a b c) Number where
+  actualizeE (MakeSnappyTrigger r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }

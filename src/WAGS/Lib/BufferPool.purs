@@ -1,6 +1,7 @@
 module WAGS.Lib.BufferPool where
 
 import Prelude
+
 import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
@@ -18,7 +19,7 @@ import Type.Proxy (Proxy(..))
 import WAGS.Graph.AudioUnit (APOnOff, OnOff(..))
 import WAGS.Graph.Parameter (ff)
 import WAGS.Lib.Blip (ABlip, MakeBlip(..), makeBlip)
-import WAGS.Lib.Cofree (class Actualize)
+import WAGS.Lib.Cofree (class Actualize, class ActualizeE, actualizeE)
 import WAGS.Lib.Emitter (MakeEmitter(..), AnEmitter, fEmitter, makeEmitter)
 import WAGS.Run (SceneI(..))
 
@@ -268,11 +269,20 @@ type Time
 bOnOff :: forall r. Time -> Maybe (Buffy r) -> APOnOff
 bOnOff time = maybe (pure Off) (unwrap >>> \{ starting, startTime } -> if starting then ff (max (startTime - time) 0.0) (pure OffOn) else pure On)
 
-instance actualizeBufferPool :: Actualize (ABufferPool n r) (SceneI a b c) (Array { offset :: Number, rest :: r }) (CfBufferPool (MakeBufferPoolWithRest r) (BuffyVec n r)) where
-  actualize (MakeBufferPoolWithRest r) (SceneI { time, headroomInSeconds: headroom }) offsets = r { time, headroom, offsets }
+instance actualizeBufferPool :: Actualize (MakeBufferPoolWithRest rest out) (SceneI a b c) (Array { offset :: Number, rest :: rest }) out where
+  actualize = actualizeE
 
-instance actualizeHotBufferPool :: Actualize (AHotBufferPool n) (SceneI a b c) Number (CfHotBufferPool MakeHotBufferPool (BuffyVec n Unit)) where
-  actualize (MakeHotBufferPool r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }
+instance actualizeHotBufferPool :: Actualize (MakeHotBufferPool out) (SceneI a b c) Number out where
+  actualize = actualizeE
 
-instance actualizeSnappyBufferPool :: Actualize (ASnappyBufferPool n) (SceneI a b c) Number (CfSnappyBufferPool MakeSnappyBufferPool (BuffyVec n Unit)) where
-  actualize (MakeSnappyBufferPool r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }
+instance actualizeSnappyBufferPool :: Actualize (MakeSnappyBufferPool out) (SceneI a b c) Number out where
+  actualize = actualizeE
+
+instance actualizeBufferPoolE :: ActualizeE (MakeBufferPoolWithRest rest) (SceneI a b c) (Array { offset :: Number, rest :: rest }) where
+  actualizeE (MakeBufferPoolWithRest r) (SceneI { time, headroomInSeconds: headroom }) offsets = r { time, headroom, offsets }
+
+instance actualizeHotBufferPoolE :: ActualizeE (MakeHotBufferPool) (SceneI a b c) Number where
+  actualizeE (MakeHotBufferPool r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }
+
+instance actualizeSnappyBufferPoolE :: ActualizeE (MakeSnappyBufferPool) (SceneI a b c) Number where
+  actualizeE (MakeSnappyBufferPool r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }

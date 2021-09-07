@@ -193,6 +193,38 @@ let additions =
         , repo = "https://github.com/mikesol/purescript-behaviors.git"
         , version = "v8.1.0"
         }
+      , day =
+        { dependencies =
+          [ "control"
+          , "exists"
+          , "free"
+          , "identity"
+          , "newtype"
+          , "pairing"
+          , "prelude"
+          , "psci-support"
+          , "transformers"
+          , "tuples"
+          ]
+        , repo = "https://github.com/mikesol/purescript-day.git"
+        , version = "v11.0.0"
+        }
+      , pairing =
+        { dependencies =
+          [ "control"
+          , "either"
+          , "free"
+          , "functors"
+          , "identity"
+          , "newtype"
+          , "prelude"
+          , "psci-support"
+          , "transformers"
+          , "tuples"
+          ]
+        , repo = "https://github.com/mikesol/purescript-pairing.git"
+        , version = "v6.0.0"
+        }
       , convertable-options =
         { dependencies = [ "console", "effect", "maybe", "record" ]
         , repo =

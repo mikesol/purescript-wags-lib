@@ -3,10 +3,11 @@ module WAGS.Lib.Cofree where
 import Prelude hiding (Ordering(..))
 
 import Control.Comonad (class Comonad, extract)
-import Control.Comonad.Cofree as Cf
 import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
 import Data.Either (Either(..))
+import Data.Functor.Day (Day, runDay)
 import Data.Identity (Identity(..))
+import Data.Newtype (class Newtype, unwrap)
 import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..))
 import Data.Typelevel.Num (class Nat)
@@ -32,7 +33,7 @@ class Tailable a b | a -> b where
 instance tailableRow :: HMap Tailz { | ii } { | oo } => Tailable { | ii } { | oo } where
   tails = hmap Tailz
 else instance tailableVec :: (Nat n, Tailable i o) => Tailable (V.Vec n i) (V.Vec n o) where
-  tails = map tails 
+  tails = map tails
 else instance tailableCf :: ComonadCofree f w => Tailable (w a) (f (w a)) where
   tails = unwrapCofree
 
@@ -50,7 +51,7 @@ class Headable a b | a -> b where
 instance headableRow :: HMap Headz { | ii } { | oo } => Headable { | ii } { | oo } where
   heads = hmap Headz
 else instance headableVec :: (Nat n, Headable i o) => Headable (V.Vec n i) (V.Vec n o) where
-  heads = map heads 
+  heads = map heads
 else instance headableCf :: Comonad w => Headable (w a) a where
   heads = extract
 
@@ -62,8 +63,25 @@ instance headzMapping ::
 class Actualize n e r o | n e -> r o where
   actualize :: n -> e -> r -> o
 
-instance actualizeIdentityComonad :: Actualize (Identity (Cf.Cofree Identity a)) e r (Cf.Cofree Identity a) where
-  actualize (Identity c) _ _ = c
+class ActualizeE n e r | n e -> r where
+  actualizeE :: forall o. n o -> e -> r -> o
+
+instance actualizeDay ::
+  ( ActualizeE x e q
+  , ActualizeE y e r
+  ) =>
+  ActualizeE (Day x y) e (Tuple q r) where
+  actualizeE inDay e (Tuple q r) = runDay (\get fx gy ->  get (actualizeE fx e q) (actualizeE gy e r)) inDay
+
+newtype AE no = AE no
+
+derive instance newtypeAE :: Newtype (AE no) _
+
+instance actualizeActualizeE :: ActualizeE n e r => Actualize (AE (n o)) e r o where
+  actualize = actualizeE <<< unwrap
+
+instance actualizeIdentityComonad :: ActualizeE Identity e r where
+  actualizeE (Identity c) _ _ = c
 
 instance actualizeTuple :: (Actualize a e c x, Actualize b e d y) => Actualize (Tuple a b) e (Tuple c d) (Tuple x y) where
   actualize (Tuple a b) e (Tuple c d) = Tuple (actualize a e c) (actualize b e d)

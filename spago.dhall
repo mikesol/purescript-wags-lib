@@ -2,6 +2,7 @@
 , dependencies =
   [ "arrays"
   , "control"
+  , "day"
   , "either"
   , "foldable-traversable"
   , "free"
