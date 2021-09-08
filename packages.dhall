@@ -152,6 +152,9 @@ let additions =
         , repo = "https://github.com/mikesol/purescript-wags.git"
         , version = "v0.4.2"
         }
+      , free = {
+        dependencies = ["catenable-lists", "control", "distributive", "either", "exists", "foldable-traversable", "invariant", "lazy", "maybe", "prelude", "tailrec", "transformers", "tuples", "unsafe-coerce"], repo="https://github.com/mikesol/purescript-free.git", version = "master"
+      }
       , typelevel-peano =
         { dependencies =
           [ "arrays"

@@ -8,6 +8,7 @@ import Control.Promise (toAffE)
 import Data.Foldable (for_)
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..))
+import Data.Newtype (unwrap)
 import Data.Typelevel.Num (D20)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
@@ -53,9 +54,9 @@ piece =
     scene
     { microphone: Nothing }
     acc
-    ( iloop \e@(SceneI { time, headroomInSeconds: headroom, world: { entropy, buffers: { bells } } }) (a :: Acc) ->
+    ( iloop \(SceneI { time, headroomInSeconds: headroom, world: { entropy, buffers: { bells } } }) (a :: Acc) ->
         let
-          actualized = unwrapRecord a `applyRecord` { hbp: { time, headroom, freq: 12.0 * (entropy `pow` 6.0) } }
+          actualized = { hbp: unwrap a.hbp { time, headroom, freq: 12.0 * (entropy `pow` 6.0) } }
         in
           ichange (scene time bells entropy (extract actualized.hbp)) $> tails actualized
     )
