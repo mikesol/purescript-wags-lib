@@ -16,7 +16,7 @@ import Data.Lens.Setter (set)
 import Data.List (List(..), (:))
 import Data.List as List
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Newtype (class Newtype, wrap)
+import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.NonEmpty (NonEmpty, (:|))
 import Data.Profunctor (lcmap)
 import Data.Symbol (class IsSymbol)
@@ -52,7 +52,7 @@ import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (AudioParameter_(..), ff)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (ABufferPool, Buffy(Buffy), BuffyVec, CfBufferPool, MakeBufferPoolWithRest)
-import WAGS.Lib.Cofree (actualize, heads, tails)
+import WAGS.Lib.Cofree (heads, tails)
 import WAGS.Lib.Latch (ALatchAP, CfLatchAP, LatchAP, MakeLatchAP)
 import WAGS.Lib.Piecewise (APFofT, TimeHeadroom, makeLoopingTerracedR, makePiecewise, makeTerracedR)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), run, Run)
@@ -65,20 +65,20 @@ type Trigger
 type World
   =
   { position :: Maybe { x :: Int, y :: Int }
-  , sounds :: 
-    { kick1:: BrowserAudioBuffer
-    , sideStick:: BrowserAudioBuffer
-    , snare:: BrowserAudioBuffer
-    , clap:: BrowserAudioBuffer
-    , snareRoll:: BrowserAudioBuffer
-    , kick2:: BrowserAudioBuffer
-    , closedHH:: BrowserAudioBuffer
-    , shaker:: BrowserAudioBuffer
-    , openHH:: BrowserAudioBuffer
-    , tamb:: BrowserAudioBuffer
-    , crash:: BrowserAudioBuffer
-    , ride:: BrowserAudioBuffer
-    }
+  , sounds ::
+      { kick1 :: BrowserAudioBuffer
+      , sideStick :: BrowserAudioBuffer
+      , snare :: BrowserAudioBuffer
+      , clap :: BrowserAudioBuffer
+      , snareRoll :: BrowserAudioBuffer
+      , kick2 :: BrowserAudioBuffer
+      , closedHH :: BrowserAudioBuffer
+      , shaker :: BrowserAudioBuffer
+      , openHH :: BrowserAudioBuffer
+      , tamb :: BrowserAudioBuffer
+      , crash :: BrowserAudioBuffer
+      , ride :: BrowserAudioBuffer
+      }
   }
 
 type Extern
@@ -88,7 +88,9 @@ newtype ZipProps fns
   = ZipProps { | fns }
 
 instance zipProps ::
-  (IsSymbol sym, Row.Cons sym (a -> b) x fns) =>
+  ( IsSymbol sym
+  , Row.Cons sym (a -> b) x fns
+  ) =>
   MappingWithIndex (ZipProps fns) (Proxy sym) a b where
   mappingWithIndex (ZipProps fns) p = Record.get p fns
 
@@ -96,7 +98,9 @@ newtype ExpandInstruments r
   = ExpandInstruments { | r }
 
 instance expandInstruments ::
-  (IsSymbol sym, Row.Cons sym { | IActualized } x r) =>
+  ( IsSymbol sym
+  , Row.Cons sym { | IActualized } x r
+  ) =>
   MappingWithIndex (ExpandInstruments r) (Proxy sym) BrowserAudioBuffer { buf :: BrowserAudioBuffer | IActualized } where
   mappingWithIndex (ExpandInstruments r) p buf = { buffers, latch, buf }
     where
@@ -105,12 +109,17 @@ instance expandInstruments ::
 data TraverseH f = TraverseH f
 
 instance foldTraverseH ::
-  (IsSymbol sym, Lacks sym r1, Cons sym b r1 r2, Apply m, Functor m) =>
-  FoldingWithIndex (TraverseH (a -> m b)) (Proxy sym) (m {|r1}) a (m {|r2}) where
+  ( IsSymbol sym
+  , Lacks sym r1
+  , Cons sym b r1 r2
+  , Apply m
+  , Functor m
+  ) =>
+  FoldingWithIndex (TraverseH (a -> m b)) (Proxy sym) (m { | r1 }) a (m { | r2 }) where
   foldingWithIndex (TraverseH f) prop rec a = Rec.insert prop <$> f a <*> rec
 
 type Instruments'' a r
-  = ( kick1 :: a, sideStick :: a, snare :: a, clap :: a, snareRoll :: a, kick2 :: a, closedHH :: a, shaker :: a, openHH :: a, tamb :: a, crash :: a, ride :: a | r )
+  = (kick1 :: a, sideStick :: a, snare :: a, clap :: a, snareRoll :: a, kick2 :: a, closedHH :: a, shaker :: a, openHH :: a, tamb :: a, crash :: a, ride :: a | r)
 
 type Instruments' a
   = Instruments'' a ()
@@ -125,7 +134,8 @@ notes :: Instruments (NonEmpty Array (Note Int))
 notes =
   { kick1:
       Note 127 0 12
-        :| [ Note 127 24 36
+        :|
+          [ Note 127 24 36
           , Note 127 72 84
           , Note 127 144 154
           , Note 127 168 181
@@ -155,7 +165,8 @@ notes =
           ]
   , sideStick:
       Note 108 96 120
-        :| [ Note 108 288 312
+        :|
+          [ Note 108 288 312
           , Note 108 480 504
           , Note 108 672 696
           , Note 108 864 888
@@ -165,7 +176,8 @@ notes =
           ]
   , snare:
       Note 127 288 312
-        :| [ Note 127 672 698
+        :|
+          [ Note 127 672 698
           , Note 127 1056 1081
           , Note 127 1440 1460
           , Note 110 1488 1496
@@ -173,7 +185,8 @@ notes =
           ]
   , clap:
       Note 127 96 120
-        :| [ Note 113 288 312
+        :|
+          [ Note 113 288 312
           , Note 125 480 504
           , Note 113 672 696
           , Note 125 864 888
@@ -183,14 +196,16 @@ notes =
           ]
   , snareRoll:
       Note 108 360 378
-        :| [ Note 113 744 763
+        :|
+          [ Note 113 744 763
           , Note 110 888 903
           , Note 113 1128 1146
           , Note 110 1272 1288
           ]
   , kick2:
       Note 111 0 6
-        :| [ Note 111 24 30
+        :|
+          [ Note 111 24 30
           , Note 110 144 150
           , Note 111 168 174
           , Note 110 384 389
@@ -208,7 +223,8 @@ notes =
           ]
   , closedHH:
       Note 126 24 33
-        :| [ Note 126 72 84
+        :|
+          [ Note 126 72 84
           , Note 127 120 132
           , Note 127 168 181
           , Note 126 216 233
@@ -238,7 +254,8 @@ notes =
           ]
   , shaker:
       Note 110 0 14
-        :| [ Note 111 48 61
+        :|
+          [ Note 111 48 61
           , Note 111 96 112
           , Note 111 144 161
           , Note 111 192 210
@@ -288,13 +305,15 @@ notes =
           ]
   , openHH:
       Note 127 288 312
-        :| [ Note 127 672 696
+        :|
+          [ Note 127 672 696
           , Note 127 1056 1080
           , Note 127 1440 1464
           ]
   , tamb:
       Note 115 96 120
-        :| [ Note 115 288 312
+        :|
+          [ Note 115 288 312
           , Note 115 480 504
           , Note 115 672 696
           , Note 115 864 888
@@ -305,7 +324,8 @@ notes =
   , crash: Note 89 0 16 :| []
   , ride:
       Note 72 0 10
-        :| [ Note 88 96 106
+        :|
+          [ Note 88 96 106
           , Note 88 192 201
           , Note 88 288 297
           , Note 88 384 393
@@ -370,10 +390,10 @@ bookend (a :| b) = (newA :| newB)
     else
       0.0
         /\ wrap
-            { gain: makePiecewise ((0.0 /\ 0.0) :| Nil)
-            , onOff: makeTerracedR ((0.0 /\ Off) :| Nil)
-            , "_eq": 0.0
-            }
+          { gain: makePiecewise ((0.0 /\ 0.0) :| Nil)
+          , onOff: makeTerracedR ((0.0 /\ Off) :| Nil)
+          , "_eq": 0.0
+          }
 
   newB = (if startsAt0 then b else [ a ] <> b) <> [ timedTicksInLoop /\ set (simple _Newtype <<< prop (Proxy :: _ "_eq")) timedTicksInLoop (snd newA) ]
 
@@ -412,38 +432,40 @@ type Ctrl
   = { latch :: ALatchAP GOO, buffers :: ABufferPool NBuf RBuf }
 
 type Acc
-  = ( instruments :: Instruments Ctrl )
+  = (instruments :: Instruments Ctrl)
 
 type CfCtrl
-  = { latch :: CfLatchAP (MakeLatchAP GOO) (LatchAP GOO)
-    , buffers :: CfBufferPool (MakeBufferPoolWithRest RBuf) (BuffyVec NBuf RBuf)
-    }
+  =
+  { latch :: CfLatchAP (MakeLatchAP GOO) (LatchAP GOO)
+  , buffers :: CfBufferPool (MakeBufferPoolWithRest RBuf) (BuffyVec NBuf RBuf)
+  }
 
-actualizePWF ::
-  Extern ->
-  TimeHeadroom ->
-  (TimeHeadroom -> AudioParameter_ GOO) ->
-  Ctrl ->
-  CfCtrl
-actualizePWF e th f a =
+actualizePWF
+  :: Extern
+  -> TimeHeadroom
+  -> (TimeHeadroom -> AudioParameter_ GOO)
+  -> Ctrl
+  -> CfCtrl
+actualizePWF e@(SceneI { time, headroomInSeconds: headroom }) th f a =
   { latch
   , buffers:
-      actualize a.buffers e
-        ( UF.fromMaybe
-            ( do
-                AudioParameter { param, timeOffset } <- extract latch
-                rest <- param
-                pure { offset: timeOffset, rest }
-            )
-        )
+      unwrap a.buffers
+        { time
+        , headroom
+        , offsets: UF.fromMaybe do
+            AudioParameter { param, timeOffset } <- extract latch
+            rest <- param
+            pure { offset: timeOffset, rest }
+
+        }
   }
   where
-  latch = actualize a.latch e (f th)
+  latch = unwrap a.latch (f th)
 
-actualizer ::
-  Extern ->
-  { | Acc } ->
-  { instruments :: Instruments CfCtrl }
+actualizer
+  :: Extern
+  -> { | Acc }
+  -> { instruments :: Instruments CfCtrl }
 actualizer e@(SceneI { time: time', headroomInSeconds: headroom }) { instruments } = { instruments: step1 `zipRecord` instruments }
   where
   time = time'
@@ -485,33 +507,37 @@ piece =
         )
     )
   where
-  scene ::
-    Extern ->
-    { x :: Number, y :: Number } ->
-    { instruments :: Instruments { | IActualized } } -> _
+  scene
+    :: Extern
+    -> { x :: Number, y :: Number }
+    -> { instruments :: Instruments { | IActualized } }
+    -> _
   scene (SceneI { time, headroomInSeconds: headroom, world }) p { instruments } =
-    let (withBuffers :: Instruments { buf :: BrowserAudioBuffer, latch :: LatchAP GOO, buffers :: BuffyVec NBuf RBuf }) = hmapWithIndex (ExpandInstruments instruments) world.sounds in
-    speaker
-      ( gain (if time < 5.0 then time / 5.0 else 1.0)
-          -- todo: use ffi to speed up
-          ( fromTemplate (Proxy :: _ "instruments") withBuffers \_ { buffers, buf } ->
-              fromTemplate (Proxy :: _ "buffers") buffers \_ -> case _ of
-                Just (Buffy { starting, startTime, rest: GOO goo }) ->
-                  gain (ff globalFF $ goo.gain { time: time - startTime, headroom })
-                    ( playBuf
-                        { onOff:
-                            ff globalFF
-                              $ if starting then
-                                  ff (max 0.0 (startTime - time)) (pure OffOn)
-                                else
-                                  goo.onOff { time: time - startTime, headroom }
-                        , playbackRate: 0.8 + 0.2 * p.x
-                        }
-                        buf
-                    )
-                Nothing -> gain 0.0 (playBuf { onOff: Off } buf)
-          )
-      )
+    let
+      (withBuffers :: Instruments { buf :: BrowserAudioBuffer, latch :: LatchAP GOO, buffers :: BuffyVec NBuf RBuf }) = hmapWithIndex (ExpandInstruments instruments) world.sounds
+    in
+      speaker
+        ( gain (if time < 5.0 then time / 5.0 else 1.0)
+            -- todo: use ffi to speed up
+            ( fromTemplate (Proxy :: _ "instruments") withBuffers \_ { buffers, buf } ->
+                fromTemplate (Proxy :: _ "buffers") buffers \_ -> case _ of
+                  Just (Buffy { starting, startTime, rest: GOO goo }) ->
+                    gain (ff globalFF $ goo.gain { time: time - startTime, headroom })
+                      ( playBuf
+                          { onOff:
+                              ff globalFF
+                                $
+                                  if starting then
+                                    ff (max 0.0 (startTime - time)) (pure OffOn)
+                                  else
+                                    goo.onOff { time: time - startTime, headroom }
+                          , playbackRate: 0.8 + 0.2 * p.x
+                          }
+                          buf
+                      )
+                  Nothing -> gain 0.0 (playBuf { onOff: Off } buf)
+            )
+        )
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =
@@ -527,9 +553,10 @@ main =
     runUI component unit body
 
 type State
-  = { unsubscribe :: Effect Unit
-    , audioCtx :: Maybe AudioContext
-    }
+  =
+  { unsubscribe :: Effect Unit
+  , audioCtx :: Maybe AudioContext
+  }
 
 data Action
   = StartAudio
@@ -548,31 +575,32 @@ initialState _ =
   { unsubscribe: pure unit
   , audioCtx: Nothing
   }
-classes :: forall r p. Array String -> HP.IProp ( class :: String | r ) p
+
+classes :: forall r p. Array String -> HP.IProp (class :: String | r) p
 classes = HP.classes <<< map H.ClassName
 
 render :: forall m. State -> H.ComponentHTML Action () m
 render _ = HH.div [ classes [ "w-screen", "h-screen" ] ]
-    [ HH.div [ classes [ "flex", "flex-col", "w-full", "h-full" ] ]
-        [ HH.div [ classes [ "flex-grow" ] ] []
-        , HH.div [ classes [ "flex-grow-0", "flex", "flex-row" ] ]
-            [ HH.div [ classes [ "flex-grow" ] ]
-                []
-            , HH.div [ classes [ "flex", "flex-col" ] ]
-                [ HH.h1 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
-                    [ HH.text "Drum loop" ]
-                , HH.button
-                    [ classes [ "text-2xl", "m-5", "bg-indigo-500", "p-3", "rounded-lg", "text-white", "hover:bg-indigo-400" ], HE.onClick \_ -> StartAudio ]
-                    [ HH.text "Start audio" ]
-                , HH.button
-                    [ classes [ "text-2xl", "m-5", "bg-pink-500", "p-3", "rounded-lg", "text-white", "hover:bg-pink-400" ] , HE.onClick \_ -> StopAudio ]
-                    [ HH.text "Stop audio" ]
-                ]
-            , HH.div [ classes [ "flex-grow" ] ] []
-            ]
-        , HH.div [ classes [ "flex-grow" ] ] []
-        ]
-    ]
+  [ HH.div [ classes [ "flex", "flex-col", "w-full", "h-full" ] ]
+      [ HH.div [ classes [ "flex-grow" ] ] []
+      , HH.div [ classes [ "flex-grow-0", "flex", "flex-row" ] ]
+          [ HH.div [ classes [ "flex-grow" ] ]
+              []
+          , HH.div [ classes [ "flex", "flex-col" ] ]
+              [ HH.h1 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
+                  [ HH.text "Drum loop" ]
+              , HH.button
+                  [ classes [ "text-2xl", "m-5", "bg-indigo-500", "p-3", "rounded-lg", "text-white", "hover:bg-indigo-400" ], HE.onClick \_ -> StartAudio ]
+                  [ HH.text "Start audio" ]
+              , HH.button
+                  [ classes [ "text-2xl", "m-5", "bg-pink-500", "p-3", "rounded-lg", "text-white", "hover:bg-pink-400" ], HE.onClick \_ -> StopAudio ]
+                  [ HH.text "Stop audio" ]
+              ]
+          , HH.div [ classes [ "flex-grow" ] ] []
+          ]
+      , HH.div [ classes [ "flex-grow" ] ] []
+      ]
+  ]
 
 handleAction :: forall output m. MonadEffect m => MonadAff m => Action -> H.HalogenM State Action () output m Unit
 handleAction = case _ of
@@ -602,7 +630,7 @@ handleAction = case _ of
     unsubscribe <-
       H.liftEffect
         $ subscribe
-            (run (pure unit) ({ position: _, sounds } <$> position mouse) { easingAlgorithm } ( ffiAudio) piece)
+            (run (pure unit) ({ position: _, sounds } <$> position mouse) { easingAlgorithm } (ffiAudio) piece)
             (\(_ :: Run Unit ()) -> pure unit)
     H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
   StopAudio -> do

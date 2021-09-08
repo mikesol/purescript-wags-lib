@@ -12,6 +12,7 @@ import Test.Lag (testLag)
 import Test.Latch (testLatch)
 import Test.Piecewise (testPiecewise)
 import Test.Rate (testRate)
+import Test.Record (testRecord)
 import Test.Spec.Reporter (consoleReporter)
 import Test.Spec.Runner (runSpec)
 import Test.Stream (testStream)
@@ -21,6 +22,7 @@ main :: Effect Unit
 main = do
   launchAff_
     $ runSpec [ consoleReporter ] do
+        testRecord
         testRate
         testBufferPool
         testStream

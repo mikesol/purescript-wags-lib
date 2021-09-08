@@ -3,23 +3,11 @@ module WAGS.Lib.Cofree where
 import Prelude hiding (Ordering(..))
 
 import Control.Comonad (class Comonad, extract)
-import Control.Comonad.Cofree as Cf
 import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
-import Data.Either (Either(..))
-import Data.Identity (Identity(..))
-import Data.Symbol (class IsSymbol)
-import Data.Tuple (Tuple(..))
 import Data.Typelevel.Num (class Nat)
 import Data.Vec as V
 import Heterogeneous.Mapping (class HMap, class Mapping, hmap)
-import Prim.Ordering (Ordering, LT, EQ, GT)
-import Prim.Row (class Lacks, class Cons)
-import Prim.RowList (class RowToList, RowList)
-import Prim.RowList as RowList
-import Prim.Symbol as Sym
-import Record as Record
-import Type.Proxy (Proxy(..))
-import WAGS.Run (SceneI)
+
 
 --- heads and tails needs recursion down records to work
 --- otherwise namespacing is impossible
@@ -59,6 +47,7 @@ instance headzMapping ::
   Mapping Headz i o where
   mapping Headz = heads
 
+{-
 class Actualize n e r o | n e -> r o where
   actualize :: n -> e -> r -> o
 
@@ -117,3 +106,4 @@ class Actualizes (n :: Row Type) (e :: Type) (r :: Row Type) (o :: Row Type) | n
 
 instance actualizesAll :: (RowToList n rln, RowToList r rlr, ActualizeMany' rln rlr n e r o) => Actualizes n e r o where
   actualizes = actualizeMany' (Proxy :: _ rln) (Proxy :: _ rlr)
+-}

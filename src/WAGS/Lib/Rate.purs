@@ -6,7 +6,7 @@ import Control.Comonad (class Comonad, class Extend, extract)
 import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
 import Data.Newtype (class Newtype, unwrap, wrap)
-import WAGS.Lib.Cofree (class Actualize)
+--import WAGS.Lib.Cofree (class Actualize)
 import WAGS.Run (SceneI(..))
 
 newtype MakeRate a
@@ -58,8 +58,8 @@ instance semigroupCfRate :: Semigroup (CfRate MakeRate Rate) where
 instance monoidARate :: Monoid ARate where
   mempty = makeRate { startsAt: 0.0, prevTime: 0.0 }
 
-instance actualizeRate :: Actualize ARate (SceneI a b c) Number (CfRate MakeRate Rate) where
-  actualize (MakeRate r) (SceneI { time }) rate = r { time, rate }
+--instance actualizeRate :: Actualize ARate (SceneI a b c) Number (CfRate MakeRate Rate) where
+--  actualize (MakeRate r) (SceneI { time }) rate = r { time, rate }
 
 timeIs :: forall trigger world analyserCallbacks. Number -> SceneI trigger world analyserCallbacks -> SceneI trigger world analyserCallbacks
 timeIs time (SceneI x) = SceneI (x { time = time })

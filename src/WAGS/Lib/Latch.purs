@@ -9,7 +9,6 @@ import Control.Extend (class Extend)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap, wrap)
 import WAGS.Graph.Parameter (AudioParameter_(..))
-import WAGS.Lib.Cofree (class Actualize)
 
 newtype MakeLatchAP v a
   = MakeLatchAP (AudioParameter_ v -> a)
@@ -72,5 +71,5 @@ instance semigroupCfRate :: Semigroup v => Semigroup (CfLatchAP (MakeLatchAP v) 
 instance monoidARate :: (Semigroup v, Eq v) => Monoid (ALatchAP v) where
   mempty = makeLatchAP
 
-instance actualizeLatchAP :: Actualize (ALatchAP v) e (AudioParameter_ v) (CfLatchAP (MakeLatchAP v) (LatchAP v)) where
-  actualize (MakeLatchAP r) _ b = r b
+--instance actualizeLatchAP :: Actualize (ALatchAP v) e (AudioParameter_ v) (CfLatchAP (MakeLatchAP v) (LatchAP v)) where
+--  actualize (MakeLatchAP r) _ b = r b

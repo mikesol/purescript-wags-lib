@@ -9,7 +9,6 @@ import Control.Extend (class Extend)
 import Data.Either (Either(..))
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Tuple (Tuple(..))
-import WAGS.Lib.Cofree (class Actualize)
 
 newtype MakeLag a b
   = MakeLag (a -> b)
@@ -53,8 +52,8 @@ instance semigroupCfLag :: Semigroup a => Semigroup (CfLag (MakeLag a) (Either a
 instance monoidALag :: Semigroup a => Monoid (ALag a) where
   mempty = makeLag
 
-instance actualizeLag :: Actualize (ALag a) z a (CfLag (MakeLag a) (Either a (Tuple a a))) where
-  actualize (MakeLag r) _ a = r a
+--instance actualizeLag :: Actualize (ALag a) z a (CfLag (MakeLag a) (Either a (Tuple a a))) where
+--  actualize (MakeLag r) _ a = r a
 
 --timeIs :: forall trigger world analyserCallbacks. Number -> SceneI trigger world analyserCallbacks -> SceneI trigger world analyserCallbacks
 --timeIs time (SceneI x) = SceneI (x { time = time })

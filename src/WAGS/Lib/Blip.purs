@@ -6,7 +6,6 @@ import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
 import Control.Extend (class Extend)
 import Data.Newtype (class Newtype, unwrap, wrap)
-import WAGS.Lib.Cofree (class Actualize)
 
 newtype MakeBlip a
   = MakeBlip (Boolean -> a)
@@ -53,5 +52,7 @@ instance semigroupCfBlip :: Semigroup (CfBlip MakeBlip Blip) where
 instance monoidBlip :: Monoid ABlip where
   mempty = makeBlip
 
+{-
 instance actualizeBlip :: Actualize ABlip e Boolean (CfBlip MakeBlip Blip) where
   actualize (MakeBlip r) _ b = r b
+-}

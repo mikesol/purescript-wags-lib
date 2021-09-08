@@ -17,11 +17,11 @@
   , "prelude"
   , "profunctor-lenses"
   , "psci-support"
-  , "record"
   , "sized-vectors"
   , "tuples"
   , "typelevel"
   , "unfoldable"
+  , "unsafe-coerce"
   , "wags"
   ]
 , packages = ./packages.dhall

@@ -10,6 +10,7 @@ in      conf
               , "behaviors"
               , "effect"
               , "event"
+              , "record"
               , "foreign-object"
               , "parallel"
               , "profunctor"

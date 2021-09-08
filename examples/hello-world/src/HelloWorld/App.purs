@@ -10,6 +10,7 @@ import Control.Plus (empty)
 import Control.Promise (toAffE)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
+import Data.Newtype (unwrap)
 import Data.Tuple.Nested (type (/\))
 import Data.Typelevel.Num (D4, d0, d1, d2, d3)
 import Data.Vec as V
@@ -28,7 +29,6 @@ import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (TGain, TPlayBuf, TSinOsc, TSpeaker)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (ABufferPool, bOnOff, makeBufferPool)
-import WAGS.Lib.Cofree (actualize)
 import WAGS.Lib.Emitter (AnEmitter, makeEmitter)
 import WAGS.Lib.Rate (ARate, makeRate)
 import WAGS.Patch (ipatch)
@@ -36,44 +36,49 @@ import WAGS.Run (RunAudio, RunEngine, SceneI(..), Run, run)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
 type SceneType
-  = { speaker ::
-        TSpeaker
-          /\ { oscGain :: Unit
+  =
+  { speaker ::
+      TSpeaker
+        /\
+          { oscGain :: Unit
           , b0Gain :: Unit
           , b1Gain :: Unit
           , b2Gain :: Unit
           , b3Gain :: Unit
           }
-    , oscGain :: TGain /\ { osc :: Unit }
-    , osc :: TSinOsc /\ {}
-    , b0Gain :: TGain /\ { b0 :: Unit }
-    , b0 :: TPlayBuf /\ {}
-    , b1Gain :: TGain /\ { b1 :: Unit }
-    , b1 :: TPlayBuf /\ {}
-    , b2Gain :: TGain /\ { b2 :: Unit }
-    , b2 :: TPlayBuf /\ {}
-    , b3Gain :: TGain /\ { b3 :: Unit }
-    , b3 :: TPlayBuf /\ {}
-    }
+  , oscGain :: TGain /\ { osc :: Unit }
+  , osc :: TSinOsc /\ {}
+  , b0Gain :: TGain /\ { b0 :: Unit }
+  , b0 :: TPlayBuf /\ {}
+  , b1Gain :: TGain /\ { b1 :: Unit }
+  , b1 :: TPlayBuf /\ {}
+  , b2Gain :: TGain /\ { b2 :: Unit }
+  , b2 :: TPlayBuf /\ {}
+  , b3Gain :: TGain /\ { b3 :: Unit }
+  , b3 :: TPlayBuf /\ {}
+  }
 
 type Acc
-  = { myRate :: ARate
-    , myEmitter :: AnEmitter
-    , buffy :: ABufferPool D4 Unit
-    }
+  =
+  { myRate :: ARate
+  , myEmitter :: AnEmitter
+  , buffy :: ABufferPool D4 Unit
+  }
 
 type World = { bell :: BrowserAudioBuffer }
 
 createFrame :: IxFrame (SceneI Unit World ()) RunAudio RunEngine Frame0 Unit {} SceneType Acc
-createFrame = \(SceneI { time, world : { bell } }) ->
+createFrame = \(SceneI { time, world: { bell } }) ->
   ( ipatch { microphone: empty }
-      :*> ( ichange
+      :*>
+        ( ichange
             { b0: bell
             , b1: bell
             , b2: bell
             , b3: bell
             }
-            $> { myRate: makeRate { prevTime: 0.0, startsAt: time }
+            $>
+              { myRate: makeRate { prevTime: 0.0, startsAt: time }
               , myEmitter: makeEmitter { prevTime: 0.0, startsAt: time }
               , buffy: makeBufferPool (pure 6.0) empty
               }
@@ -83,28 +88,28 @@ createFrame = \(SceneI { time, world : { bell } }) ->
 piece :: Scene (SceneI Unit World ()) RunAudio RunEngine Frame0 Unit
 piece =
   createFrame
-    @!> iloop \e@(SceneI { time }) a ->
-        let
-          rate = actualize a.myRate e (4.0 + sin (time * pi * 0.25) * 3.5)
+    @!> iloop \e@(SceneI { time, headroomInSeconds: headroom }) a ->
+      let
+        rate = unwrap a.myRate { time, rate: 4.0 + sin (time * pi * 0.25) * 3.5 }
 
-          emitter = actualize a.myEmitter e (4.0 + cos (time * pi * 0.25) * 3.5)
+        emitter = unwrap a.myEmitter { time, headroom, freq: 4.0 + cos (time * pi * 0.25) * 3.5 }
 
-          bufz = actualize a.buffy e (map { rest: unit, offset: _ } (extract emitter))
+        bufz = unwrap a.buffy { time, headroom, offsets: map { rest: unit, offset: _ } (extract emitter) }
 
-          hbufz = extract bufz
-        in
-          ichange
-            { oscGain: 0.1 + 0.09 * sin (pi * (extract rate))
-            , b0Gain: 1.0
-            , b1Gain: 1.0
-            , b2Gain: 1.0
-            , b3Gain: 1.0
-            , b0: bOnOff time (V.index hbufz d0)
-            , b1: bOnOff time (V.index hbufz d1)
-            , b2: bOnOff time (V.index hbufz d2)
-            , b3: bOnOff time (V.index hbufz d3)
-            }
-            $> { myRate: unwrapCofree rate, myEmitter: unwrapCofree emitter, buffy: unwrapCofree bufz }
+        hbufz = extract bufz
+      in
+        ichange
+          { oscGain: 0.1 + 0.09 * sin (pi * (extract rate))
+          , b0Gain: 1.0
+          , b1Gain: 1.0
+          , b2Gain: 1.0
+          , b3Gain: 1.0
+          , b0: bOnOff time (V.index hbufz d0)
+          , b1: bOnOff time (V.index hbufz d1)
+          , b2: bOnOff time (V.index hbufz d2)
+          , b3: bOnOff time (V.index hbufz d3)
+          }
+          $> { myRate: unwrapCofree rate, myEmitter: unwrapCofree emitter, buffy: unwrapCofree bufz }
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =
@@ -114,9 +119,10 @@ easingAlgorithm =
     fOf 20
 
 type State
-  = { unsubscribe :: Effect Unit
-    , audioCtx :: Maybe AudioContext
-    }
+  =
+  { unsubscribe :: Effect Unit
+  , audioCtx :: Maybe AudioContext
+  }
 
 data Action
   = StartAudio

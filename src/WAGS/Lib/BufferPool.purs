@@ -18,9 +18,7 @@ import Type.Proxy (Proxy(..))
 import WAGS.Graph.AudioUnit (APOnOff, OnOff(..))
 import WAGS.Graph.Parameter (ff)
 import WAGS.Lib.Blip (ABlip, MakeBlip(..), makeBlip)
-import WAGS.Lib.Cofree (class Actualize)
 import WAGS.Lib.Emitter (MakeEmitter(..), AnEmitter, fEmitter, makeEmitter)
-import WAGS.Run (SceneI(..))
 
 type TimeHeadroomOffsets rest
   = { time :: Number, headroom :: Number, offsets :: Array { offset :: Number, rest :: rest } }
@@ -268,6 +266,7 @@ type Time
 bOnOff :: forall r. Time -> Maybe (Buffy r) -> APOnOff
 bOnOff time = maybe (pure Off) (unwrap >>> \{ starting, startTime } -> if starting then ff (max (startTime - time) 0.0) (pure OffOn) else pure On)
 
+{-
 instance actualizeBufferPool :: Actualize (ABufferPool n r) (SceneI a b c) (Array { offset :: Number, rest :: r }) (CfBufferPool (MakeBufferPoolWithRest r) (BuffyVec n r)) where
   actualize (MakeBufferPoolWithRest r) (SceneI { time, headroomInSeconds: headroom }) offsets = r { time, headroom, offsets }
 
@@ -276,3 +275,4 @@ instance actualizeHotBufferPool :: Actualize (AHotBufferPool n) (SceneI a b c) N
 
 instance actualizeSnappyBufferPool :: Actualize (ASnappyBufferPool n) (SceneI a b c) Number (CfSnappyBufferPool MakeSnappyBufferPool (BuffyVec n Unit)) where
   actualize (MakeSnappyBufferPool r) (SceneI { time, headroomInSeconds: headroom }) freq = r { time, headroom, freq }
+-}
