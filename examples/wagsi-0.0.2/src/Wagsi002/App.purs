@@ -10,7 +10,6 @@ import Control.Promise (toAffE)
 import Data.Array.NonEmpty as NEA
 import Data.List ((:), List(..))
 import Data.Maybe (Maybe(..))
-import Data.Newtype (unwrap)
 import Data.NonEmpty ((:|))
 import Data.Semigroup.First (First(..))
 import Data.Symbol (class IsSymbol)
@@ -141,14 +140,13 @@ actualizer1
   :: forall trigger world aCb r
    . SceneI trigger world aCb
   -> { | Acc1 r }
-  -> { room1ClapLatch :: CfLatchAP (MakeLatchAP (First (Maybe Boolean))) (LatchAP (First (Maybe Boolean)))
-     , room1ClapBuffers :: CfBufferPool (MakeBufferPoolWithRest RBuf) (BuffyVec NBuf RBuf)
+  -> { room1ClapLatch :: CfLatchAP (First (Maybe Boolean))
+     , room1ClapBuffers :: CfBufferPool NBuf RBuf
      }
 actualizer1 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
   { room1ClapLatch
   , room1ClapBuffers:
-      unwrap
-        a.room1ClapBuffers
+      a.room1ClapBuffers
         { time
         , headroom
         , offsets: UF.fromMaybe do
@@ -170,7 +168,7 @@ actualizer1 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
 
   fromPW = claps { time: e'.time, headroom: e'.headroomInSeconds }
 
-  room1ClapLatch = unwrap a.room1ClapLatch fromPW
+  room1ClapLatch = a.room1ClapLatch fromPW
 
 graph1 :: forall trigger aCb r. SceneI trigger World aCb -> { room1ClapLatch :: (LatchAP (First (Maybe Boolean))), room1ClapBuffers :: BuffyVec NBuf RBuf | r } -> _
 graph1 (SceneI { time, world }) { room1ClapBuffers } =
@@ -207,14 +205,13 @@ actualizer2
   :: forall trigger world aCb r
    . SceneI trigger world aCb
   -> { | Acc2 r }
-  -> { room2HiHatLatch :: CfLatchAP (MakeLatchAP (First (Maybe Boolean))) (LatchAP (First (Maybe Boolean)))
-     , room2HiHatBuffers :: CfBufferPool (MakeBufferPoolWithRest RBuf) (BuffyVec NBuf RBuf)
+  -> { room2HiHatLatch :: CfLatchAP (First (Maybe Boolean))
+     , room2HiHatBuffers :: CfBufferPool NBuf RBuf
      }
 actualizer2 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
   { room2HiHatLatch
   , room2HiHatBuffers:
-      unwrap
-        a.room2HiHatBuffers
+      a.room2HiHatBuffers
         { time
         , headroom
         , offsets: UF.fromMaybe do
@@ -239,7 +236,7 @@ actualizer2 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
 
   fromPW = hiHats { time: e'.time, headroom: e'.headroomInSeconds }
 
-  room2HiHatLatch = unwrap a.room2HiHatLatch fromPW
+  room2HiHatLatch = a.room2HiHatLatch fromPW
 
 graph2 :: forall trigger aCb r. SceneI trigger World aCb -> { room2HiHatLatch :: (LatchAP (First (Maybe Boolean))), room2HiHatBuffers :: BuffyVec NBuf RBuf | r } -> _
 graph2 (SceneI { time, world }) { room2HiHatBuffers } =

@@ -103,7 +103,7 @@ keyBufsActualize ::
   SceneI trigger World analyserCbs ->
   { | KeyBufs r } ->
   { keyBufs :: V.Vec NKeys (SimpleBufferCf NBuf)
-  , rate :: CfRate MakeRate Rate
+  , rate :: CfRate
   }
 keyBufsActualize e@(SceneI e'@ { time }) { keyBufs, rate } =
   { keyBufs: V.zipWithE (\f x -> f newE x) buffersActualized keyBufs
@@ -112,7 +112,7 @@ keyBufsActualize e@(SceneI e'@ { time }) { keyBufs, rate } =
   where
   freq = 1.0 + maybe 0.0 (\{ y } -> toNumber y / 1000.0) e'.world.mickey
 
-  rate' = unwrap rate { time, rate: freq }
+  rate' = rate { time, rate: freq }
 
   newE = timeIs (extract rate') e
 
@@ -156,7 +156,7 @@ keyBufGraph (SceneI { world }) { keyBufs, rate } =
   where
   xpos = maybe 0.0 (\{ x } -> toNumber x / 1000.0) world.mickey
 
-  time = rate
+  time = unwrap rate
 
 ---
 -- change this to make sound
