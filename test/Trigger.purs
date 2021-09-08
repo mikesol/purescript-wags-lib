@@ -22,7 +22,7 @@ testTrigger = do
         r3 = unwrapCofree r2 { time: 1.4, freq: 1.0, headroom: 0.06 }
       (map unwrap $ extract r0) `shouldEqualIsh` (pure 0.0)
       (map unwrap $ extract r1) `shouldEqualIsh` (pure 0.1)
-      (map unwrap $ extract r2 )`shouldEqualIsh` (pure (-0.05))
+      (map unwrap $ extract r2) `shouldEqualIsh` (pure (-0.05))
       (map unwrap $ extract r3) `shouldEqualIsh` (pure (0.4))
       pure unit
     it "Produces the correct time for a 2x speed snappy trigger" do
@@ -35,7 +35,7 @@ testTrigger = do
 
         r3 = unwrapCofree r2 { time: 0.78, freq: 2.0, headroom: 0.03 }
 
-      (map unwrap $ extract r0 )`shouldEqualIsh` (pure 0.0)
-      (map unwrap $ extract r1 )`shouldEqualIsh` (pure 0.1)
+      (map unwrap $ extract r0) `shouldEqualIsh` (pure 0.0)
+      (map unwrap $ extract r1) `shouldEqualIsh` (pure 0.1)
       (map unwrap $ extract r2) `shouldEqualIsh` (pure (-0.02))
       (map unwrap $ extract r3) `shouldEqualIsh` (pure 0.28)

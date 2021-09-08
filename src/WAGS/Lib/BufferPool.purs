@@ -17,7 +17,7 @@ import Type.Proxy (Proxy(..))
 import WAGS.Graph.AudioUnit (APOnOff, OnOff(..))
 import WAGS.Graph.Parameter (ff)
 import WAGS.Lib.Blip (makeBlip)
-import WAGS.Lib.Cofree (convolveComonadCofree)
+import WAGS.Lib.Cofree (convolveComonadCofreeChooseB)
 import WAGS.Lib.Emitter (fEmitter, makeEmitter)
 
 type TimeHeadroomOffsets rest
@@ -114,8 +114,7 @@ makeHotBufferPool
   -> Maybe Number
   -> Maybe (NonEmpty List (Number /\ Number))
   -> AHotBufferPool n
-makeHotBufferPool ptsa dur pwf = convolveComonadCofree
-  (const identity)
+makeHotBufferPool ptsa dur pwf = convolveComonadCofreeChooseB
   ( \e b cont ({ time, headroom, freq } :: TimeHeadroomFreq) ->
       let
         enow = e { time, headroom, freq }
@@ -132,8 +131,7 @@ makeSnappyBufferPool
   => Maybe Number
   -> Maybe (NonEmpty List (Number /\ Number))
   -> ASnappyBufferPool n
-makeSnappyBufferPool dur pwf = convolveComonadCofree
-  (const identity)
+makeSnappyBufferPool dur pwf = convolveComonadCofreeChooseB
   ( \e b cont ({ time, headroom, freq } :: TimeHeadroomFreq) ->
       let
         emitted = fEmitter freq { time, headroom }
@@ -147,7 +145,8 @@ makeSnappyBufferPool dur pwf = convolveComonadCofree
                   fromMaybe [] (pure <<< { offset: _, rest: unit } <$> emitted)
                 else []
             }
-      in cont enow bnow
+      in
+        cont enow bnow
   )
   makeBlip
   (makeBufferPool dur pwf)

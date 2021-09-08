@@ -57,7 +57,7 @@ convolve
   -> Cofree f a
   -> Cofree g b
   -> Cofree h c
-convolve f1 f2 c1 c2 = f1 (extract c1) (extract c2) :< convolveComonadCofree f1 f2 (unwrapCofree c1) (unwrapCofree c2) 
+convolve f1 f2 c1 c2 = f1 (extract c1) (extract c2) :< convolveComonadCofree f1 f2 (unwrapCofree c1) (unwrapCofree c2)
 
 deferConvolve
   :: forall f a g b h c
@@ -70,7 +70,7 @@ deferConvolve
   -> Cofree h c
 deferConvolve f1 f2 c1 c2 =
   deferCofree
-    \_ -> f1 (extract c1) (extract c2) /\ deferConvolveComonadCofree f1 f2 (unwrapCofree c1) (unwrapCofree c2) 
+    \_ -> f1 (extract c1) (extract c2) /\ deferConvolveComonadCofree f1 f2 (unwrapCofree c1) (unwrapCofree c2)
 
 convolveComonadCofree
   :: forall f a g b h c
@@ -82,6 +82,16 @@ convolveComonadCofree
   -> g (Cofree g b)
   -> h (Cofree h c)
 convolveComonadCofree f1 f2 c1 c2 = f2 c1 c2 (convolve f1 f2)
+
+convolveComonadCofreeChooseB
+  :: forall f a g b h
+   . Functor f
+  => Functor g
+  => (forall z. f (Cofree f a) -> g (Cofree g b) -> (Cofree f a -> Cofree g b -> z) -> h z)
+  -> f (Cofree f a)
+  -> g (Cofree g b)
+  -> h (Cofree h b)
+convolveComonadCofreeChooseB = convolveComonadCofree (const identity)
 
 deferConvolveComonadCofree
   :: forall f a g b h c

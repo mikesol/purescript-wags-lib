@@ -44,19 +44,19 @@ makeLoopingPiecewise v0 v1 = go v0 v1 v1
 
   go n l v@(a /\ b :| (Cons (c /\ d) e)) { time, headroom }
     | time >= a && time < c =
-      let
-        lookahead = time + headroom
-      in
-        ( if lookahead >= c then
-            AudioParameter
-              { param: Just d
-              , timeOffset: c - time
-              , transition: LinearRamp
-              }
-          else
-            AudioParameter { param: Just (calcSlope a b c d time), timeOffset: 0.0, transition: LinearRamp }
-        )
-          :< go n l v
+        let
+          lookahead = time + headroom
+        in
+          ( if lookahead >= c then
+              AudioParameter
+                { param: Just d
+                , timeOffset: c - time
+                , transition: LinearRamp
+                }
+            else
+              AudioParameter { param: Just (calcSlope a b c d time), timeOffset: 0.0, transition: LinearRamp }
+          )
+            :< go n l v
     | otherwise = go n l (c /\ d :| e) { time, headroom }
 
 infixl 6 makeLoopingPiecewise as /@:<
@@ -74,19 +74,19 @@ makePiecewise (a /\ b :| Nil) _ =
 
 makePiecewise v@(a /\ b :| (Cons (c /\ d) e)) { time, headroom }
   | time >= a && time < c =
-    let
-      lookahead = time + headroom
-    in
-      ( if lookahead >= c then
-          AudioParameter
-            { param: Just d
-            , timeOffset: c - time
-            , transition: LinearRamp
-            }
-        else
-          AudioParameter { param: Just (calcSlope a b c d time), timeOffset: 0.0, transition: LinearRamp }
-      )
-        :< makePiecewise v
+      let
+        lookahead = time + headroom
+      in
+        ( if lookahead >= c then
+            AudioParameter
+              { param: Just d
+              , timeOffset: c - time
+              , transition: LinearRamp
+              }
+          else
+            AudioParameter { param: Just (calcSlope a b c d time), timeOffset: 0.0, transition: LinearRamp }
+        )
+          :< makePiecewise v
   | otherwise = makePiecewise (c /\ d :| e) { time, headroom }
 
 infixl 6 makePiecewise as /:<

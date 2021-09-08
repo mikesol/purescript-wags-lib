@@ -35,9 +35,13 @@ else instance shouldEqualIshAP :: (ShouldEqualIsh t, Show t) => ShouldEqualIsh (
   shouldEqualIsh (AudioParameter v1) (AudioParameter v2) = do
     shouldEqualIsh v1.timeOffset v2.timeOffset
     shouldEqualIsh v1.param v2.param
-else instance shouldEqualIshN :: (Show t
+else instance shouldEqualIshN ::
+  ( Show t
   , Eq t
   , Ord t
-  , EuclideanRing t) => ShouldEqualIsh t where
-  shouldEqualIsh v1 v2 = when (abs (v1 - v2) >= epsilon) $
-      fail $ show v1 <> " ≠ ish " <> show v2
+  , EuclideanRing t
+  ) =>
+  ShouldEqualIsh t where
+  shouldEqualIsh v1 v2 = when (abs (v1 - v2) >= epsilon)
+    $ fail
+    $ show v1 <> " ≠ ish " <> show v2

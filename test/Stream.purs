@@ -16,10 +16,10 @@ testStream = do
     it "Produces the correct stream" do
       let
         r0 = deadEnd (1 :| 2 : 3 : Nil)
-        r1 = unwrap $ tail r0 
+        r1 = unwrap $ tail r0
         r2 = unwrap $ tail r1
         r3 = unwrap $ tail r2
-        r4 = unwrap $ tail r3 
+        r4 = unwrap $ tail r3
       head r0 `shouldEqual` 1
       head r1 `shouldEqual` 2
       head r2 `shouldEqual` 3
@@ -29,10 +29,10 @@ testStream = do
     it "Produces the correct stream" do
       let
         r0 = cycle (1 :| 2 : 3 : Nil)
-        r1 = unwrap $ tail r0 
+        r1 = unwrap $ tail r0
         r2 = unwrap $ tail r1
         r3 = unwrap $ tail r2
-        r4 = unwrap $ tail r3 
+        r4 = unwrap $ tail r3
       head r0 `shouldEqual` 1
       head r1 `shouldEqual` 2
       head r2 `shouldEqual` 3

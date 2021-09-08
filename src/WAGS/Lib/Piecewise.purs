@@ -26,7 +26,8 @@ type APFofT v
   = TimeHeadroom -> AudioParameter_ v
 
 data PWChunk v
-  = PWChunk { left :: Number, right :: Number, apfot :: (APFofT v) } | Beacon Number
+  = PWChunk { left :: Number, right :: Number, apfot :: (APFofT v) }
+  | Beacon Number
 
 getLeft :: forall v. PWChunk v -> Number
 getLeft = case _ of
@@ -63,32 +64,32 @@ makeChunks' spillover inChunk l' = (snd shead) /\ map PWChunk (go sorted)
 
   go l@(hol :| tol) =
     { left: minValue, right: (fst $ NEL.head (wrap l)), apfot: const (pure (snd $ NEL.head (wrap l))) }
-      :| ( ( foldl
-                ( \{ acc, cur } a ->
-                    { cur: a
-                    , acc:
-                        acc
-                          <> pure
-                              { left: fst cur
-                              , right: fst a
-                              , apfot:
-                                  \{ time, headroom } ->
-                                    let
-                                      lookahead = time + headroom
-                                    in
-                                      ( if lookahead >= fst a then
-                                          spillover
-                                        else
-                                          inChunk
-                                      )
-                                        { time, left: cur, right: a }
-                              }
-                    }
-                )
-                { cur: NEL.head (wrap l), acc: Nil }
-                tol
-            )
-            .acc
+      :|
+        ( ( foldl
+              ( \{ acc, cur } a ->
+                  { cur: a
+                  , acc:
+                      acc
+                        <> pure
+                          { left: fst cur
+                          , right: fst a
+                          , apfot:
+                              \{ time, headroom } ->
+                                let
+                                  lookahead = time + headroom
+                                in
+                                  ( if lookahead >= fst a then
+                                      spillover
+                                    else
+                                      inChunk
+                                  )
+                                    { time, left: cur, right: a }
+                          }
+                  }
+              )
+              { cur: NEL.head (wrap l), acc: Nil }
+              tol
+          ).acc
             <> pure { right: maxValue, left: (fst $ NEL.last (wrap l)), apfot: const (pure (snd $ NEL.last (wrap l))) }
         )
 
@@ -104,12 +105,13 @@ makeChunks =
           , timeOffset: (fst right) - time
           , transition: LinearRamp
           }
-    ) \{ time, left, right } ->
-    AudioParameter
-      { param: Just (calcSlope (fst left) (snd left) (fst right) (snd right) time)
-      , timeOffset: 0.0
-      , transition: LinearRamp
-      }
+    )
+    \{ time, left, right } ->
+      AudioParameter
+        { param: Just (calcSlope (fst left) (snd left) (fst right) (snd right) time)
+        , timeOffset: 0.0
+        , transition: LinearRamp
+        }
 
 makeChunksL :: forall v. MakeChunks v
 makeChunksL =
@@ -120,12 +122,13 @@ makeChunksL =
           , timeOffset: (fst right) - time
           , transition: LinearRamp
           }
-    ) \{ time, left, right } ->
-    AudioParameter
-      { param: Just (snd left)
-      , timeOffset: 0.0
-      , transition: LinearRamp
-      }
+    )
+    \{ time, left, right } ->
+      AudioParameter
+        { param: Just (snd left)
+        , timeOffset: 0.0
+        , transition: LinearRamp
+        }
 
 makeChunksR :: forall v. MakeChunks v
 makeChunksR =
@@ -136,12 +139,13 @@ makeChunksR =
           , timeOffset: (fst right) - time
           , transition: LinearRamp
           }
-    ) \{ time, left, right } ->
-    AudioParameter
-      { param: Just (snd left)
-      , timeOffset: 0.0
-      , transition: LinearRamp
-      }
+    )
+    \{ time, left, right } ->
+      AudioParameter
+        { param: Just (snd left)
+        , timeOffset: 0.0
+        , transition: LinearRamp
+        }
 
 type MakePiecewise v
   = NonEmpty List (Number /\ v) -> (APFofT v)
