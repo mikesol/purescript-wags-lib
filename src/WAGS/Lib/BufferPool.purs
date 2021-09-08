@@ -4,7 +4,6 @@ import Prelude
 
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, (:<))
-import Control.Comonad.Cofree.Class (unwrapCofree)
 import Data.Array as A
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.List (List)
@@ -17,8 +16,9 @@ import Data.Vec as V
 import Type.Proxy (Proxy(..))
 import WAGS.Graph.AudioUnit (APOnOff, OnOff(..))
 import WAGS.Graph.Parameter (ff)
-import WAGS.Lib.Blip (ABlip, makeBlip)
-import WAGS.Lib.Emitter (AnEmitter, fEmitter, makeEmitter)
+import WAGS.Lib.Blip (makeBlip)
+import WAGS.Lib.Cofree (convolveComonadCofree)
+import WAGS.Lib.Emitter (fEmitter, makeEmitter)
 
 type TimeHeadroomOffsets rest
   = { time :: Number, headroom :: Number, offsets :: Array { offset :: Number, rest :: rest } }
@@ -114,19 +114,17 @@ makeHotBufferPool
   -> Maybe Number
   -> Maybe (NonEmpty List (Number /\ Number))
   -> AHotBufferPool n
-makeHotBufferPool ptsa dur pwf = go emitter buffer
-  where
-  emitter = makeEmitter ptsa
-
-  buffer = makeBufferPool' (Proxy :: _ n) dur pwf
-
-  go :: AnEmitter -> ABufferPool n Unit -> TimeHeadroomFreq -> CfHotBufferPool n
-  go e b { time, headroom, freq } = extract bnow :< go (unwrapCofree enow) (unwrapCofree bnow)
-
-    where
-    enow = e { time, headroom, freq }
-
-    bnow = b { time, headroom, offsets: map { rest: unit, offset: _ } (extract enow) }
+makeHotBufferPool ptsa dur pwf = convolveComonadCofree
+  (const identity)
+  ( \e b cont ({ time, headroom, freq } :: TimeHeadroomFreq) ->
+      let
+        enow = e { time, headroom, freq }
+        bnow = b { time, headroom, offsets: map { rest: unit, offset: _ } (extract enow) }
+      in
+        cont enow bnow
+  )
+  (makeEmitter ptsa)
+  (makeBufferPool' (Proxy :: _ n) dur pwf)
 
 makeSnappyBufferPool
   :: forall n
@@ -134,29 +132,25 @@ makeSnappyBufferPool
   => Maybe Number
   -> Maybe (NonEmpty List (Number /\ Number))
   -> ASnappyBufferPool n
-makeSnappyBufferPool dur pwf = go blip buffer
-  where
-  blip = makeBlip
-
-  buffer = makeBufferPool dur pwf
-
-  go :: ABlip -> ABufferPool n Unit -> TimeHeadroomFreq -> CfSnappyBufferPool n
-  go e b { time, headroom, freq } = extract bnow :< go (unwrapCofree enow) (unwrapCofree bnow)
-    where
-    emitted = fEmitter freq { time, headroom }
-
-    enow = e (isJust emitted)
-
-    bnow =
-      b
-        { time
-        , headroom
-        , offsets:
-            if unwrap (extract enow) then
-              fromMaybe [] (pure <<< { offset: _, rest: unit } <$> emitted)
-            else
-              []
-        }
+makeSnappyBufferPool dur pwf = convolveComonadCofree
+  (const identity)
+  ( \e b cont ({ time, headroom, freq } :: TimeHeadroomFreq) ->
+      let
+        emitted = fEmitter freq { time, headroom }
+        enow = e (isJust emitted)
+        bnow =
+          b
+            { time
+            , headroom
+            , offsets:
+                if unwrap (extract enow) then
+                  fromMaybe [] (pure <<< { offset: _, rest: unit } <$> emitted)
+                else []
+            }
+      in cont enow bnow
+  )
+  makeBlip
+  (makeBufferPool dur pwf)
 
 type Time
   = Number

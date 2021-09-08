@@ -4,11 +4,11 @@ import Prelude
 
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, (:<))
-import Control.Comonad.Cofree.Class (unwrapCofree)
 import Data.Maybe (Maybe(..), isJust)
 import Data.Monoid.Additive (Additive)
 import Data.Newtype (unwrap, wrap)
-import WAGS.Lib.Blip (ABlip, makeBlip)
+import WAGS.Lib.Blip (makeBlip)
+import WAGS.Lib.Cofree (convolveComonadCofree)
 import WAGS.Lib.Emitter (fEmitter)
 
 type TimeOffset
@@ -48,21 +48,19 @@ makeTrigger = go Nothing
   go (Just t) { time, offset: Nothing } = let newT = time - t in Just (wrap newT) :< go (Just t)
 
 makeSnappyTrigger :: ASnappyTrigger
-makeSnappyTrigger = go blip trigger
-  where
-  blip = makeBlip
+makeSnappyTrigger = convolveComonadCofree
+  (const identity)
+  ( \e b cont ({ time, headroom, freq } :: TimeHeadroomFreq) ->
+      let
+        emitted = fEmitter freq { time, headroom }
+        enow = e (isJust emitted)
+        bnow =
+          b
+            { time
+            , offset: if unwrap (extract enow) then emitted else Nothing
+            }
+      in cont enow bnow
+  )
+  makeBlip
+  makeTrigger
 
-  trigger = makeTrigger
-
-  go :: ABlip -> ATrigger -> TimeHeadroomFreq -> CfSnappyTrigger
-  go e b { time, headroom, freq } = extract bnow :< go (unwrapCofree enow) (unwrapCofree bnow)
-    where
-    emitted = fEmitter freq { time, headroom }
-
-    enow = e (isJust emitted)
-
-    bnow =
-      b
-        { time
-        , offset: if unwrap (extract enow) then emitted else Nothing
-        }
