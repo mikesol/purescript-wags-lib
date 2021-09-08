@@ -13,13 +13,13 @@ testRate = do
   describe "Tests rate" do
     it "Produces the correct rate" do
       let
-        rate = unwrap $ makeRate { startsAt: 0.0, prevTime: 0.0 }
+        rate = makeRate { startsAt: 0.0, prevTime: 0.0 }
 
         r0 = rate { time: 1.0, rate: 1.0 }
 
-        r1 = unwrap (unwrapCofree r0) { time: 2.1, rate: 1.0 }
+        r1 = unwrapCofree r0 { time: 2.1, rate: 1.0 }
 
-        r2 = unwrap (unwrapCofree r1) { time: 3.1, rate: 2.0 }
-      extract r0 `shouldEqualIsh` 1.0
-      extract r1 `shouldEqualIsh` 2.1
-      extract r2 `shouldEqualIsh` 4.1
+        r2 = unwrapCofree r1 { time: 3.1, rate: 2.0 }
+      (unwrap $ extract r0) `shouldEqualIsh` 1.0
+      (unwrap $ extract r1) `shouldEqualIsh` 2.1
+      (unwrap $ extract r2) `shouldEqualIsh` 4.1

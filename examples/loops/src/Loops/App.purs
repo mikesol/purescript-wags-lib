@@ -16,7 +16,7 @@ import Data.Lens.Setter (set)
 import Data.List (List(..), (:))
 import Data.List as List
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Newtype (class Newtype, unwrap, wrap)
+import Data.Newtype (class Newtype, wrap)
 import Data.NonEmpty (NonEmpty, (:|))
 import Data.Profunctor (lcmap)
 import Data.Symbol (class IsSymbol)
@@ -436,8 +436,8 @@ type Acc
 
 type CfCtrl
   =
-  { latch :: CfLatchAP (MakeLatchAP GOO) (LatchAP GOO)
-  , buffers :: CfBufferPool (MakeBufferPoolWithRest RBuf) (BuffyVec NBuf RBuf)
+  { latch :: CfLatchAP GOO
+  , buffers :: CfBufferPool NBuf RBuf
   }
 
 actualizePWF
@@ -449,7 +449,7 @@ actualizePWF
 actualizePWF e@(SceneI { time, headroomInSeconds: headroom }) th f a =
   { latch
   , buffers:
-      unwrap a.buffers
+      a.buffers
         { time
         , headroom
         , offsets: UF.fromMaybe do
@@ -460,7 +460,7 @@ actualizePWF e@(SceneI { time, headroomInSeconds: headroom }) th f a =
         }
   }
   where
-  latch = unwrap a.latch (f th)
+  latch = a.latch (f th)
 
 actualizer
   :: Extern

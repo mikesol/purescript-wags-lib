@@ -90,16 +90,16 @@ piece =
   createFrame
     @!> iloop \e@(SceneI { time, headroomInSeconds: headroom }) a ->
       let
-        rate = unwrap a.myRate { time, rate: 4.0 + sin (time * pi * 0.25) * 3.5 }
+        rate = a.myRate { time, rate: 4.0 + sin (time * pi * 0.25) * 3.5 }
 
-        emitter = unwrap a.myEmitter { time, headroom, freq: 4.0 + cos (time * pi * 0.25) * 3.5 }
+        emitter = a.myEmitter { time, headroom, freq: 4.0 + cos (time * pi * 0.25) * 3.5 }
 
-        bufz = unwrap a.buffy { time, headroom, offsets: map { rest: unit, offset: _ } (extract emitter) }
+        bufz = a.buffy { time, headroom, offsets: map { rest: unit, offset: _ } (extract emitter) }
 
         hbufz = extract bufz
       in
         ichange
-          { oscGain: 0.1 + 0.09 * sin (pi * (extract rate))
+          { oscGain: 0.1 + 0.09 * sin (pi * (unwrap $ extract rate))
           , b0Gain: 1.0
           , b1Gain: 1.0
           , b2Gain: 1.0

@@ -9,7 +9,6 @@ import Data.Lens (Lens', lens, over)
 import Data.List as L
 import Data.List.NonEmpty as NEL
 import Data.Maybe (Maybe(..))
-import Data.Newtype (unwrap)
 import Data.NonEmpty ((:|))
 import Data.Semigroup.First (First(..))
 import Data.Tuple (fst, snd)
@@ -17,8 +16,8 @@ import Data.Tuple.Nested ((/\))
 import Data.Typelevel.Num (class Pos)
 import Data.Unfoldable as UF
 import WAGS.Graph.Parameter (AudioParameter_(..))
-import WAGS.Lib.BufferPool (ABufferPool, CfBufferPool, MakeBufferPoolWithRest, BuffyVec)
-import WAGS.Lib.Latch (ALatchAP, CfLatchAP, MakeLatchAP, LatchAP)
+import WAGS.Lib.BufferPool (ABufferPool, CfBufferPool, BuffyVec)
+import WAGS.Lib.Latch (ALatchAP, CfLatchAP, LatchAP)
 import WAGS.Lib.Piecewise (makeLoopingTerracedR)
 import WAGS.Run (SceneI(..))
 
@@ -30,8 +29,8 @@ type SimpleBuffer nbuf
 
 type SimpleBufferCf nbuf
   =
-  { latch :: CfLatchAP (MakeLatchAP (First (Maybe Int))) (LatchAP (First (Maybe Int)))
-  , buffers :: CfBufferPool (MakeBufferPoolWithRest Unit) (BuffyVec nbuf Unit)
+  { latch :: CfLatchAP (First (Maybe Int))
+  , buffers :: CfBufferPool nbuf Unit
   }
 
 type SimpleBufferHead nbuf
@@ -75,8 +74,7 @@ actualizeSimpleBuffer nea' end'' = go
   go (SceneI e'@{ time, headroomInSeconds: headroom }) { latch: latch', buffers } =
     { latch
     , buffers:
-        unwrap
-          buffers
+        buffers
           { time
           , headroom
           , offsets: UF.fromMaybe do
@@ -89,4 +87,4 @@ actualizeSimpleBuffer nea' end'' = go
     where
     fromPW = loopingTerraced { time: e'.time, headroom: e'.headroomInSeconds }
 
-    latch = (unwrap latch') fromPW
+    latch = latch' fromPW
