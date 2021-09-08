@@ -13,7 +13,7 @@ testImpulse = do
   describe "Tests impulse" do
     it "Produces the correct impulse" do
       let
-        r0 = unwrap $ unwrap makeImpulse
+        r0 = unwrap makeImpulse
         r1 = unwrap (tail r0)
         r2 = unwrap (tail r1)
       head r0 `shouldEqual` true

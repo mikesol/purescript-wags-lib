@@ -17,6 +17,7 @@
   , "prelude"
   , "profunctor-lenses"
   , "psci-support"
+  , "safe-coerce"
   , "sized-vectors"
   , "tuples"
   , "typelevel"

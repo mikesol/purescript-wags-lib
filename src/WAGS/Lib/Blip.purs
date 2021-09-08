@@ -1,58 +1,20 @@
 module WAGS.Lib.Blip where
 
 import Prelude
-import Control.Comonad (class Comonad, extract)
+
 import Control.Comonad.Cofree (Cofree, (:<))
-import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
-import Control.Extend (class Extend)
-import Data.Newtype (class Newtype, unwrap, wrap)
-
-newtype MakeBlip a
-  = MakeBlip (Boolean -> a)
-
-derive instance newtypeMakeBlip :: Newtype (MakeBlip a) _
-
-derive instance functorMakeBlip :: Functor MakeBlip
-
-derive newtype instance semigroupMakeBlip :: Semigroup a => Semigroup (MakeBlip a)
+import Data.Monoid.Disj (Disj(..))
+import Safe.Coerce (coerce)
 
 type Blip
-  = Boolean
+  = Disj Boolean
 
-newtype CfBlip f a
-  = CfBlip (Cofree f a)
-
-derive instance newtypeCfBlip :: Newtype (CfBlip MakeBlip Blip) _
-
-derive instance functorCfBlip :: Functor (CfBlip MakeBlip)
-
-derive newtype instance extendCfBlip :: Extend (CfBlip MakeBlip)
-
-derive newtype instance comonadCfBlip :: Comonad (CfBlip MakeBlip)
-
-derive newtype instance comonadCofreeCfBlip :: ComonadCofree MakeBlip (CfBlip MakeBlip)
+type CfBlip = Cofree ((->) Boolean) Blip
 
 type ABlip
-  = MakeBlip (CfBlip MakeBlip Blip)
+  = Boolean -> CfBlip
 
 makeBlip :: ABlip
-makeBlip = wrap (go false)
+makeBlip = go false
   where
-  go prev cur = wrap ((not prev && cur) :< map unwrap (wrap (go cur)))
-
-instance semigroupCfBlip :: Semigroup (CfBlip MakeBlip Blip) where
-  append f0i f1i =
-    let
-      hd = extract f0i || extract f1i
-
-      tl = unwrapCofree f0i <> unwrapCofree f1i
-    in
-      wrap (hd :< map unwrap tl)
-
-instance monoidBlip :: Monoid ABlip where
-  mempty = makeBlip
-
-{-
-instance actualizeBlip :: Actualize ABlip e Boolean (CfBlip MakeBlip Blip) where
-  actualize (MakeBlip r) _ b = r b
--}
+  go prev cur = coerce (not prev && cur) :< go cur
