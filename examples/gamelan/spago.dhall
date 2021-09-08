@@ -11,6 +11,7 @@ in      conf
               , "behaviors"
               , "console"
               , "effect"
+              , "record"
               , "event"
               , "foreign-object"
               , "indexed-monad"
