@@ -114,7 +114,7 @@ keyBufsActualize e@(SceneI e'@ { time }) { keyBufs, rate } =
 
   rate' = rate { time, rate: freq }
 
-  newE = timeIs (extract rate') e
+  newE = timeIs (unwrap $ extract rate') e
 
 keyBufGraph ::
   forall trigger analyserCbs r.
