@@ -49,7 +49,7 @@ makeTrigger = go Nothing
 
 makeSnappyTrigger :: ASnappyTrigger
 makeSnappyTrigger = convolveComonadCofreeChooseB
-  ( \e b cont ({ time, headroom, freq } :: TimeHeadroomFreq) ->
+  ( \cont e b ({ time, headroom, freq } :: TimeHeadroomFreq) ->
       let
         emitted = fEmitter freq { time, headroom }
         enow = e (isJust emitted)

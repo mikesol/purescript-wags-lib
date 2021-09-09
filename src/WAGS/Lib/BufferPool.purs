@@ -115,7 +115,7 @@ makeHotBufferPool
   -> Maybe (NonEmpty List (Number /\ Number))
   -> AHotBufferPool n
 makeHotBufferPool ptsa dur pwf = convolveComonadCofreeChooseB
-  ( \e b cont ({ time, headroom, freq } :: TimeHeadroomFreq) ->
+  ( \cont e b ({ time, headroom, freq } :: TimeHeadroomFreq) ->
       let
         enow = e { time, headroom, freq }
         bnow = b { time, headroom, offsets: map { rest: unit, offset: _ } (extract enow) }
@@ -132,7 +132,7 @@ makeSnappyBufferPool
   -> Maybe (NonEmpty List (Number /\ Number))
   -> ASnappyBufferPool n
 makeSnappyBufferPool dur pwf = convolveComonadCofreeChooseB
-  ( \e b cont ({ time, headroom, freq } :: TimeHeadroomFreq) ->
+  ( \cont e b ({ time, headroom, freq } :: TimeHeadroomFreq) ->
       let
         emitted = fEmitter freq { time, headroom }
         enow = e (isJust emitted)

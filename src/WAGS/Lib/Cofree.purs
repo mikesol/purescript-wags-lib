@@ -53,7 +53,7 @@ convolve
    . Functor f
   => Functor g
   => (a -> b -> c)
-  -> (forall z. f (Cofree f a) -> g (Cofree g b) -> (Cofree f a -> Cofree g b -> z) -> h z)
+  -> (forall z. (Cofree f a -> Cofree g b -> z) -> f (Cofree f a) -> g (Cofree g b) -> h z)
   -> Cofree f a
   -> Cofree g b
   -> Cofree h c
@@ -64,7 +64,7 @@ deferConvolve
    . Functor f
   => Functor g
   => (a -> b -> c)
-  -> (forall z. f (Cofree f a) -> g (Cofree g b) -> (Cofree f a -> Cofree g b -> z) -> h z)
+  -> (forall z. (Cofree f a -> Cofree g b -> z) -> f (Cofree f a) -> g (Cofree g b) -> h z)
   -> Cofree f a
   -> Cofree g b
   -> Cofree h c
@@ -77,17 +77,17 @@ convolveComonadCofree
    . Functor f
   => Functor g
   => (a -> b -> c)
-  -> (forall z. f (Cofree f a) -> g (Cofree g b) -> (Cofree f a -> Cofree g b -> z) -> h z)
+  -> (forall z. (Cofree f a -> Cofree g b -> z) -> f (Cofree f a) -> g (Cofree g b) -> h z)
   -> f (Cofree f a)
   -> g (Cofree g b)
   -> h (Cofree h c)
-convolveComonadCofree f1 f2 c1 c2 = f2 c1 c2 (convolve f1 f2)
+convolveComonadCofree f1 f2 = f2 (convolve f1 f2)
 
 convolveComonadCofreeChooseB
   :: forall f a g b h
    . Functor f
   => Functor g
-  => (forall z. f (Cofree f a) -> g (Cofree g b) -> (Cofree f a -> Cofree g b -> z) -> h z)
+  => (forall z. (Cofree f a -> Cofree g b -> z) -> f (Cofree f a) -> g (Cofree g b) -> h z)
   -> f (Cofree f a)
   -> g (Cofree g b)
   -> h (Cofree h b)
@@ -98,8 +98,8 @@ deferConvolveComonadCofree
    . Functor f
   => Functor g
   => (a -> b -> c)
-  -> (forall z. f (Cofree f a) -> g (Cofree g b) -> (Cofree f a -> Cofree g b -> z) -> h z)
+  -> (forall z. (Cofree f a -> Cofree g b -> z) -> f (Cofree f a) -> g (Cofree g b) -> h z)
   -> f (Cofree f a)
   -> g (Cofree g b)
   -> h (Cofree h c)
-deferConvolveComonadCofree f1 f2 c1 c2 = f2 c1 c2 (deferConvolve f1 f2)
+deferConvolveComonadCofree f1 f2 = f2 (deferConvolve f1 f2)
