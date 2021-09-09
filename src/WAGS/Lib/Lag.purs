@@ -2,11 +2,10 @@ module WAGS.Lib.Lag where
 
 import Prelude
 
-import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, (:<))
 import Data.Either (Either(..))
 import Data.Tuple (Tuple(..))
-import WAGS.Lib.Cofree (convolveComonadCofreeChooseB, deferConvolveComonadCofreeChooseB)
+import WAGS.Lib.Cofree (composeComonadCofree, deferComposeComonadCofree)
 
 type CfLag a
   = Cofree ((->) a) (Either a (Tuple a a))
@@ -24,11 +23,11 @@ withLag
    . Functor f
   => f (Cofree f a)
   -> f (Cofree f (Either a (Tuple a a)))
-withLag = flip (convolveComonadCofreeChooseB (\cont e b -> map (\cf -> cont cf (b (extract cf))) e)) makeLag
+withLag = flip composeComonadCofree makeLag
 
 withDeferredLag
   :: forall f a
    . Functor f
   => f (Cofree f a)
   -> f (Cofree f (Either a (Tuple a a)))
-withDeferredLag = flip (deferConvolveComonadCofreeChooseB (\cont e b -> map (\cf -> cont cf (b (extract cf))) e)) makeLag
+withDeferredLag = flip deferComposeComonadCofree makeLag
