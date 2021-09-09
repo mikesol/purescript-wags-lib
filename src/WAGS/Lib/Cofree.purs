@@ -103,3 +103,13 @@ deferConvolveComonadCofree
   -> g (Cofree g b)
   -> h (Cofree h c)
 deferConvolveComonadCofree f1 f2 = f2 (deferConvolve f1 f2)
+
+deferConvolveComonadCofreeChooseB
+  :: forall f a g b h
+   . Functor f
+  => Functor g
+  => (forall z. (Cofree f a -> Cofree g b -> z) -> f (Cofree f a) -> g (Cofree g b) -> h z)
+  -> f (Cofree f a)
+  -> g (Cofree g b)
+  -> h (Cofree h b)
+deferConvolveComonadCofreeChooseB = deferConvolveComonadCofree (const identity)

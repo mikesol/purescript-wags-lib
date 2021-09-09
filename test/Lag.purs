@@ -3,15 +3,17 @@ module Test.Lag where
 import Prelude
 
 import Control.Comonad (extract)
+import Control.Comonad.Cofree (deferCofree)
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Data.Either (Either(..))
-import Data.Tuple.Nested ((/\))
-import Data.Newtype (wrap)
+import Data.Identity (Identity(..))
+import Data.Newtype (unwrap, wrap)
 import Data.Tuple (Tuple(..))
+import Data.Tuple.Nested ((/\))
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import WAGS.Lib.Blip (makeBlip)
-import WAGS.Lib.Lag (makeLag, withLag)
+import WAGS.Lib.Lag (makeLag, withDeferredLag, withLag)
 
 testLag :: Spec Unit
 testLag = do
@@ -43,3 +45,21 @@ testLag = do
       extract r5 `shouldEqual` (Right $ wrap false /\ wrap false)
       extract r6 `shouldEqual` (Right $ wrap false /\ wrap false)
       extract r7 `shouldEqual` (Right $ wrap false /\ wrap true)
+    it "Produces the correct withDeferredLag" do
+      let
+        r0 = unwrap $ withDeferredLag (let x n = deferCofree \_ -> Tuple n $ Identity (x (n + 1)) in Identity $ x 0)
+        r1 = unwrap $ unwrapCofree r0
+        r2 = unwrap $ unwrapCofree r1
+        r3 = unwrap $ unwrapCofree r2
+        r4 = unwrap $ unwrapCofree r3
+        r5 = unwrap $ unwrapCofree r4
+        r6 = unwrap $ unwrapCofree r5
+        r7 = unwrap $ unwrapCofree r6
+      extract r0 `shouldEqual` (Left $ 0)
+      extract r1 `shouldEqual` (Right $ 0 /\ 1)
+      extract r2 `shouldEqual` (Right $ 1 /\ 2)
+      extract r3 `shouldEqual` (Right $ 2 /\ 3)
+      extract r4 `shouldEqual` (Right $ 3 /\ 4)
+      extract r5 `shouldEqual` (Right $ 4 /\ 5)
+      extract r6 `shouldEqual` (Right $ 5 /\ 6)
+      extract r7 `shouldEqual` (Right $ 6 /\ 7)
