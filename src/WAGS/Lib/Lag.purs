@@ -24,4 +24,4 @@ withLag
    . Functor f
   => f (Cofree f a)
   -> f (Cofree f (Either a (Tuple a a)))
-withLag i = convolveComonadCofreeChooseB (\cont e b -> map (\cf -> cont cf (b (extract cf))) e) i makeLag
+withLag = flip (convolveComonadCofreeChooseB (\cont e b -> map (\cf -> cont cf (b (extract cf))) e)) makeLag
