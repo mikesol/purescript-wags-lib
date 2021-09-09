@@ -27,7 +27,7 @@ testLag = do
       extract r2 `shouldEqual` Right (Tuple 1 2)
     it "Produces the correct withLag" do
       let
-        r0 = withLag (\cont f b -> cont (f b)) makeBlip false
+        r0 = withLag makeBlip false
         r1 = (unwrapCofree r0) false
         r2 = (unwrapCofree r1) true
         r3 = (unwrapCofree r2) true

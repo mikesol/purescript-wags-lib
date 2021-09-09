@@ -22,7 +22,6 @@ makeLag = (:<) <$> Left <*> go
 withLag
   :: forall f a
    . Functor f
-  => (forall z. (Cofree f a -> z) -> f (Cofree f a) -> f z)
-  -> f (Cofree f a)
+  => f (Cofree f a)
   -> f (Cofree f (Either a (Tuple a a)))
-withLag f i = convolveComonadCofreeChooseB (\cont e b -> f (\cf -> cont cf (b (extract cf))) e) i makeLag
+withLag i = convolveComonadCofreeChooseB (\cont e b -> map (\cf -> cont cf (b (extract cf))) e) i makeLag
