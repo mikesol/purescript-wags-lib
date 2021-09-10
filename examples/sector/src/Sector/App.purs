@@ -164,6 +164,14 @@ addNext = mapWithIndex
       pure unit
   )
 -}
+sector
+  :: forall i audio engine proof
+   . Pos i
+  => V.Vec i (SectorM audio engine proof Unit)
+sector =
+  erase
+    $ base
+
 --------------
 --------------
 --------------
