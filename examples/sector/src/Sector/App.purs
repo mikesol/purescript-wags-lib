@@ -114,14 +114,22 @@ base
   => V.Vec i (SectorM audio engine proof {})
 base = V.fill (const (pure {}))
 
+erase
+  :: forall a i audio engine proof
+   . Nat i
+  => V.Vec i (SectorM audio engine proof a)
+  -> V.Vec i (SectorM audio engine proof Unit)
+erase = asr (const $ const $ pure unit)
+
 rates
   :: forall i r' audio engine proof
    . Nat i
   => Lacks "currentRate" r'
   => V.Vec i (SectorM audio engine proof { | r' })
   -> V.Vec i (SectorM audio engine proof { currentRate :: Number | r' })
-rates = asr (\i a -> do
-    pure (R.insert (Proxy :: _ "currentRate") 42.0 a)
+rates = asr
+  ( \i a -> do
+      pure (R.insert (Proxy :: _ "currentRate") 42.0 a)
   )
 
 -- all sector run
