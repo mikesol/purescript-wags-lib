@@ -1,4 +1,4 @@
-module Gamelan.App where
+module Sector.App where
 
 import Prelude
 
@@ -61,6 +61,10 @@ ntropi =
       e `subscribe` \a2b -> (a2b <$> random) >>= f
 
 globalFF = 0.03 :: Number
+
+type Time = Number
+
+type NSectors = D8 -- 8 sectors
 
 type NKeys
   = D7 -- 7 keys
