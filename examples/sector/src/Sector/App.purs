@@ -5,21 +5,23 @@ import Prelude
 import Control.Applicative.Indexed ((:*>))
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
+import Control.Comonad.Cofree.Class (unwrapCofree)
 import Control.Parallel (parallel, sequential)
 import Control.Plus (empty)
 import Control.Promise (toAffE)
 import Data.Array as A
 import Data.Array.NonEmpty as NEA
+import Data.Either (either)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Identity (Identity)
 import Data.Int (floor, toNumber)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Monoid.Additive (Additive(..))
-import Data.Newtype (unwrap)
+import Data.Newtype (class Newtype, over, unwrap)
 import Data.Traversable (for_, traverse)
-import Data.Tuple.Nested ((/\))
-import Data.Tuple.Nested (type (/\))
-import Data.Typelevel.Num (class Lt, class Nat, class Pos, D2, D7, D8, toInt, toInt')
+import Data.Tuple (snd)
+import Data.Tuple.Nested ((/\), type (/\))
+import Data.Typelevel.Num (class Lt, class Nat, class Pos, D2, D8, toInt, toInt')
 import Data.Vec ((+>))
 import Data.Vec as V
 import Data.Vec as Vec
@@ -32,18 +34,18 @@ import FRP.Behavior (Behavior, behavior)
 import FRP.Behavior.Mouse (position)
 import FRP.Event (makeEvent, subscribe)
 import FRP.Event.Mouse (getMouse)
-import Halogen (raise)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Prim.Row (class Lacks)
 import Record as R
+import Math ((%))
 import Record.Builder as Record
+import Run.Except (throw)
 import Run.Reader (ask)
-import Run.State (modify)
+import Run.State (get, modify)
 import Type.Proxy (Proxy(..))
-import Type.Row (type (+))
 import WAGS.Change (ichange)
 import WAGS.Control.Functions (imodifyRes)
 import WAGS.Control.Functions.Validated (iloop, startUsingWithHint)
@@ -51,14 +53,13 @@ import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Create.Optionals (gain, playBuf, speaker)
 import WAGS.Graph.AudioUnit (OnOff(..), TGain, TPlayBuf, TSpeaker)
 import WAGS.Graph.Parameter (ff)
-import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
+import WAGS.Interpret (bufferDuration, close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (Buffy(..))
 import WAGS.Lib.Cofree (heads, tails)
-import WAGS.Lib.Lag (ALag, CfLag)
-import WAGS.Lib.Rate (CfRate, MakeRate, Rate, ARate, timeIs)
+import WAGS.Lib.Lag (CfLag, makeLag)
+import WAGS.Lib.Rate (ARate, Rate, CfRate, timeIs)
 import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
-import WAGS.Lib.Vec (mapWithTypedIndex)
-import WAGS.Lib.WAG (RunWag)
+import WAGS.Lib.WAG (RunWag, ShortCircuit(..))
 import WAGS.Math (calcSlope)
 import WAGS.Run (Run, RunAudio, RunEngine, SceneI(..), run)
 import WAGS.Template (fromTemplate)
@@ -102,7 +103,9 @@ type SectorM audio engine proof a = RunWag Env (Acc audio engine proof) audio en
 type ControlNext audio engine proof r = (next :: Cofree Identity (SectorM audio engine proof Unit) | r)
 
 newtype Acc audio engine proof =
-  Acc { | RateInfo + (ControlNext audio engine proof) + () }
+  Acc { | RateInfo (ControlNext audio engine proof ()) }
+
+derive instance newtypeAcc :: Newtype (Acc audio engine proof) _
 
 -- we're going to need a fixed point here
 -- basically, at a certain condition, we go forward one modulo vec
@@ -125,12 +128,35 @@ rates
   :: forall i r' audio engine proof
    . Nat i
   => Lacks "currentRate" r'
+  => Lacks "modifiedTime" r'
   => V.Vec i (SectorM audio engine proof { | r' })
-  -> V.Vec i (SectorM audio engine proof { currentRate :: Number | r' })
-rates = asr
-  ( \i a -> do
-      pure (R.insert (Proxy :: _ "currentRate") 42.0 a)
-  )
+  -> V.Vec i (SectorM audio engine proof { currentRate :: Number, modifiedTime :: Number | r' })
+rates = asr (const (makeRate (fromMaybe 1.0)))
+
+makeRate
+  :: forall r' audio engine proof
+   . Lacks "currentRate" r'
+  => Lacks "modifiedTime" r'
+  => (Maybe Number -> Number)
+  -> { | r' }
+  -> SectorM audio engine proof { currentRate :: Number, modifiedTime :: Number | r' }
+makeRate rateF a = do
+  Acc { rate, rateHistory } <- get
+  SceneI { time } <- ask
+  let
+    currentRate = rateF $ map
+      (either identity snd <<< extract)
+      rateHistory
+    cf = rate { time, rate: currentRate }
+  modify
+    $ over Acc
+    $ _
+        { rate = unwrapCofree cf
+        , rateHistory = Just $ maybe makeLag unwrapCofree rateHistory currentRate
+        }
+  pure
+    $ R.insert (Proxy :: _ "currentRate") currentRate
+    $ R.insert (Proxy :: _ "modifiedTime") (unwrap $ extract cf) a
 
 -- all sector run
 asr
@@ -152,25 +178,39 @@ usr
   -> V.Vec s (SectorM audio engine proof a)
 usr i m = V.modifyAt i (\a -> a >>= m (toInt i))
 
-{-
-addNext
-  :: forall s audio engine proof
+maybeAdvance
+  :: forall s audio engine proof r
    . Nat s
-  => V.Vec s (SectorM audio engine proof)
-  -> V.Vec s (SectorM audio engine proof)
-addNext = mapWithIndex
-  ( \i a -> a *> do
-      (SceneI { world: { buffer } }) <- ask
-      pure unit
+  => V.Vec s (SectorM audio engine proof { modifiedTime :: Number, currentRate :: Number | r })
+  -> V.Vec s (SectorM audio engine proof { modifiedTime :: Number, currentRate :: Number | r })
+maybeAdvance = asr
+  ( \i a -> do
+      (SceneI { world: { buffer }, headroomInSeconds }) <- ask
+      let
+        dur = bufferDuration buffer
+        peekAhead = (a.modifiedTime + (headroomInSeconds * a.currentRate)) % dur
+        asInt = toInt' (Proxy :: _ s)
+        condition
+          | i == asInt - 1 = peekAhead < dur / 2.0
+          | otherwise = peekAhead > (toNumber i) * dur / (toNumber asInt)
+      if condition then do
+        Acc { next } <- get
+        modify $ over Acc $ _ { next = unwrap $ unwrapCofree next }
+        extract next
+        throw ShortCircuit
+      else do
+        pure a
   )
--}
+
 sector
   :: forall i audio engine proof
    . Pos i
   => V.Vec i (SectorM audio engine proof Unit)
 sector =
-  erase
-    $ base
+  base
+    # rates
+    # maybeAdvance
+    # erase
 
 --------------
 --------------
@@ -285,7 +325,7 @@ keyBufGraph (SceneI { world }) { keyBufs, rate } =
 type AccOld
   =
   (
-  | KeyBufs + ()
+  | KeyBufs ()
   )
 
 acc :: { | AccOld }

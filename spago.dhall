@@ -23,7 +23,6 @@
   , "tailrec"
   , "tuples"
   , "typelevel"
-  , "typelevel-prelude"
   , "unfoldable"
   , "unsafe-coerce"
   , "wags"
