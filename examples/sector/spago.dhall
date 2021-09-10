@@ -13,7 +13,6 @@ in      conf
               , "effect"
               , "record"
               , "event"
-              , "foreign-object"
               , "indexed-monad"
               , "parallel"
               , "typelevel-prelude"

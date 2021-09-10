@@ -65,8 +65,9 @@ runWag
   => RunWag env control audio engine proof res graph Unit
   -> WAG audio engine proof res graph control
   -> Frame env audio engine proof res graph control
-runWag monad' wag' env' = let res = tailRec go { wag: wag' $> unit, control: extract wag', monad: monad' } in res.wag $> res.control
+runWag monad' wag' env' = res.wag $> res.control
   where
+  res = tailRec go { wag: wag' $> unit, control: extract wag', monad: monad' }
   go
     :: forall a
      . RunStep env control audio engine proof res graph a
