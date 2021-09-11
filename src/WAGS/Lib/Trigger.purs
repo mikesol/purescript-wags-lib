@@ -8,7 +8,7 @@ import Data.Maybe (Maybe(..), isJust)
 import Data.Monoid.Additive (Additive)
 import Data.Newtype (unwrap, wrap)
 import WAGS.Lib.Blip (makeBlip)
-import WAGS.Lib.Cofree (convolveComonadCofreeChooseB)
+import WAGS.Lib.Cofree (combineComonadCofreeChooseB)
 import WAGS.Lib.Emitter (fEmitter)
 
 type TimeOffset
@@ -48,7 +48,7 @@ makeTrigger = go Nothing
   go (Just t) { time, offset: Nothing } = let newT = time - t in Just (wrap newT) :< go (Just t)
 
 makeSnappyTrigger :: ASnappyTrigger
-makeSnappyTrigger = convolveComonadCofreeChooseB
+makeSnappyTrigger = combineComonadCofreeChooseB
   ( \cont e b ({ time, headroom, freq } :: TimeHeadroomFreq) ->
       let
         emitted = fEmitter freq { time, headroom }

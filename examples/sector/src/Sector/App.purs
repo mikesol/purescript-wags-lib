@@ -3,7 +3,7 @@ module Sector.App where
 import Prelude
 
 import Control.Applicative.Indexed ((:*>))
-import Control.Comonad (extract)
+import Control.Comonad (class Comonad, class Extend, extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Control.Parallel (parallel, sequential)
@@ -15,7 +15,7 @@ import Data.Either (either)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Identity (Identity)
 import Data.Int (floor, toNumber)
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.Monoid.Additive (Additive(..))
 import Data.Newtype (class Newtype, over, unwrap)
 import Data.Traversable (for_, traverse)
@@ -38,14 +38,15 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Math ((%))
 import Prim.Row (class Lacks)
 import Record as R
-import Math ((%))
 import Record.Builder as Record
 import Run.Except (throw)
 import Run.Reader (ask)
-import Run.State (get, modify)
+import Run.State (get, modify, put)
 import Type.Proxy (Proxy(..))
+import Type.Row (type (+))
 import WAGS.Change (ichange)
 import WAGS.Control.Functions (imodifyRes)
 import WAGS.Control.Functions.Validated (iloop, startUsingWithHint)
@@ -53,13 +54,14 @@ import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Create.Optionals (gain, playBuf, speaker)
 import WAGS.Graph.AudioUnit (OnOff(..), TGain, TPlayBuf, TSpeaker)
 import WAGS.Graph.Parameter (ff)
-import WAGS.Interpret (bufferDuration, close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
+import WAGS.Interpret (class AudioInterpret, bufferDuration, close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (Buffy(..))
 import WAGS.Lib.Cofree (heads, tails)
 import WAGS.Lib.Lag (CfLag, makeLag)
+import WAGS.Lib.Latch (Latch, CfLatch)
 import WAGS.Lib.Rate (ARate, Rate, CfRate, timeIs)
 import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
-import WAGS.Lib.WAG (RunWag, ShortCircuit(..))
+import WAGS.Lib.WAG (RunWag, ShortCircuit(..), wag)
 import WAGS.Math (calcSlope)
 import WAGS.Run (Run, RunAudio, RunEngine, SceneI(..), run)
 import WAGS.Template (fromTemplate)
@@ -80,11 +82,20 @@ type NSectors = D8 -- 8 sectors
 type SectorRuns audio engine proof =
   V.Vec NSectors (SectorM audio engine proof Unit)
 
-type RateInfo r =
+type RateAcc r =
   ( rate :: ARate
   , rateHistory :: Maybe (CfLag Number)
   | r
   )
+
+type SectorAcc r =
+  ( sectorCount :: Int
+  , sectorLatch :: CfLatch Int
+  | r
+  )
+
+type NextAcc audio engine proof r = (next :: Cofree Identity (SectorM audio engine proof Unit) | r)
+type PrevSectorAcc r = (prevSector :: Maybe Int | r)
 
 type World = { buffer :: BrowserAudioBuffer }
 
@@ -100,22 +111,21 @@ type Res = Unit
 
 type SectorM audio engine proof a = RunWag Env (Acc audio engine proof) audio engine proof Res Graph a
 
-type ControlNext audio engine proof r = (next :: Cofree Identity (SectorM audio engine proof Unit) | r)
-
 newtype Acc audio engine proof =
-  Acc { | RateInfo (ControlNext audio engine proof ()) }
+  Acc { | RateAcc + PrevSectorAcc + SectorAcc + NextAcc audio engine proof () }
 
 derive instance newtypeAcc :: Newtype (Acc audio engine proof) _
 
--- we're going to need a fixed point here
--- basically, at a certain condition, we go forward one modulo vec
--- that means that we need a check for the time and need to return the next free
--- if the time check fails
+type CachedAcc audio engine proof r =
+  ( cachedAcc :: Acc audio engine proof
+  | r
+  )
+
 base
   :: forall i audio engine proof
    . Pos i
-  => V.Vec i (SectorM audio engine proof {})
-base = V.fill (const (pure {}))
+  => V.Vec i (SectorM audio engine proof { | CachedAcc audio engine proof () })
+base = V.fill (const $ { cachedAcc: _ } <$> get)
 
 erase
   :: forall a i audio engine proof
@@ -124,28 +134,64 @@ erase
   -> V.Vec i (SectorM audio engine proof Unit)
 erase = asr (const $ const $ pure unit)
 
+confirmSectorLatch
+  :: forall a i audio engine proof
+   . Nat i
+  => V.Vec i (SectorM audio engine proof a)
+  -> V.Vec i (SectorM audio engine proof a)
+confirmSectorLatch = asr \i a -> do
+    -- this will force the sector latch to be Nothing on the next iteration
+    Acc { sectorCount, sectorLatch } <- get
+    modify $ over Acc $ _
+      { sectorCount = sectorCount
+      , sectorLatch = unwrapCofree sectorLatch sectorCount
+      }
+    pure a
+
+
 rates
   :: forall i r' audio engine proof
    . Nat i
   => Lacks "currentRate" r'
   => Lacks "modifiedTime" r'
   => V.Vec i (SectorM audio engine proof { | r' })
-  -> V.Vec i (SectorM audio engine proof { currentRate :: Number, modifiedTime :: Number | r' })
-rates = asr (const (makeRate (fromMaybe 1.0)))
+  -> V.Vec i (SectorM audio engine proof { | RateInfo r' })
+rates = asr (const (makeRate (maybe 1.0 extract)))
+
+data SectorSect a = SectorStart a | SectorCont a
+
+derive instance functorSectorSect :: Functor SectorSect
+
+instance extendSectorSec :: Extend SectorSect where
+  extend wab i@(SectorStart _) = SectorStart $ wab i
+  extend wab i@(SectorCont _) = SectorCont $ wab i
+
+instance comonadSectorSec :: Comonad SectorSect where
+  extract (SectorStart a) = a
+  extract (SectorCont a) = a
+
+type RateInfo r = (modifiedTime :: Number, currentRate :: SectorSect Number | r)
+type SectorInfo r = (currentSector :: Int | r)
+
+latchToSectorSec :: forall a b. CfLatch a -> b -> SectorSect b
+latchToSectorSec cf b = case extract cf of
+  Nothing -> SectorCont b
+  Just _ -> SectorStart b
 
 makeRate
   :: forall r' audio engine proof
    . Lacks "currentRate" r'
   => Lacks "modifiedTime" r'
-  => (Maybe Number -> Number)
+  => (Maybe (SectorSect Number) -> Number)
   -> { | r' }
-  -> SectorM audio engine proof { currentRate :: Number, modifiedTime :: Number | r' }
+  -> SectorM audio engine proof { | RateInfo r' }
 makeRate rateF a = do
-  Acc { rate, rateHistory } <- get
+  Acc { rate, rateHistory, sectorLatch } <- get
   SceneI { time } <- ask
   let
+    latchF = latchToSectorSec sectorLatch
     currentRate = rateF $ map
-      (either identity snd <<< extract)
+      (latchF <<< either identity snd <<< extract)
       rateHistory
     cf = rate { time, rate: currentRate }
   modify
@@ -155,7 +201,7 @@ makeRate rateF a = do
         , rateHistory = Just $ maybe makeLag unwrapCofree rateHistory currentRate
         }
   pure
-    $ R.insert (Proxy :: _ "currentRate") currentRate
+    $ R.insert (Proxy :: _ "currentRate") (latchF currentRate)
     $ R.insert (Proxy :: _ "modifiedTime") (unwrap $ extract cf) a
 
 -- all sector run
@@ -178,39 +224,68 @@ usr
   -> V.Vec s (SectorM audio engine proof a)
 usr i m = V.modifyAt i (\a -> a >>= m (toInt i))
 
-maybeAdvance
+advanceIfSectorEnds
   :: forall s audio engine proof r
    . Nat s
-  => V.Vec s (SectorM audio engine proof { modifiedTime :: Number, currentRate :: Number | r })
-  -> V.Vec s (SectorM audio engine proof { modifiedTime :: Number, currentRate :: Number | r })
-maybeAdvance = asr
-  ( \i a -> do
-      (SceneI { world: { buffer }, headroomInSeconds }) <- ask
-      let
-        dur = bufferDuration buffer
-        peekAhead = (a.modifiedTime + (headroomInSeconds * a.currentRate)) % dur
-        asInt = toInt' (Proxy :: _ s)
-        condition
-          | i == asInt - 1 = peekAhead < dur / 2.0
-          | otherwise = peekAhead > (toNumber i) * dur / (toNumber asInt)
-      if condition then do
-        Acc { next } <- get
-        modify $ over Acc $ _ { next = unwrap $ unwrapCofree next }
-        extract next
-        throw ShortCircuit
-      else do
-        pure a
-  )
+  => V.Vec s (SectorM audio engine proof { | RateInfo + CachedAcc audio engine proof r })
+  -> V.Vec s (SectorM audio engine proof { | RateInfo + CachedAcc audio engine proof r })
+advanceIfSectorEnds = asr \i a -> do
+  SceneI { world: { buffer }, headroomInSeconds } <- ask
+  let
+    dur = bufferDuration buffer
+    peekAhead = (a.modifiedTime + (headroomInSeconds * extract a.currentRate)) % dur
+    asInt = toInt' (Proxy :: _ s)
+    condition
+      | i == asInt - 1 = peekAhead < dur / 2.0
+      | otherwise = peekAhead > (toNumber i) * dur / (toNumber asInt)
+  when condition do
+    -- reset the state
+    put a.cachedAcc
+    Acc { next, sectorCount, sectorLatch } <- get
+    -- increment the sector count
+    let newSectorCount = sectorCount + 1
+    modify $ over Acc $ _
+      { sectorCount = newSectorCount
+      , sectorLatch = unwrapCofree sectorLatch newSectorCount
+      , next = unwrap $ unwrapCofree next
+      , prevSector = Just i
+      }
+    -- run next
+    extract next
+    -- throw to skip to the end
+    throw ShortCircuit
+  pure a
+
+doBufferAlignment
+  :: forall s audio engine proof r
+   . Nat s
+  => AudioInterpret audio engine
+  => V.Vec s (SectorM audio engine proof r)
+  -> V.Vec s (SectorM audio engine proof r)
+doBufferAlignment = asr \i a -> do
+  Acc { prevSector, sectorLatch } <- get
+  SceneI { world: { buffer } } <- ask
+  when (prevSector /= Just i && isJust (extract sectorLatch))
+    $ wag
+        { buf:
+            { onOff: OffOn
+            , bufferOffset: (toNumber i) * bufferDuration buffer / toNumber (toInt' (Proxy :: _ s))
+            }
+        }
+  pure a
 
 sector
   :: forall i audio engine proof
    . Pos i
+  => AudioInterpret audio engine
   => V.Vec i (SectorM audio engine proof Unit)
 sector =
   base
-    # rates
-    # maybeAdvance
-    # erase
+    # rates -- set the current time
+    # advanceIfSectorEnds -- move forward if the current time is out of this section
+    # doBufferAlignment -- restart buffer if necessary
+    # confirmSectorLatch -- assert the current sector
+    # erase -- void everything
 
 --------------
 --------------
