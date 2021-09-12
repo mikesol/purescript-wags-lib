@@ -48,7 +48,7 @@ instance headzMapping ::
   Mapping Headz i o where
   mapping Headz = heads
 
-convolve
+combine
   :: forall f a g b h c
    . Functor f
   => Functor g
@@ -57,9 +57,9 @@ convolve
   -> Cofree f a
   -> Cofree g b
   -> Cofree h c
-convolve f1 f2 c1 c2 = f1 (extract c1) (extract c2) :< convolveComonadCofree f1 f2 (unwrapCofree c1) (unwrapCofree c2)
+combine f1 f2 c1 c2 = f1 (extract c1) (extract c2) :< combineComonadCofree f1 f2 (unwrapCofree c1) (unwrapCofree c2)
 
-convolveComonadCofree
+combineComonadCofree
   :: forall f a g b h c
    . Functor f
   => Functor g
@@ -68,9 +68,9 @@ convolveComonadCofree
   -> f (Cofree f a)
   -> g (Cofree g b)
   -> h (Cofree h c)
-convolveComonadCofree f1 f2 = f2 (convolve f1 f2)
+combineComonadCofree f1 f2 = f2 (combine f1 f2)
 
-convolveComonadCofreeChooseB
+combineComonadCofreeChooseB
   :: forall f a g b h
    . Functor f
   => Functor g
@@ -78,7 +78,7 @@ convolveComonadCofreeChooseB
   -> f (Cofree f a)
   -> g (Cofree g b)
   -> h (Cofree h b)
-convolveComonadCofreeChooseB = convolveComonadCofree (const identity)
+combineComonadCofreeChooseB = combineComonadCofree (const identity)
 
 composeComonadCofree
   :: forall f a b
@@ -86,9 +86,9 @@ composeComonadCofree
   => f (Cofree f a)
   -> (a -> Cofree ((->) a) b)
   -> f (Cofree f b)
-composeComonadCofree = convolveComonadCofreeChooseB (\cont e b -> map (cont <*> b <<< extract) e)
+composeComonadCofree = combineComonadCofreeChooseB (\cont e b -> map (cont <*> b <<< extract) e)
 
-deferConvolve
+deferCombine
   :: forall f a g b h c
    . Functor f
   => Functor g
@@ -97,11 +97,11 @@ deferConvolve
   -> Cofree f a
   -> Cofree g b
   -> Cofree h c
-deferConvolve f1 f2 c1 c2 =
+deferCombine f1 f2 c1 c2 =
   deferCofree
-    \_ -> f1 (extract c1) (extract c2) /\ deferConvolveComonadCofree f1 f2 (unwrapCofree c1) (unwrapCofree c2)
+    \_ -> f1 (extract c1) (extract c2) /\ deferCombineComonadCofree f1 f2 (unwrapCofree c1) (unwrapCofree c2)
 
-deferConvolveComonadCofree
+deferCombineComonadCofree
   :: forall f a g b h c
    . Functor f
   => Functor g
@@ -110,9 +110,9 @@ deferConvolveComonadCofree
   -> f (Cofree f a)
   -> g (Cofree g b)
   -> h (Cofree h c)
-deferConvolveComonadCofree f1 f2 = f2 (deferConvolve f1 f2)
+deferCombineComonadCofree f1 f2 = f2 (deferCombine f1 f2)
 
-deferConvolveComonadCofreeChooseB
+deferCombineComonadCofreeChooseB
   :: forall f a g b h
    . Functor f
   => Functor g
@@ -120,7 +120,7 @@ deferConvolveComonadCofreeChooseB
   -> f (Cofree f a)
   -> g (Cofree g b)
   -> h (Cofree h b)
-deferConvolveComonadCofreeChooseB = deferConvolveComonadCofree (const identity)
+deferCombineComonadCofreeChooseB = deferCombineComonadCofree (const identity)
 
 deferComposeComonadCofree
   :: forall f a b
@@ -128,4 +128,4 @@ deferComposeComonadCofree
   => f (Cofree f a)
   -> (a -> Cofree ((->) a) b)
   -> f (Cofree f b)
-deferComposeComonadCofree = deferConvolveComonadCofreeChooseB (\cont e b -> map (cont <*> b <<< extract) e)
+deferComposeComonadCofree = deferCombineComonadCofreeChooseB (\cont e b -> map (cont <*> b <<< extract) e)
