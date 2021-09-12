@@ -25,7 +25,7 @@ import Data.Tuple (snd)
 import Data.Tuple.Nested (type (/\))
 import Data.Typelevel.Num (class Lt, class Nat, class Pos, D8, d0, d1, d2, d3, d4, d5, d6, d7, toInt, toInt')
 import Data.Vec as V
-import Debug (spy)
+-- import Debug (spy)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
@@ -35,7 +35,6 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Subscription as HS
-import Math ((%))
 import Prim.Row (class Lacks)
 import Record as R
 import Run.Except (throw)
@@ -74,7 +73,7 @@ type RateAcc r =
 type SectorAcc r =
   ( sectorCount :: Int
   , sectorLatch :: CfLatch Int
-  , sectorStartsAt :: Number
+  , sectorStartsAtUsingModifiedTime :: Number
   | r
   )
 
@@ -215,18 +214,19 @@ usr
   -> V.Vec s (SectorM audio engine a)
 usr i m = V.modifyAt i (\a -> a >>= m (toInt i))
 
-advanceIfSectorEnds
+doAdvance
   :: forall s audio engine r
    . Nat s
-  => V.Vec s (SectorM audio engine { | RateInfo + CachedAcc audio engine r })
-  -> V.Vec s (SectorM audio engine { | RateInfo + CachedAcc audio engine r })
-advanceIfSectorEnds = asr \i a -> do
+  => Proxy s
+  -> Int
+  -> { | RateInfo + CachedAcc audio engine r }
+  -> SectorM audio engine { | RateInfo + CachedAcc audio engine r }
+doAdvance px i a = do
   SceneI { world: { buffer }, headroomInSeconds } <- ask
-  Acc { sectorStartsAt } <- get
+  Acc { sectorStartsAtUsingModifiedTime } <- get
   let
-    dur = bufferDuration buffer / toNumber (toInt' (Proxy :: _ s))
-    condition = (headroomInSeconds * extract a.currentRate) + a.modifiedTime > sectorStartsAt + dur
-  -- let __________________________ = spy "setPS" {prevSector: Just i, condition, dur, modifiedTime: a.modifiedTime, sectorStartsAt }
+    dur = bufferDuration buffer / toNumber (toInt' px)
+    condition = (headroomInSeconds * extract a.currentRate) + a.modifiedTime > sectorStartsAtUsingModifiedTime + dur
   when condition do
     -- reset the state
     put a.cachedAcc
@@ -240,13 +240,20 @@ advanceIfSectorEnds = asr \i a -> do
       , sectorLatch = unwrapCofree sectorLatch newSectorCount
       , playingNow = next
       , prevSector = Just i
-      , sectorStartsAt = a.modifiedTime
+      , sectorStartsAtUsingModifiedTime = a.modifiedTime
       }
     -- run next
     extract next
     -- throw to skip to the end
     throw ShortCircuit
   pure a
+
+advanceIfSectorEnds
+  :: forall s audio engine r
+   . Nat s
+  => V.Vec s (SectorM audio engine { | RateInfo + CachedAcc audio engine r })
+  -> V.Vec s (SectorM audio engine { | RateInfo + CachedAcc audio engine r })
+advanceIfSectorEnds = asr (doAdvance (Proxy :: _ s))
 
 doBufferAlignment
   :: forall s audio engine r
@@ -257,7 +264,6 @@ doBufferAlignment
 doBufferAlignment = asr \i -> voidLeft do
   Acc { prevSector, sectorLatch } <- get
   SceneI { world: { buffer } } <- ask
-  -- let __________________________ = spy "fix" {prevSector, i, sl: extract sectorLatch }
   when (prevSector /= Just (i - 1) && isJust (extract sectorLatch))
     $ rChange
         { buf:
@@ -336,7 +342,7 @@ acc = Acc
   , prevSector: Nothing
   , rate: makeRate { prevTime: 0.0, startsAt: 0.0 }
   , rateHistory: Nothing
-  , sectorStartsAt: 0.0
+  , sectorStartsAtUsingModifiedTime: 0.0
   }
 
 runScene

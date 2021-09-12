@@ -1,0 +1,16 @@
+{
+  "name": "hmm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "dependencies": {
+    "ml-kmeans": "^5.0.0",
+    "ndarray": "^1.0.19",
+    "ndarray-cholesky-factorization": "^1.0.2",
+    "ndarray-determinant": "^1.0.0",
+    "ndarray-inv": "^0.2.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
