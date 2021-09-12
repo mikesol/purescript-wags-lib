@@ -23,4 +23,5 @@ jobs:
         run: npm run build
       - name: deploy to netlify
         if: github.ref == 'refs/heads/main'
+        # gamelan is NETLIFY_SEQUENCER_SITE_ID, so we use an abuse of terminology with NETLIFY_SEQUENCER2_SITE_ID
         run: NETLIFY_SITE_ID=${{ secrets.NETLIFY_SEQUENCER2_SITE_ID }} NETLIFY_AUTH_TOKEN=${{ secrets.NETLIFY_AUTH_TOKEN }} netlify deploy --dir=dist --prod
