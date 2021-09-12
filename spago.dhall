@@ -14,6 +14,7 @@
   , "newtype"
   , "nonempty"
   , "ordered-collections"
+  , "partial"
   , "prelude"
   , "profunctor-lenses"
   , "psci-support"

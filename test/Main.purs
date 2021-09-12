@@ -17,7 +17,7 @@ import Test.Spec.Reporter (consoleReporter)
 import Test.Spec.Runner (runSpec)
 import Test.Stream (testStream)
 import Test.Trigger (testTrigger)
-import Test.Vec (testMapWithTypedIndex)
+import Test.Vec (testVec)
 
 main :: Effect Unit
 main = do
@@ -34,4 +34,4 @@ main = do
         testTrigger
         testLatch
         testLag
-        testMapWithTypedIndex
+        testVec

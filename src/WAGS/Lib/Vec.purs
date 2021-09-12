@@ -1,12 +1,15 @@
 module WAGS.Lib.Vec where
 
-import Data.Typelevel.Num (class Lt, class Nat, toInt')
+import Prelude
+
+import Data.Array as A
+import Data.Maybe (fromJust)
 import Data.Vec as V
-import Type.Proxy (Proxy(..))
+import Partial.Unsafe (unsafePartial)
+import Unsafe.Coerce (unsafeCoerce)
 
-newtype VMHack (n :: Type) a b = VMHack (forall i. Nat i => Lt i n => i -> a -> b)
-
-foreign import unsafeMapWithTypedIndex :: forall n a b. Int -> VMHack n a b -> V.Vec n a -> V.Vec n b
-
-mapWithTypedIndex :: forall n a b. Nat n => (forall i. Nat i => Lt i n => i -> a -> b) -> V.Vec n a -> V.Vec n b
-mapWithTypedIndex f a = unsafeMapWithTypedIndex (toInt' (Proxy :: _ n)) (VMHack f) a
+indexMod :: forall n a. V.Vec n a -> Int -> a
+indexMod v i = unsafePartial $ fromJust $ A.index a (i `mod` A.length a)
+  where
+  a :: Array a
+  a = unsafeCoerce v

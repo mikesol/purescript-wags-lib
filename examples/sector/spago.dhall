@@ -7,6 +7,7 @@ in      conf
             # [ "halogen"
               , "aff"
               , "aff-promise"
+              , "console"
               , "debug"
               , "effect"
               , "record"
