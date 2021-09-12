@@ -37,7 +37,7 @@ import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
 type SceneType
   =
-  { speaker ::
+  ( speaker ::
       TSpeaker
         /\
           { oscGain :: Unit
@@ -56,7 +56,7 @@ type SceneType
   , b2 :: TPlayBuf /\ {}
   , b3Gain :: TGain /\ { b3 :: Unit }
   , b3 :: TPlayBuf /\ {}
-  }
+  )
 
 type Acc
   =
@@ -67,7 +67,7 @@ type Acc
 
 type World = { bell :: BrowserAudioBuffer }
 
-createFrame :: IxFrame (SceneI Unit World ()) RunAudio RunEngine Frame0 Unit {} SceneType Acc
+createFrame :: IxFrame (SceneI Unit World ()) RunAudio RunEngine Frame0 Unit () SceneType Acc
 createFrame = \(SceneI { time, world: { bell } }) ->
   ( ipatch { microphone: empty }
       :*>
