@@ -12,6 +12,7 @@ in      conf
               , "record"
               , "event"
               , "parallel"
+              , "halogen-subscriptions"
               , "typelevel-prelude"
               ]
         }
