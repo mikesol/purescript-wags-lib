@@ -21,7 +21,10 @@
   },
   "dependencies": {
     "@tensorflow/tfjs": "^3.9.0",
-    "hmm": "file:./hmm"
+    "assert": "^2.0.0",
+    "buffer": "^6.0.3",
+    "hmm": "file:./hmm",
+    "seedrandom": "^3.0.5"
   },
   "scripts": {
     "postinstall": "spago install && spago build",
