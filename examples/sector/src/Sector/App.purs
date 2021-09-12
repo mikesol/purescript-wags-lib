@@ -2,6 +2,7 @@ module Sector.App where
 
 import Prelude
 
+import App.Markov (getObservations)
 import Control.Apply (applySecond)
 import Control.Comonad (class Comonad, class Extend, extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
@@ -15,20 +16,22 @@ import Data.FunctorWithIndex (mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Int (toNumber)
 import Data.List ((:))
+import Data.List as L
 import Data.List.Types (List(..))
 import Data.Maybe (Maybe(..), isJust, maybe)
 import Data.Monoid.Endo (Endo(..))
 import Data.Newtype (class Newtype, over, unwrap)
-import Data.NonEmpty ((:|))
+import Data.NonEmpty (NonEmpty, (:|))
 import Data.Traversable (for_, traverse)
 import Data.Tuple (snd)
 import Data.Tuple.Nested (type (/\))
-import Data.Typelevel.Num (class Lt, class Nat, class Pos, D8, d0, d1, d2, d3, d4, d5, d6, d7, toInt, toInt')
+import Data.Typelevel.Num (class Lt, class Nat, class Pos, class Pred, D2, D32, D4, D8, d0, d1, d2, d3, d32, d4, d5, d6, d7, d8, toInt, toInt')
+import Data.Vec ((+>))
 import Data.Vec as V
--- import Debug (spy)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
+import Effect.Class.Console as Log
 import FRP.Event (subscribe)
 import Halogen as H
 import Halogen.HTML as HH
@@ -53,13 +56,17 @@ import WAGS.Lib.Latch (CfLatch, makeLatchEq)
 import WAGS.Lib.Rate (ARate, makeRate)
 import WAGS.Lib.Run (RunWag, ShortCircuit(..), rChange, rModifyrRes, runWag)
 import WAGS.Lib.Stream (cycle)
+import WAGS.Lib.Vec (indexMod)
 import WAGS.Patch (patch)
 import WAGS.Run (Run, RunAudio, RunEngine, SceneI(..), run)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
 type Time = Number
+type MarkovChainLength = D32
+type NObservations = D4
+type GaussianDimensions = D2
 
-type NSectors = D8 -- 8 sectors
+type NSectors = D8 -- audio file sliced in 8
 
 type SectorRuns audio engine =
   V.Vec NSectors (SectorM audio engine Unit)
@@ -331,20 +338,6 @@ order = cycle
             : Nil
       )
 
-acc
-  :: forall audio engine
-   . AudioInterpret audio engine
-  => Acc audio engine
-acc = Acc
-  { playingNow: order
-  , sectorCount: 0
-  , sectorLatch: makeLatchEq 0
-  , prevSector: Nothing
-  , rate: makeRate { prevTime: 0.0, startsAt: 0.0 }
-  , rateHistory: Nothing
-  , sectorStartsAtUsingModifiedTime: 0.0
-  }
-
 runScene
   :: forall audio engine proof
    . AudioInterpret audio engine
@@ -363,8 +356,9 @@ loopScene = runScene <<< extract <<< _.playingNow <<< unwrap <<< extract <*> ide
 firstFrame
   :: forall audio engine
    . AudioInterpret audio engine
-  => Frame Env audio engine Frame0 Res Graph (Acc audio engine)
-firstFrame env@(SceneI { world: { buffer } }) =
+  => Acc audio engine
+  -> Frame Env audio engine Frame0 Res Graph (Acc audio engine)
+firstFrame acc env@(SceneI { world: { buffer } }) =
   start
     # patch { microphone: empty }
     # voidRight { gain: 1.0, buf: buffer }
@@ -372,8 +366,92 @@ firstFrame env@(SceneI { world: { buffer } }) =
     # voidRight acc
     # flip loopScene env
 
-piece :: Scene Env RunAudio RunEngine Frame0 Res
-piece = firstFrame @|> loop loopScene
+piece :: Acc RunAudio RunEngine -> Scene Env RunAudio RunEngine Frame0 Res
+piece acc = firstFrame acc @|> loop loopScene
+
+type MarkovOptions =
+  { "A" :: V.Vec NSectors (V.Vec NSectors Number)
+  , "Sigma" :: V.Vec NSectors (V.Vec GaussianDimensions (V.Vec GaussianDimensions Number))
+  , mu :: V.Vec NSectors (V.Vec GaussianDimensions Number)
+  , pi :: V.Vec NSectors Number
+  , observations :: NObservations
+  , time :: MarkovChainLength
+  , states :: NSectors
+  , dimensions :: GaussianDimensions
+  }
+
+markovOptions :: MarkovOptions
+markovOptions =
+  { observations: d4
+  , time: d32
+  , states: d8
+  , dimensions: d2
+  , pi: (0.15 +> 0.20 +> 0.65 +> 0.15 +> 0.20 +> 0.65 +> 0.15 +> 0.20 +> V.empty)
+  , "A":
+      ( (0.55 +> 0.15 +> 0.30 +> 0.55 +> 0.15 +> 0.30 +> 0.55 +> 0.15 +> V.empty)
+          +> (0.45 +> 0.45 +> 0.10 +> 0.45 +> 0.45 +> 0.10 +> 0.45 +> 0.45 +> V.empty)
+          +> (0.15 +> 0.20 +> 0.65 +> 0.15 +> 0.20 +> 0.65 +> 0.15 +> 0.20 +> V.empty)
+          +> (0.55 +> 0.15 +> 0.30 +> 0.55 +> 0.15 +> 0.30 +> 0.55 +> 0.15 +> V.empty)
+          +> (0.45 +> 0.45 +> 0.10 +> 0.45 +> 0.45 +> 0.10 +> 0.45 +> 0.45 +> V.empty)
+          +> (0.15 +> 0.20 +> 0.65 +> 0.15 +> 0.20 +> 0.65 +> 0.15 +> 0.20 +> V.empty)
+          +> (0.55 +> 0.15 +> 0.30 +> 0.55 +> 0.15 +> 0.30 +> 0.55 +> 0.15 +> V.empty)
+          +> (0.45 +> 0.45 +> 0.10 +> 0.45 +> 0.45 +> 0.10 +> 0.45 +> 0.45 +> V.empty)
+          +> V.empty
+      )
+  , mu:
+      ( (-7.0 +> -8.0 +> V.empty)
+          +> (-1.5 +> 3.7 +> V.empty)
+          +> (-1.7 +> 1.2 +> V.empty)
+          +> (-7.0 +> -8.0 +> V.empty)
+          +> (-1.5 +> 3.7 +> V.empty)
+          +> (-1.7 +> 1.2 +> V.empty)
+          +> (-7.0 +> -8.0 +> V.empty)
+          +> (-1.5 +> 3.7 +> V.empty)
+          +> V.empty
+      )
+  , "Sigma":
+      ( ( (0.12 +> -0.01 +> V.empty)
+            +> (-0.01 +> 0.50 +> V.empty)
+            +> V.empty
+        )
+          +>
+            ( (0.21 +> 0.05 +> V.empty)
+                +> (0.05 +> 0.03 +> V.empty)
+                +> V.empty
+            )
+          +>
+            ( (0.37 +> 0.35 +> V.empty)
+                +> (0.35 +> 0.44 +> V.empty)
+                +> V.empty
+            )
+          +>
+            ( (0.12 +> -0.01 +> V.empty)
+                +> (-0.01 +> 0.50 +> V.empty)
+                +> V.empty
+            )
+          +>
+            ( (0.21 +> 0.05 +> V.empty)
+                +> (0.05 +> 0.03 +> V.empty)
+                +> V.empty
+            )
+          +>
+            ( (0.37 +> 0.35 +> V.empty)
+                +> (0.35 +> 0.44 +> V.empty)
+                +> V.empty
+            )
+          +>
+            ( (0.12 +> -0.01 +> V.empty)
+                +> (-0.01 +> 0.50 +> V.empty)
+                +> V.empty
+            )
+          +>
+            ( (0.21 +> 0.05 +> V.empty)
+                +> (0.05 +> 0.03 +> V.empty)
+                +> V.empty
+            )
+          +> V.empty
+      )
+  }
 
 --------------------------------
 ---- halogen app below
@@ -391,19 +469,21 @@ type State
   , unsubscribeFromHalogen :: Maybe H.SubscriptionId
   , audioCtx :: Maybe AudioContext
   , currentSector :: Maybe Int
+  , tfMarkov :: Maybe (V.Vec NObservations (V.Vec MarkovChainLength Int))
   }
 
 data Action
   = StartAudio
   | StopAudio
   | ReportRes Res
+  | Initialize
 
 component :: forall query input output m. MonadEffect m => MonadAff m => H.Component query input output m
 component =
   H.mkComponent
     { initialState
     , render
-    , eval: H.mkEval $ H.defaultEval { handleAction = handleAction }
+    , eval: H.mkEval $ H.defaultEval { handleAction = handleAction, initialize = Just Initialize }
     }
 
 initialState :: forall input. input -> State
@@ -412,44 +492,60 @@ initialState _ =
   , audioCtx: Nothing
   , currentSector: Nothing
   , unsubscribeFromHalogen: Nothing
+  , tfMarkov: Nothing
   }
 
 classes :: forall r p. Array String -> HP.IProp (class :: String | r) p
 classes = HP.classes <<< map H.ClassName
 
 render :: forall m. State -> H.ComponentHTML Action () m
-render { currentSector } =
-  HH.div [ classes [ "w-screen", "h-screen" ] ]
-    [ HH.div [ classes [ "flex", "flex-col", "w-full", "h-full" ] ]
-        [ HH.div [ classes [ "flex-grow" ] ] []
-        , HH.div [ classes [ "flex-grow-0", "flex", "flex-row" ] ]
-            [ HH.div [ classes [ "flex-grow" ] ]
-                []
-            , HH.div [ classes [ "flex", "flex-col" ] ]
-                ( [ HH.h1 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
-                      [ HH.text "SECTOR-esque" ]
-                  , HH.button
-                      [ classes [ "text-2xl", "m-5", "bg-indigo-500", "p-3", "rounded-lg", "text-white", "hover:bg-indigo-400" ], HE.onClick \_ -> StartAudio ]
-                      [ HH.text "Start audio" ]
-                  , HH.button
-                      [ classes [ "text-2xl", "m-5", "bg-pink-500", "p-3", "rounded-lg", "text-white", "hover:bg-pink-400" ], HE.onClick \_ -> StopAudio ]
-                      [ HH.text "Stop audio" ]
-                  ] <> maybe []
-                    ( \cs ->
-                        [ HH.h3 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
-                            [ HH.text $ "Current Sector: " <> show cs ]
-                        ]
-                    )
-                    currentSector
-                )
-            , HH.div [ classes [ "flex-grow" ] ] []
-            ]
-        , HH.div [ classes [ "flex-grow" ] ] []
-        ]
-    ]
+render { tfMarkov, currentSector } = HH.div [ classes [ "w-screen", "h-screen" ] ]
+  [ HH.div [ classes [ "flex", "flex-col", "w-full", "h-full" ] ]
+      [ HH.div [ classes [ "flex-grow" ] ] []
+      , HH.div [ classes [ "flex-grow-0", "flex", "flex-row" ] ]
+          [ HH.div [ classes [ "flex-grow" ] ]
+              []
+          , HH.div [ classes [ "flex", "flex-col" ] ]
+              case tfMarkov of
+                Nothing ->
+                  [ HH.h3 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
+                      [ HH.text "Training hidden Markov model using tfjs..." ]
+                  ]
+                Just _ ->
+                  ( [ HH.h1 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
+                        [ HH.text "SECTOR-esque" ]
+                    , HH.button
+                        [ classes [ "text-2xl", "m-5", "bg-indigo-500", "p-3", "rounded-lg", "text-white", "hover:bg-indigo-400" ], HE.onClick \_ -> StartAudio ]
+                        [ HH.text "Start audio" ]
+                    , HH.button
+                        [ classes [ "text-2xl", "m-5", "bg-pink-500", "p-3", "rounded-lg", "text-white", "hover:bg-pink-400" ], HE.onClick \_ -> StopAudio ]
+                        [ HH.text "Stop audio" ]
+                    ] <> maybe []
+                      ( \cs ->
+                          [ HH.h3 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
+                              [ HH.text $ "Current Sector: " <> show cs ]
+                          ]
+                      )
+                      currentSector
+                  )
+          , HH.div [ classes [ "flex-grow" ] ] []
+          ]
+      , HH.div [ classes [ "flex-grow" ] ] []
+      ]
+  ]
+
+vecToNonEmptyList :: forall n nm1. Pred n nm1 => V.Vec n ~> NonEmpty List
+vecToNonEmptyList v = uc.head :| (L.fromFoldable $ V.toArray $ uc.tail)
+  where
+  uc = V.uncons v
 
 handleAction :: forall output m. MonadEffect m => MonadAff m => Action -> H.HalogenM State Action () output m Unit
 handleAction = case _ of
+  Initialize -> do
+    Log.info "starting training"
+    obs <- H.liftAff $ toAffE $ getObservations markovOptions
+    Log.info "finished training"
+    H.modify_ _ { tfMarkov = Just obs }
   ReportRes res -> do
     H.modify_ _ { currentSector = unwrap res.currentSector Nothing }
     pure unit
@@ -457,6 +553,7 @@ handleAction = case _ of
     handleAction StopAudio
     { emitter, listener } <- H.liftEffect HS.create
     unsubscribeFromHalogen <- H.subscribe emitter
+    { tfMarkov } <- H.get
     audioCtx <- H.liftEffect context
     unitCache <- H.liftEffect makeUnitCache
     -- in case we want several, we use a traversable
@@ -465,6 +562,15 @@ handleAction = case _ of
     sound <- H.liftAff $ sequential $ traverse (parallel <<< toAffE <<< decodeAudioDataFromUri audioCtx) sound'
     let
       ffiAudio = defaultFFIAudio audioCtx unitCache
+      acc = Acc
+        { playingNow: maybe order (cycle <<< map (indexMod sector) <<< vecToNonEmptyList <<< flip V.index d0) tfMarkov
+        , sectorCount: 0
+        , sectorLatch: makeLatchEq 0
+        , prevSector: Nothing
+        , rate: makeRate { prevTime: 0.0, startsAt: 0.0 }
+        , rateHistory: Nothing
+        , sectorStartsAtUsingModifiedTime: 0.0
+        }
     unsubscribe <-
       H.liftEffect
         $ subscribe
@@ -472,7 +578,7 @@ handleAction = case _ of
                 (pure { buffer: (unwrap sound) })
                 { easingAlgorithm }
                 ffiAudio
-                piece
+                (piece acc)
             )
             (\({ res } :: Run Res ()) -> HS.notify listener (ReportRes res))
     H.modify_ _
