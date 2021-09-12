@@ -81,6 +81,7 @@ type SectorAcc r =
   ( sectorCount :: Int
   , sectorLatch :: CfLatch Int
   , sectorStartsAtUsingModifiedTime :: Number
+  , sectorStartsAtUsingClockTime :: Number
   | r
   )
 
@@ -224,16 +225,19 @@ usr i m = V.modifyAt i (\a -> a >>= m (toInt i))
 doAdvance
   :: forall s audio engine r
    . Nat s
-  => Proxy s
+  => Boolean
+  -> Proxy s
   -> Int
   -> { | RateInfo + CachedAcc audio engine r }
   -> SectorM audio engine { | RateInfo + CachedAcc audio engine r }
-doAdvance px i a = do
-  SceneI { world: { buffer }, headroomInSeconds } <- ask
-  Acc { sectorStartsAtUsingModifiedTime } <- get
+doAdvance useModifiedTime px i a = do
+  SceneI { world: { buffer }, time, headroomInSeconds } <- ask
+  Acc { sectorStartsAtUsingModifiedTime, sectorStartsAtUsingClockTime } <- get
   let
     dur = bufferDuration buffer / toNumber (toInt' px)
-    condition = (headroomInSeconds * extract a.currentRate) + a.modifiedTime > sectorStartsAtUsingModifiedTime + dur
+    timeForCondition = if useModifiedTime then a.modifiedTime else time
+    startTimeForCondition = if useModifiedTime then sectorStartsAtUsingModifiedTime else sectorStartsAtUsingClockTime
+    condition = (headroomInSeconds * extract a.currentRate) + timeForCondition > startTimeForCondition + dur
   when condition do
     -- reset the state
     put a.cachedAcc
@@ -248,6 +252,7 @@ doAdvance px i a = do
       , playingNow = next
       , prevSector = Just i
       , sectorStartsAtUsingModifiedTime = a.modifiedTime
+      , sectorStartsAtUsingClockTime = time
       }
     -- run next
     extract next
@@ -258,9 +263,10 @@ doAdvance px i a = do
 advanceIfSectorEnds
   :: forall s audio engine r
    . Nat s
-  => V.Vec s (SectorM audio engine { | RateInfo + CachedAcc audio engine r })
+  => Boolean
   -> V.Vec s (SectorM audio engine { | RateInfo + CachedAcc audio engine r })
-advanceIfSectorEnds = asr (doAdvance (Proxy :: _ s))
+  -> V.Vec s (SectorM audio engine { | RateInfo + CachedAcc audio engine r })
+advanceIfSectorEnds useModifiedTime = asr (doAdvance useModifiedTime (Proxy :: _ s))
 
 doBufferAlignment
   :: forall s audio engine r
@@ -308,7 +314,7 @@ sector
 sector =
   base
     # rates -- set the current time
-    # advanceIfSectorEnds -- move forward if the current time is out of this section
+    # advanceIfSectorEnds true -- move forward if the current time is out of this section
     # doBufferAlignment -- restart buffer if necessary
     # applyRate -- apply the rate
     # confirmSectorLatch -- assert the current sector
@@ -570,6 +576,7 @@ handleAction = case _ of
         , rate: makeRate { prevTime: 0.0, startsAt: 0.0 }
         , rateHistory: Nothing
         , sectorStartsAtUsingModifiedTime: 0.0
+        , sectorStartsAtUsingClockTime: 0.0
         }
     unsubscribe <-
       H.liftEffect
