@@ -2,38 +2,32 @@ module Sector.App where
 
 import Prelude
 
-import Control.Applicative.Indexed ((:*>))
+import Control.Apply (applySecond)
 import Control.Comonad (class Comonad, class Extend, extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Control.Parallel (parallel, sequential)
 import Control.Plus (empty)
 import Control.Promise (toAffE)
-import Data.Array as A
-import Data.Array.NonEmpty as NEA
 import Data.Either (either)
+import Data.Functor (voidLeft)
 import Data.FunctorWithIndex (mapWithIndex)
-import Data.Identity (Identity)
-import Data.Int (floor, toNumber)
-import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
-import Data.Monoid.Additive (Additive(..))
+import Data.Identity (Identity(..))
+import Data.Int (toNumber)
+import Data.List ((:))
+import Data.List.Types (List(..))
+import Data.Maybe (Maybe(..), isJust, maybe)
 import Data.Newtype (class Newtype, over, unwrap)
+import Data.NonEmpty ((:|))
 import Data.Traversable (for_, traverse)
 import Data.Tuple (snd)
-import Data.Tuple.Nested ((/\), type (/\))
-import Data.Typelevel.Num (class Lt, class Nat, class Pos, D2, D8, toInt, toInt')
-import Data.Vec ((+>))
+import Data.Tuple.Nested (type (/\))
+import Data.Typelevel.Num (class Lt, class Nat, class Pos, D8, d0, d1, d2, d3, d4, d5, d6, d7, toInt, toInt')
 import Data.Vec as V
-import Data.Vec as Vec
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
-import Effect.Class.Console as Log
-import Effect.Random (random)
-import FRP.Behavior (Behavior, behavior)
-import FRP.Behavior.Mouse (position)
-import FRP.Event (makeEvent, subscribe)
-import FRP.Event.Mouse (getMouse)
+import FRP.Event (subscribe)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -41,46 +35,31 @@ import Halogen.HTML.Properties as HP
 import Math ((%))
 import Prim.Row (class Lacks)
 import Record as R
-import Record.Builder as Record
 import Run.Except (throw)
 import Run.Reader (ask)
 import Run.State (get, modify, put)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
-import WAGS.Change (ichange)
-import WAGS.Control.Functions (imodifyRes)
-import WAGS.Control.Functions.Validated (iloop, startUsingWithHint)
-import WAGS.Control.Types (Frame0, Scene)
-import WAGS.Create.Optionals (gain, playBuf, speaker)
+import WAGS.Control.Functions (start)
+import WAGS.Control.Functions.Validated ((@|>), loop)
+import WAGS.Control.Types (Frame0, Scene, WAG, Frame)
 import WAGS.Graph.AudioUnit (OnOff(..), TGain, TPlayBuf, TSpeaker)
-import WAGS.Graph.Parameter (ff)
 import WAGS.Interpret (class AudioInterpret, bufferDuration, close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
-import WAGS.Lib.BufferPool (Buffy(..))
-import WAGS.Lib.Cofree (heads, tails)
 import WAGS.Lib.Lag (CfLag, makeLag)
-import WAGS.Lib.Latch (Latch, CfLatch)
-import WAGS.Lib.Rate (ARate, Rate, CfRate, timeIs)
-import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
-import WAGS.Lib.WAG (RunWag, ShortCircuit(..), wag)
-import WAGS.Math (calcSlope)
+import WAGS.Lib.Latch (CfLatch, makeLatchEq)
+import WAGS.Lib.Rate (ARate, makeRate)
+import WAGS.Lib.Stream (cycle)
+import WAGS.Lib.WAG (RunWag, ShortCircuit(..), runWag, wag)
+import WAGS.Patch (patch)
 import WAGS.Run (Run, RunAudio, RunEngine, SceneI(..), run)
-import WAGS.Template (fromTemplate)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
-
-ntropi :: Behavior Number
-ntropi =
-  behavior \e ->
-    makeEvent \f ->
-      e `subscribe` \a2b -> (a2b <$> random) >>= f
-
-globalFF = 0.03 :: Number
 
 type Time = Number
 
 type NSectors = D8 -- 8 sectors
 
-type SectorRuns audio engine proof =
-  V.Vec NSectors (SectorM audio engine proof Unit)
+type SectorRuns audio engine =
+  V.Vec NSectors (SectorM audio engine Unit)
 
 type RateAcc r =
   ( rate :: ARate
@@ -94,10 +73,12 @@ type SectorAcc r =
   | r
   )
 
-type NextAcc audio engine proof r = (next :: Cofree Identity (SectorM audio engine proof Unit) | r)
+type PlayingNowAcc audio engine r = (playingNow :: Cofree Identity (SectorM audio engine Unit) | r)
 type PrevSectorAcc r = (prevSector :: Maybe Int | r)
 
 type World = { buffer :: BrowserAudioBuffer }
+
+type AnalyserCbs = () :: Row Type
 
 type Graph =
   ( speaker :: TSpeaker /\ { gain :: Unit }
@@ -105,58 +86,56 @@ type Graph =
   , buf :: TPlayBuf /\ {}
   )
 
-type Env = SceneI Unit World ()
+type Env = SceneI Unit World AnalyserCbs
 
 type Res = Unit
 
-type SectorM audio engine proof a = RunWag Env (Acc audio engine proof) audio engine proof Res Graph a
+type SectorM audio engine a = RunWag Env (Acc audio engine) audio engine Res Graph a
 
-newtype Acc audio engine proof =
-  Acc { | RateAcc + PrevSectorAcc + SectorAcc + NextAcc audio engine proof () }
+newtype Acc audio engine =
+  Acc { | RateAcc + PrevSectorAcc + SectorAcc + PlayingNowAcc audio engine () }
 
-derive instance newtypeAcc :: Newtype (Acc audio engine proof) _
+derive instance newtypeAcc :: Newtype (Acc audio engine) _
 
-type CachedAcc audio engine proof r =
-  ( cachedAcc :: Acc audio engine proof
+type CachedAcc audio engine r =
+  ( cachedAcc :: Acc audio engine
   | r
   )
 
 base
-  :: forall i audio engine proof
+  :: forall i audio engine
    . Pos i
-  => V.Vec i (SectorM audio engine proof { | CachedAcc audio engine proof () })
+  => V.Vec i (SectorM audio engine { | CachedAcc audio engine () })
 base = V.fill (const $ { cachedAcc: _ } <$> get)
 
 erase
-  :: forall a i audio engine proof
+  :: forall a i audio engine
    . Nat i
-  => V.Vec i (SectorM audio engine proof a)
-  -> V.Vec i (SectorM audio engine proof Unit)
+  => V.Vec i (SectorM audio engine a)
+  -> V.Vec i (SectorM audio engine Unit)
 erase = asr (const $ const $ pure unit)
 
 confirmSectorLatch
-  :: forall a i audio engine proof
+  :: forall a i audio engine
    . Nat i
-  => V.Vec i (SectorM audio engine proof a)
-  -> V.Vec i (SectorM audio engine proof a)
-confirmSectorLatch = asr \i a -> do
-    -- this will force the sector latch to be Nothing on the next iteration
-    Acc { sectorCount, sectorLatch } <- get
-    modify $ over Acc $ _
-      { sectorCount = sectorCount
-      , sectorLatch = unwrapCofree sectorLatch sectorCount
-      }
-    pure a
-
+  => V.Vec i (SectorM audio engine a)
+  -> V.Vec i (SectorM audio engine a)
+confirmSectorLatch = asr $ const $ voidLeft do
+  -- this will force the sector latch to be Nothing on the next iteration
+  Acc { sectorCount, sectorLatch } <- get
+  modify $ over Acc $ _
+    { sectorCount = sectorCount
+    , sectorLatch = unwrapCofree sectorLatch sectorCount
+    }
 
 rates
-  :: forall i r' audio engine proof
+  :: forall i r' audio engine
    . Nat i
   => Lacks "currentRate" r'
   => Lacks "modifiedTime" r'
-  => V.Vec i (SectorM audio engine proof { | r' })
-  -> V.Vec i (SectorM audio engine proof { | RateInfo r' })
-rates = asr (const (makeRate (maybe 1.0 extract)))
+  => V.Vec i (SectorM audio engine { | r' })
+  -> V.Vec i (SectorM audio engine { | RateInfo r' })
+rates = asr (const (useRate (maybe 1.0 extract)))
 
 data SectorSect a = SectorStart a | SectorCont a
 
@@ -178,14 +157,14 @@ latchToSectorSec cf b = case extract cf of
   Nothing -> SectorCont b
   Just _ -> SectorStart b
 
-makeRate
-  :: forall r' audio engine proof
+useRate
+  :: forall r' audio engine
    . Lacks "currentRate" r'
   => Lacks "modifiedTime" r'
   => (Maybe (SectorSect Number) -> Number)
   -> { | r' }
-  -> SectorM audio engine proof { | RateInfo r' }
-makeRate rateF a = do
+  -> SectorM audio engine { | RateInfo r' }
+useRate rateF a = do
   Acc { rate, rateHistory, sectorLatch } <- get
   SceneI { time } <- ask
   let
@@ -206,29 +185,29 @@ makeRate rateF a = do
 
 -- all sector run
 asr
-  :: forall a b s audio engine proof
+  :: forall a b s audio engine
    . Nat s
-  => (Int -> a -> SectorM audio engine proof b)
-  -> V.Vec s (SectorM audio engine proof a)
-  -> V.Vec s (SectorM audio engine proof b)
+  => (Int -> a -> SectorM audio engine b)
+  -> V.Vec s (SectorM audio engine a)
+  -> V.Vec s (SectorM audio engine b)
 asr f = mapWithIndex (\i a -> a >>= f i)
 
 -- update sector run
 usr
-  :: forall a i s audio engine proof
+  :: forall a i s audio engine
    . Nat i
   => Lt i s
   => i
-  -> (Int -> a -> SectorM audio engine proof a)
-  -> V.Vec s (SectorM audio engine proof a)
-  -> V.Vec s (SectorM audio engine proof a)
+  -> (Int -> a -> SectorM audio engine a)
+  -> V.Vec s (SectorM audio engine a)
+  -> V.Vec s (SectorM audio engine a)
 usr i m = V.modifyAt i (\a -> a >>= m (toInt i))
 
 advanceIfSectorEnds
-  :: forall s audio engine proof r
+  :: forall s audio engine r
    . Nat s
-  => V.Vec s (SectorM audio engine proof { | RateInfo + CachedAcc audio engine proof r })
-  -> V.Vec s (SectorM audio engine proof { | RateInfo + CachedAcc audio engine proof r })
+  => V.Vec s (SectorM audio engine { | RateInfo + CachedAcc audio engine r })
+  -> V.Vec s (SectorM audio engine { | RateInfo + CachedAcc audio engine r })
 advanceIfSectorEnds = asr \i a -> do
   SceneI { world: { buffer }, headroomInSeconds } <- ask
   let
@@ -241,13 +220,15 @@ advanceIfSectorEnds = asr \i a -> do
   when condition do
     -- reset the state
     put a.cachedAcc
-    Acc { next, sectorCount, sectorLatch } <- get
+    Acc { playingNow, sectorCount, sectorLatch } <- get
     -- increment the sector count
-    let newSectorCount = sectorCount + 1
+    let
+      newSectorCount = sectorCount + 1
+      next = unwrap $ unwrapCofree playingNow
     modify $ over Acc $ _
       { sectorCount = newSectorCount
       , sectorLatch = unwrapCofree sectorLatch newSectorCount
-      , next = unwrap $ unwrapCofree next
+      , playingNow = next
       , prevSector = Just i
       }
     -- run next
@@ -257,15 +238,15 @@ advanceIfSectorEnds = asr \i a -> do
   pure a
 
 doBufferAlignment
-  :: forall s audio engine proof r
+  :: forall s audio engine r
    . Nat s
   => AudioInterpret audio engine
-  => V.Vec s (SectorM audio engine proof r)
-  -> V.Vec s (SectorM audio engine proof r)
+  => V.Vec s (SectorM audio engine r)
+  -> V.Vec s (SectorM audio engine r)
 doBufferAlignment = asr \i a -> do
   Acc { prevSector, sectorLatch } <- get
   SceneI { world: { buffer } } <- ask
-  when (prevSector /= Just i && isJust (extract sectorLatch))
+  when (prevSector /= Just (i - 1) && isJust (extract sectorLatch))
     $ wag
         { buf:
             { onOff: OffOn
@@ -274,189 +255,101 @@ doBufferAlignment = asr \i a -> do
         }
   pure a
 
-sector
-  :: forall i audio engine proof
-   . Pos i
+-- the problem with applying the rate
+-- is that the modified time won't be the actual place of the playhead in the buffer
+-- this is the case for numerous reasons:
+-- 1. we are scheduling in the future due to the easing algorithm
+-- 2. there may be some form of interpolation on the rate, which means the integral will be different
+-- 3. we may defer application of the rate slightly using ff, which will change the integral
+--
+-- in general, mixing the audioContext clock and the wags clock for sample accurate buffer operations
+-- requires some sort of either tighter sync or error corrective
+-- otherwise, there will be some type of overflow or underflow of the buffer
+-- the accumulated error doesn't really matter when there's a lot of switching but it gets amplified
+-- when the buffer doesn't change, which leads to one large error when a change does happen
+applyRate
+  :: forall s audio engine r
+   . Nat s
   => AudioInterpret audio engine
-  => V.Vec i (SectorM audio engine proof Unit)
+  => V.Vec s (SectorM audio engine { currentRate :: SectorSect Number | r })
+  -> V.Vec s (SectorM audio engine { currentRate :: SectorSect Number | r })
+applyRate = asr
+  $ const
+  $ applySecond <$> wag <<< { buf: _ } <<< { playbackRate: _ } <<< extract <<< _.currentRate <*> pure
+
+sector
+  :: forall audio engine
+   . AudioInterpret audio engine
+  => V.Vec NSectors (SectorM audio engine Unit)
 sector =
   base
     # rates -- set the current time
     # advanceIfSectorEnds -- move forward if the current time is out of this section
     # doBufferAlignment -- restart buffer if necessary
+    # applyRate -- apply the rate
     # confirmSectorLatch -- assert the current sector
     # erase -- void everything
 
---------------
---------------
---------------
---------------
---------------
---------------
+ix :: forall i s a. Nat i => Lt i s => i -> V.Vec s a -> a
+ix i v = V.index v i
 
-type NKeys
-  = D2 -- 2 keys
+order
+  :: forall audio engine
+   . AudioInterpret audio engine
+  => Cofree Identity (SectorM audio engine Unit)
+order = cycle
+  $ map ((#) sector)
+      ( ix d0
+          :| ix d2
+            : ix d1
+            : ix d4
+            : ix d3
+            : ix d6
+            : ix d5
+            : ix d7
+            : Nil
+      )
 
-type NBuf
-  = D2 -- 2 buffers
-
-type RBuf
-  = Unit -- no extra info needed
-
-type KeyBufs r
-  =
-  ( keyBufs :: V.Vec NKeys (SimpleBuffer NBuf)
-  , rate :: ARate
-  | r
-  )
-
-type WorldOld
-  =
-  { ntropi :: Number
-  , mickey :: Maybe { x :: Int, y :: Int }
-  , change :: Number
-  , buffers :: V.Vec NKeys BrowserAudioBuffer
+acc
+  :: forall audio engine
+   . AudioInterpret audio engine
+  => Acc audio engine
+acc = Acc
+  { playingNow: order
+  , sectorCount: 0
+  , sectorLatch: makeLatchEq 0
+  , prevSector: Nothing
+  , rate: makeRate { prevTime: 0.0, startsAt: 0.0 }
+  , rateHistory: Nothing
   }
 
-nps = 3.0 :: Number
+runScene
+  :: forall audio engine proof
+   . AudioInterpret audio engine
+  => RunWag Env (Acc audio engine) audio engine Res Graph Unit
+  -> WAG audio engine proof Res Graph (Acc audio engine)
+  -> Frame Env audio engine proof Res Graph (Acc audio engine)
+runScene = runWag
 
-buffersActualized
-  :: forall trigger world analyserCbs
-   . V.Vec NKeys (SceneI trigger world analyserCbs -> SimpleBuffer NBuf -> SimpleBufferCf NBuf)
-buffersActualized =
-  V.fill \i' ->
-    let
-      i = toNumber i'
-    in
-      actualizeSimpleBuffer
-        (NEA.singleton (i / nps))
-        ((toNumber $ toInt' (Proxy :: _ NKeys)) / nps)
+loopScene
+  :: forall audio engine proof
+   . AudioInterpret audio engine
+  => WAG audio engine proof Res Graph (Acc audio engine)
+  -> Frame Env audio engine proof Res Graph (Acc audio engine)
+loopScene = runScene <<< extract <<< _.playingNow <<< unwrap <<< extract <*> identity
 
-keyBufsActualize
-  :: forall trigger analyserCbs r
-   . SceneI trigger WorldOld analyserCbs
-  -> { | KeyBufs r }
-  -> { keyBufs :: V.Vec NKeys (SimpleBufferCf NBuf)
-     , rate :: CfRate
-     }
-keyBufsActualize e@(SceneI e'@{ time }) { keyBufs, rate } =
-  { keyBufs: V.zipWithE (\f x -> f newE x) buffersActualized keyBufs
-  , rate: rate'
-  }
-  where
-  freq = 1.0 + maybe 0.0 (\{ y } -> toNumber y / 1000.0) e'.world.mickey
+firstFrame
+  :: forall audio engine
+   . AudioInterpret audio engine
+  => Frame Env audio engine Frame0 Res Graph (Acc audio engine)
+firstFrame env =
+  start
+    # patch { microphone: empty }
+    # (<$) acc
+    # flip loopScene env
 
-  rate' = rate { time, rate: freq }
-
-  newE = timeIs (unwrap $ extract rate') e
-
-keyBufGraph
-  :: forall trigger analyserCbs r
-   . SceneI trigger WorldOld analyserCbs
-  -> { keyBufs :: V.Vec NKeys (SimpleBufferHead NBuf)
-     , rate :: Rate
-     | r
-     }
-  -> _
-keyBufGraph (SceneI { world }) { keyBufs, rate } =
-  { keyBufs:
-      fromTemplate (Proxy :: _ "instruments") (V.zipWithE (R.insert (Proxy :: _ "browserBuf")) world.buffers keyBufs) \i { buffers, browserBuf } ->
-        fromTemplate (Proxy :: _ "buffers") buffers \_ -> case _ of
-          Just (Buffy { starting, startTime }) ->
-            let
-              pos = max 0.0 (startTime - time)
-
-              nk = toNumber $ toInt' (Proxy :: _ NKeys)
-
-              endT = startTime + (nk / nps)
-            in
-              gain (ff (globalFF + pos) (pure (max 0.0 $ calcSlope startTime 1.0 endT 0.0 time)))
-                ( playBuf
-                    { onOff:
-                        ff globalFF
-                          $
-                            if starting then
-                              ff pos (pure OffOn)
-                            else
-                              pure On
-                    , playbackRate: 1.0
-                    }
-                    if xpos < world.ntropi then
-                      browserBuf
-                    else
-                      fromMaybe browserBuf (A.index (Vec.toArray world.buffers) (floor $ world.change * nk))
-                )
-          Nothing -> gain 0.0 (playBuf { onOff: Off } browserBuf)
-  }
-  where
-  xpos = maybe 0.0 (\{ x } -> toNumber x / 1000.0) world.mickey
-
-  time = unwrap rate
-
----
--- change this to make sound
--- for example, you can try:
--- a /@\ speaker { unit0: gain (cos (pi * e.time) * -0.02 + 0.02) { osc0: sinOsc 440.0 } }
-type AccOld
-  =
-  (
-  | KeyBufs ()
-  )
-
-acc :: { | AccOld }
-acc = mempty
-
-scene :: forall trigger analyserCbs. SceneI trigger WorldOld analyserCbs -> { | AccOld } -> _
-scene e a =
-  let
-    actualizer = {}
-
-    --------------------------------------------
-    actualized =
-      Record.build
-        ( Record.union (keyBufsActualize e a)
-        )
-        actualizer
-
-    headz = heads actualized
-
-    scene' =
-      speaker
-        { masterGain:
-            gain 1.0
-              ( Record.build
-                  ( Record.union (keyBufGraph e headz)
-                  )
-                  {}
-              )
-        }
-  in
-    tails actualized /\ scene'
-
-type ResOld
-  = { x :: Additive Int, y :: Additive Int }
-
-piece :: forall env analyserCbs. Scene (SceneI env WorldOld analyserCbs) RunAudio RunEngine Frame0 ResOld
-piece =
-  startUsingWithHint
-    scene
-    { microphone: empty }
-    acc
-    ( iloop
-        ( \e@(SceneI e') a ->
-            let
-              acc /\ graph = scene e a
-            in
-              imodifyRes
-                ( const
-                    ( maybe mempty
-                        (\{ x, y } -> { x: Additive x, y: Additive y })
-                        e'.world.mickey
-                    )
-                )
-                :*> (ichange graph $> acc)
-        )
-    )
+piece :: Scene Env RunAudio RunEngine Frame0 Res
+piece = firstFrame @|> loop loopScene
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =
@@ -522,29 +415,22 @@ handleAction = case _ of
     handleAction StopAudio
     audioCtx <- H.liftEffect context
     unitCache <- H.liftEffect makeUnitCache
-    let
-      sounds' = "https://freesound.org/data/previews/24/24620_130612-hq.mp3"
-        +> "https://freesound.org/data/previews/24/24622_130612-hq.mp3"
-        +> V.empty
-
-    sounds <- H.liftAff $ sequential $ traverse (parallel <<< toAffE <<< decodeAudioDataFromUri audioCtx) sounds'
+    -- in case we want several, we use a traversable
+    -- to be able to grab them all later
+    let sound' = Identity "https://freesound.org/data/previews/24/24620_130612-hq.mp3"
+    sound <- H.liftAff $ sequential $ traverse (parallel <<< toAffE <<< decodeAudioDataFromUri audioCtx) sound'
     let
       ffiAudio = defaultFFIAudio audioCtx unitCache
-    mouse' <- H.liftEffect getMouse
     unsubscribe <-
       H.liftEffect
         $ subscribe
             ( run (pure unit)
-                ( { ntropi: _, mickey: _, change: _, buffers: sounds }
-                    <$> ntropi
-                    <*> position mouse'
-                    <*> ntropi
-                )
+                (pure { buffer: (unwrap sound) })
                 { easingAlgorithm }
                 ffiAudio
                 piece
             )
-            (\({ res } :: Run ResOld ()) -> Log.info $ show res)
+            (\(_ :: Run Res ()) -> pure unit)
     H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
   StopAudio -> do
     { unsubscribe, audioCtx } <- H.get

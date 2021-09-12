@@ -19,19 +19,19 @@ import WAGS.Interpret (class AudioInterpret)
 
 data ShortCircuit = ShortCircuit
 
-newtype Wag audio engine proof res graph a = Wag (WAG audio engine proof res graph Unit -> WAG audio engine proof res graph a)
+newtype Wag audio engine res graph a = Wag (forall proof. WAG audio engine proof res graph Unit -> WAG audio engine proof res graph a)
 
-derive instance functorWag :: Functor (Wag audio engine proof res graph)
+derive instance functorWag :: Functor (Wag audio engine res graph)
 
-type WAG_ audio engine proof res graph r = (wag :: Wag audio engine proof res graph | r)
+type WAG_ audio engine res graph r = (wag :: Wag audio engine res graph | r)
 
 _wag :: Proxy "wag"
 _wag = Proxy
 
 wagAt
-  :: forall proxy t r s ch audio engine proof res graph
+  :: forall proxy t r s ch audio engine res graph
    . IsSymbol s
-  => Row.Cons s (Wag audio engine proof res graph) t r
+  => Row.Cons s (Wag audio engine res graph) t r
   => Change ch graph
   => AudioInterpret audio engine
   => proxy s
@@ -40,16 +40,16 @@ wagAt
 wagAt sym ch = Run.lift sym (Wag (\i -> change (i $> ch)))
 
 wag
-  :: forall r ch audio engine proof res graph
+  :: forall r ch audio engine res graph
    . Change ch graph
   => AudioInterpret audio engine
   => { | ch }
-  -> Run.Run (WAG_ audio engine proof res graph r) Unit
+  -> Run.Run (WAG_ audio engine res graph r) Unit
 wag = wagAt _wag
 
-type RunWag env control audio engine proof res graph a =
+type RunWag env control audio engine res graph a =
   Run.Run
-    ( wag :: Wag audio engine proof res graph
+    ( wag :: Wag audio engine res graph
     , reader :: Reader env
     , state :: State control
     , except :: Except ShortCircuit
@@ -60,7 +60,7 @@ type RunLoop control audio engine proof res graph r =
   { wag :: WAG audio engine proof res graph Unit, control :: control | r }
 
 type RunStep env control audio engine proof res graph a =
-  RunLoop control audio engine proof res graph (monad :: RunWag env control audio engine proof res graph a)
+  RunLoop control audio engine proof res graph (monad :: RunWag env control audio engine res graph a)
 
 type RunDone control audio engine proof res graph a =
   RunLoop control audio engine proof res graph (val :: a)
@@ -70,7 +70,7 @@ type RunDone control audio engine proof res graph a =
 runWag
   :: forall env control audio engine proof res graph
    . AudioInterpret audio engine
-  => RunWag env control audio engine proof res graph Unit
+  => RunWag env control audio engine res graph Unit
   -> WAG audio engine proof res graph control
   -> Frame env audio engine proof res graph control
 runWag monad' wag' env' = res.wag $> res.control
