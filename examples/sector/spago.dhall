@@ -5,15 +5,12 @@ in      conf
         , dependencies =
               conf.dependencies
             # [ "halogen"
-              , "random"
               , "aff"
               , "aff-promise"
-              , "behaviors"
-              , "console"
+              , "debug"
               , "effect"
               , "record"
               , "event"
-              , "indexed-monad"
               , "parallel"
               , "typelevel-prelude"
               ]

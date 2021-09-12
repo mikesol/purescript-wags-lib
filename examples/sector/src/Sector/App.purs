@@ -10,13 +10,14 @@ import Control.Parallel (parallel, sequential)
 import Control.Plus (empty)
 import Control.Promise (toAffE)
 import Data.Either (either)
-import Data.Functor (voidLeft)
+import Data.Functor (voidLeft, voidRight)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Int (toNumber)
 import Data.List ((:))
 import Data.List.Types (List(..))
 import Data.Maybe (Maybe(..), isJust, maybe)
+import Data.Monoid.Endo (Endo(..))
 import Data.Newtype (class Newtype, over, unwrap)
 import Data.NonEmpty ((:|))
 import Data.Traversable (for_, traverse)
@@ -24,6 +25,7 @@ import Data.Tuple (snd)
 import Data.Tuple.Nested (type (/\))
 import Data.Typelevel.Num (class Lt, class Nat, class Pos, D8, d0, d1, d2, d3, d4, d5, d6, d7, toInt, toInt')
 import Data.Vec as V
+import Debug (spy)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
@@ -32,6 +34,7 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Halogen.Subscription as HS
 import Math ((%))
 import Prim.Row (class Lacks)
 import Record as R
@@ -40,6 +43,7 @@ import Run.Reader (ask)
 import Run.State (get, modify, put)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
+import WAGS.Change (change)
 import WAGS.Control.Functions (start)
 import WAGS.Control.Functions.Validated ((@|>), loop)
 import WAGS.Control.Types (Frame0, Scene, WAG, Frame)
@@ -48,8 +52,8 @@ import WAGS.Interpret (class AudioInterpret, bufferDuration, close, context, dec
 import WAGS.Lib.Lag (CfLag, makeLag)
 import WAGS.Lib.Latch (CfLatch, makeLatchEq)
 import WAGS.Lib.Rate (ARate, makeRate)
+import WAGS.Lib.Run (RunWag, ShortCircuit(..), rChange, rModifyrRes, runWag)
 import WAGS.Lib.Stream (cycle)
-import WAGS.Lib.WAG (RunWag, ShortCircuit(..), runWag, wag)
 import WAGS.Patch (patch)
 import WAGS.Run (Run, RunAudio, RunEngine, SceneI(..), run)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
@@ -70,6 +74,7 @@ type RateAcc r =
 type SectorAcc r =
   ( sectorCount :: Int
   , sectorLatch :: CfLatch Int
+  , sectorStartsAt :: Number
   | r
   )
 
@@ -88,7 +93,7 @@ type Graph =
 
 type Env = SceneI Unit World AnalyserCbs
 
-type Res = Unit
+type Res = { currentSector :: Endo Function (Maybe Int) }
 
 type SectorM audio engine a = RunWag Env (Acc audio engine) audio engine Res Graph a
 
@@ -128,6 +133,14 @@ confirmSectorLatch = asr $ const $ voidLeft do
     , sectorLatch = unwrapCofree sectorLatch sectorCount
     }
 
+-- expand to add more stuff to res
+writeRes
+  :: forall a i audio engine
+   . Nat i
+  => V.Vec i (SectorM audio engine a)
+  -> V.Vec i (SectorM audio engine a)
+writeRes = asr (voidLeft <<< rModifyrRes <<< const <<< { currentSector: _ } <<< Endo <<< const <<< Just)
+
 rates
   :: forall i r' audio engine
    . Nat i
@@ -150,7 +163,6 @@ instance comonadSectorSec :: Comonad SectorSect where
   extract (SectorCont a) = a
 
 type RateInfo r = (modifiedTime :: Number, currentRate :: SectorSect Number | r)
-type SectorInfo r = (currentSector :: Int | r)
 
 latchToSectorSec :: forall a b. CfLatch a -> b -> SectorSect b
 latchToSectorSec cf b = case extract cf of
@@ -210,13 +222,11 @@ advanceIfSectorEnds
   -> V.Vec s (SectorM audio engine { | RateInfo + CachedAcc audio engine r })
 advanceIfSectorEnds = asr \i a -> do
   SceneI { world: { buffer }, headroomInSeconds } <- ask
+  Acc { sectorStartsAt } <- get
   let
-    dur = bufferDuration buffer
-    peekAhead = (a.modifiedTime + (headroomInSeconds * extract a.currentRate)) % dur
-    asInt = toInt' (Proxy :: _ s)
-    condition
-      | i == asInt - 1 = peekAhead < dur / 2.0
-      | otherwise = peekAhead > (toNumber i) * dur / (toNumber asInt)
+    dur = bufferDuration buffer / toNumber (toInt' (Proxy :: _ s))
+    condition = (headroomInSeconds * extract a.currentRate) + a.modifiedTime > sectorStartsAt + dur
+  -- let __________________________ = spy "setPS" {prevSector: Just i, condition, dur, modifiedTime: a.modifiedTime, sectorStartsAt }
   when condition do
     -- reset the state
     put a.cachedAcc
@@ -230,6 +240,7 @@ advanceIfSectorEnds = asr \i a -> do
       , sectorLatch = unwrapCofree sectorLatch newSectorCount
       , playingNow = next
       , prevSector = Just i
+      , sectorStartsAt = a.modifiedTime
       }
     -- run next
     extract next
@@ -243,20 +254,20 @@ doBufferAlignment
   => AudioInterpret audio engine
   => V.Vec s (SectorM audio engine r)
   -> V.Vec s (SectorM audio engine r)
-doBufferAlignment = asr \i a -> do
+doBufferAlignment = asr \i -> voidLeft do
   Acc { prevSector, sectorLatch } <- get
   SceneI { world: { buffer } } <- ask
+  -- let __________________________ = spy "fix" {prevSector, i, sl: extract sectorLatch }
   when (prevSector /= Just (i - 1) && isJust (extract sectorLatch))
-    $ wag
+    $ rChange
         { buf:
             { onOff: OffOn
             , bufferOffset: (toNumber i) * bufferDuration buffer / toNumber (toInt' (Proxy :: _ s))
             }
         }
-  pure a
 
 -- the problem with applying the rate
--- is that the modified time won't be the actual place of the playhead in the buffer
+-- is that the modified time won't be exactly equal to the position of the playhead in the buffer
 -- this is the case for numerous reasons:
 -- 1. we are scheduling in the future due to the easing algorithm
 -- 2. there may be some form of interpolation on the rate, which means the integral will be different
@@ -275,7 +286,7 @@ applyRate
   -> V.Vec s (SectorM audio engine { currentRate :: SectorSect Number | r })
 applyRate = asr
   $ const
-  $ applySecond <$> wag <<< { buf: _ } <<< { playbackRate: _ } <<< extract <<< _.currentRate <*> pure
+  $ applySecond <$> rChange <<< { buf: _ } <<< { playbackRate: _ } <<< extract <<< _.currentRate <*> pure
 
 sector
   :: forall audio engine
@@ -288,6 +299,7 @@ sector =
     # doBufferAlignment -- restart buffer if necessary
     # applyRate -- apply the rate
     # confirmSectorLatch -- assert the current sector
+    # writeRes -- write the residual
     # erase -- void everything
 
 ix :: forall i s a. Nat i => Lt i s => i -> V.Vec s a -> a
@@ -302,8 +314,11 @@ order = cycle
       ( ix d0
           :| ix d2
             : ix d1
+            : ix d5
             : ix d4
+            : ix d5
             : ix d3
+            : ix d5
             : ix d6
             : ix d5
             : ix d7
@@ -321,6 +336,7 @@ acc = Acc
   , prevSector: Nothing
   , rate: makeRate { prevTime: 0.0, startsAt: 0.0 }
   , rateHistory: Nothing
+  , sectorStartsAt: 0.0
   }
 
 runScene
@@ -342,14 +358,19 @@ firstFrame
   :: forall audio engine
    . AudioInterpret audio engine
   => Frame Env audio engine Frame0 Res Graph (Acc audio engine)
-firstFrame env =
+firstFrame env@(SceneI { world: { buffer } }) =
   start
     # patch { microphone: empty }
-    # (<$) acc
+    # voidRight { gain: 1.0, buf: buffer }
+    # change
+    # voidRight acc
     # flip loopScene env
 
 piece :: Scene Env RunAudio RunEngine Frame0 Res
 piece = firstFrame @|> loop loopScene
+
+--------------------------------
+---- halogen app below
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =
@@ -361,12 +382,15 @@ easingAlgorithm =
 type State
   =
   { unsubscribe :: Effect Unit
+  , unsubscribeFromHalogen :: Maybe H.SubscriptionId
   , audioCtx :: Maybe AudioContext
+  , currentSector :: Maybe Int
   }
 
 data Action
   = StartAudio
   | StopAudio
+  | ReportRes Res
 
 component :: forall query input output m. MonadEffect m => MonadAff m => H.Component query input output m
 component =
@@ -380,13 +404,15 @@ initialState :: forall input. input -> State
 initialState _ =
   { unsubscribe: pure unit
   , audioCtx: Nothing
+  , currentSector: Nothing
+  , unsubscribeFromHalogen: Nothing
   }
 
 classes :: forall r p. Array String -> HP.IProp (class :: String | r) p
 classes = HP.classes <<< map H.ClassName
 
 render :: forall m. State -> H.ComponentHTML Action () m
-render _ =
+render { currentSector } =
   HH.div [ classes [ "w-screen", "h-screen" ] ]
     [ HH.div [ classes [ "flex", "flex-col", "w-full", "h-full" ] ]
         [ HH.div [ classes [ "flex-grow" ] ] []
@@ -394,15 +420,22 @@ render _ =
             [ HH.div [ classes [ "flex-grow" ] ]
                 []
             , HH.div [ classes [ "flex", "flex-col" ] ]
-                [ HH.h1 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
-                    [ HH.text "SECTOR-esque" ]
-                , HH.button
-                    [ classes [ "text-2xl", "m-5", "bg-indigo-500", "p-3", "rounded-lg", "text-white", "hover:bg-indigo-400" ], HE.onClick \_ -> StartAudio ]
-                    [ HH.text "Start audio" ]
-                , HH.button
-                    [ classes [ "text-2xl", "m-5", "bg-pink-500", "p-3", "rounded-lg", "text-white", "hover:bg-pink-400" ], HE.onClick \_ -> StopAudio ]
-                    [ HH.text "Stop audio" ]
-                ]
+                ( [ HH.h1 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
+                      [ HH.text "SECTOR-esque" ]
+                  , HH.button
+                      [ classes [ "text-2xl", "m-5", "bg-indigo-500", "p-3", "rounded-lg", "text-white", "hover:bg-indigo-400" ], HE.onClick \_ -> StartAudio ]
+                      [ HH.text "Start audio" ]
+                  , HH.button
+                      [ classes [ "text-2xl", "m-5", "bg-pink-500", "p-3", "rounded-lg", "text-white", "hover:bg-pink-400" ], HE.onClick \_ -> StopAudio ]
+                      [ HH.text "Stop audio" ]
+                  ] <> maybe []
+                    ( \cs ->
+                        [ HH.h3 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
+                            [ HH.text $ "Current Sector: " <> show cs ]
+                        ]
+                    )
+                    currentSector
+                )
             , HH.div [ classes [ "flex-grow" ] ] []
             ]
         , HH.div [ classes [ "flex-grow" ] ] []
@@ -411,13 +444,18 @@ render _ =
 
 handleAction :: forall output m. MonadEffect m => MonadAff m => Action -> H.HalogenM State Action () output m Unit
 handleAction = case _ of
+  ReportRes res -> do
+    H.modify_ _ { currentSector = unwrap res.currentSector Nothing }
+    pure unit
   StartAudio -> do
     handleAction StopAudio
+    { emitter, listener } <- H.liftEffect HS.create
+    unsubscribeFromHalogen <- H.subscribe emitter
     audioCtx <- H.liftEffect context
     unitCache <- H.liftEffect makeUnitCache
     -- in case we want several, we use a traversable
     -- to be able to grab them all later
-    let sound' = Identity "https://freesound.org/data/previews/24/24620_130612-hq.mp3"
+    let sound' = Identity "https://freesound.org/data/previews/320/320873_527080-hq.mp3"
     sound <- H.liftAff $ sequential $ traverse (parallel <<< toAffE <<< decodeAudioDataFromUri audioCtx) sound'
     let
       ffiAudio = defaultFFIAudio audioCtx unitCache
@@ -430,10 +468,15 @@ handleAction = case _ of
                 ffiAudio
                 piece
             )
-            (\(_ :: Run Res ()) -> pure unit)
-    H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
+            (\({ res } :: Run Res ()) -> HS.notify listener (ReportRes res))
+    H.modify_ _
+      { unsubscribe = unsubscribe
+      , audioCtx = Just audioCtx
+      , unsubscribeFromHalogen = Just unsubscribeFromHalogen
+      }
   StopAudio -> do
-    { unsubscribe, audioCtx } <- H.get
+    { unsubscribe, unsubscribeFromHalogen, audioCtx } <- H.get
     H.liftEffect unsubscribe
+    for_ unsubscribeFromHalogen H.unsubscribe
     for_ audioCtx (H.liftEffect <<< close)
-    H.modify_ _ { unsubscribe = pure unit, audioCtx = Nothing }
+    H.modify_ _ { unsubscribe = pure unit, audioCtx = Nothing, unsubscribeFromHalogen = Nothing }
