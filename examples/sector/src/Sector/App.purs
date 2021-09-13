@@ -2,7 +2,9 @@ module Sector.App where
 
 import Prelude
 
+import App.Lib as Lib
 import App.Markov (getObservations)
+import App.Sector as Sector
 import Control.Apply (applySecond)
 import Control.Comonad (class Comonad, class Extend, extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
@@ -15,17 +17,15 @@ import Data.Functor (voidLeft, voidRight)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Int (toNumber)
-import Data.List ((:))
 import Data.List as L
-import Data.List.Types (List(..))
-import Data.Maybe (Maybe(..), isJust, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.Monoid.Endo (Endo(..))
 import Data.Newtype (class Newtype, over, unwrap)
 import Data.NonEmpty (NonEmpty, (:|))
 import Data.Traversable (for_, traverse)
 import Data.Tuple (snd)
 import Data.Tuple.Nested (type (/\))
-import Data.Typelevel.Num (class Lt, class Nat, class Pos, class Pred, D2, D32, D4, D8, d0, d1, d2, d3, d32, d4, d5, d6, d7, d8, toInt, toInt')
+import Data.Typelevel.Num (class Lt, class Nat, class Pos, class Pred, D2, D32, D4, D8, d0, d2, d32, d4, d8, toInt, toInt')
 import Data.Vec ((+>))
 import Data.Vec as V
 import Effect (Effect)
@@ -74,6 +74,7 @@ type SectorRuns audio engine =
 type RateAcc r =
   ( rate :: ARate
   , rateHistory :: Maybe (CfLag Number)
+  , lastModifiedTime :: Maybe Number
   | r
   )
 
@@ -155,7 +156,7 @@ rates
   => Lacks "modifiedTime" r'
   => V.Vec i (SectorM audio engine { | r' })
   -> V.Vec i (SectorM audio engine { | RateInfo r' })
-rates = asr (const (useRate (maybe 1.0 extract)))
+rates = asr $ useRate Sector.rate
 
 data SectorSect a = SectorStart a | SectorCont a
 
@@ -180,27 +181,34 @@ useRate
   :: forall r' audio engine
    . Lacks "currentRate" r'
   => Lacks "modifiedTime" r'
-  => (Maybe (SectorSect Number) -> Number)
+  => (Lib.RateInfo -> Number)
+  -> Int
   -> { | r' }
   -> SectorM audio engine { | RateInfo r' }
-useRate rateF a = do
-  Acc { rate, rateHistory, sectorLatch } <- get
+useRate rateF i a = do
+  Acc { rate, rateHistory, sectorLatch, lastModifiedTime } <- get
   SceneI { time } <- ask
   let
     latchF = latchToSectorSec sectorLatch
-    currentRate = rateF $ map
-      (latchF <<< either identity snd <<< extract)
-      rateHistory
+    currentRate = rateF
+      { starting: isJust $ extract sectorLatch
+      , clockTime: time
+      , bufferTime: fromMaybe 0.0 lastModifiedTime
+      , lastRate: map (either identity snd <<< extract) rateHistory
+      , sector: i
+      }
     cf = rate { time, rate: currentRate }
+    modifiedTime = unwrap $ extract cf
   modify
     $ over Acc
     $ _
         { rate = unwrapCofree cf
         , rateHistory = Just $ maybe makeLag unwrapCofree rateHistory currentRate
+        , lastModifiedTime = Just modifiedTime
         }
   pure
     $ R.insert (Proxy :: _ "currentRate") (latchF currentRate)
-    $ R.insert (Proxy :: _ "modifiedTime") (unwrap $ extract cf) a
+    $ R.insert (Proxy :: _ "modifiedTime") modifiedTime a
 
 -- all sector run
 asr
@@ -321,28 +329,13 @@ sector =
     # writeRes -- write the residual
     # erase -- void everything
 
-ix :: forall i s a. Nat i => Lt i s => i -> V.Vec s a -> a
-ix i v = V.index v i
-
 order
   :: forall audio engine
    . AudioInterpret audio engine
   => Cofree Identity (SectorM audio engine Unit)
 order = cycle
   $ map ((#) sector)
-      ( ix d0
-          :| ix d2
-            : ix d1
-            : ix d5
-            : ix d4
-            : ix d5
-            : ix d3
-            : ix d5
-            : ix d6
-            : ix d5
-            : ix d7
-            : Nil
-      )
+      Sector.order
 
 runScene
   :: forall audio engine proof
@@ -476,6 +469,7 @@ type State
   , audioCtx :: Maybe AudioContext
   , currentSector :: Maybe Int
   , tfMarkov :: Maybe (V.Vec NObservations (V.Vec MarkovChainLength Int))
+  , initialized :: Boolean
   }
 
 data Action
@@ -499,25 +493,26 @@ initialState _ =
   , currentSector: Nothing
   , unsubscribeFromHalogen: Nothing
   , tfMarkov: Nothing
+  , initialized: false
   }
 
 classes :: forall r p. Array String -> HP.IProp (class :: String | r) p
 classes = HP.classes <<< map H.ClassName
 
 render :: forall m. State -> H.ComponentHTML Action () m
-render { tfMarkov, currentSector } = HH.div [ classes [ "w-screen", "h-screen" ] ]
+render { initialized, currentSector } = HH.div [ classes [ "w-screen", "h-screen" ] ]
   [ HH.div [ classes [ "flex", "flex-col", "w-full", "h-full" ] ]
       [ HH.div [ classes [ "flex-grow" ] ] []
       , HH.div [ classes [ "flex-grow-0", "flex", "flex-row" ] ]
           [ HH.div [ classes [ "flex-grow" ] ]
               []
           , HH.div [ classes [ "flex", "flex-col" ] ]
-              case tfMarkov of
-                Nothing ->
+              case initialized of
+                false ->
                   [ HH.h3 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
                       [ HH.text "Training hidden Markov model using tfjs..." ]
                   ]
-                Just _ ->
+                true ->
                   ( [ HH.h1 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
                         [ HH.text "SECTOR-esque" ]
                     , HH.button
@@ -540,7 +535,7 @@ render { tfMarkov, currentSector } = HH.div [ classes [ "w-screen", "h-screen" ]
       ]
   ]
 
-vecToNonEmptyList :: forall n nm1. Pred n nm1 => V.Vec n ~> NonEmpty List
+vecToNonEmptyList :: forall n nm1. Pred n nm1 => V.Vec n ~> NonEmpty L.List
 vecToNonEmptyList v = uc.head :| (L.fromFoldable $ V.toArray $ uc.tail)
   where
   uc = V.uncons v
@@ -548,10 +543,12 @@ vecToNonEmptyList v = uc.head :| (L.fromFoldable $ V.toArray $ uc.tail)
 handleAction :: forall output m. MonadEffect m => MonadAff m => Action -> H.HalogenM State Action () output m Unit
 handleAction = case _ of
   Initialize -> do
-    Log.info "starting training"
-    obs <- H.liftAff $ toAffE $ getObservations markovOptions
-    Log.info "finished training"
-    H.modify_ _ { tfMarkov = Just obs }
+    if Sector.useMarkov then do
+      Log.info "starting training"
+      obs <- H.liftAff $ toAffE $ getObservations markovOptions
+      Log.info "finished training"
+      H.modify_ _ { tfMarkov = Just obs, initialized = true }
+    else H.modify_ _ { initialized = true }
   ReportRes res -> do
     H.modify_ _ { currentSector = unwrap res.currentSector Nothing }
     pure unit
@@ -575,6 +572,7 @@ handleAction = case _ of
         , prevSector: Nothing
         , rate: makeRate { prevTime: 0.0, startsAt: 0.0 }
         , rateHistory: Nothing
+        , lastModifiedTime: Nothing
         , sectorStartsAtUsingModifiedTime: 0.0
         , sectorStartsAtUsingClockTime: 0.0
         }
