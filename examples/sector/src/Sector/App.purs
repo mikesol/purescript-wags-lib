@@ -187,7 +187,7 @@ useRate
   -> SectorM audio engine { | RateInfo r' }
 useRate rateF i a = do
   Acc { rate, rateHistory, sectorLatch, lastModifiedTime } <- get
-  SceneI { time } <- ask
+  SceneI { time, world: { buffer } } <- ask
   let
     latchF = latchToSectorSec sectorLatch
     currentRate = rateF
@@ -195,6 +195,7 @@ useRate rateF i a = do
       , clockTime: time
       , bufferTime: fromMaybe 0.0 lastModifiedTime
       , lastRate: map (either identity snd <<< extract) rateHistory
+      , duration: bufferDuration buffer
       , sector: i
       }
     cf = rate { time, rate: currentRate }

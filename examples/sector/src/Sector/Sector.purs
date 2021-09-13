@@ -35,6 +35,7 @@ type NumberOfSectors = N.D8
 -- |   , clockTime :: Number -- how much time has passed
 -- |   , bufferTime :: Number -- how much of the buffer has played
 -- |   , lastRate :: Maybe Number -- the previous rate if there was one
+-- |   , duration :: Number -- the duration of the whole buffer
 -- |   , sector :: Int -- the current sector
 -- |   }
 -- | ```

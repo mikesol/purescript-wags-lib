@@ -13,6 +13,7 @@ type RateInfo =
   , clockTime :: Number -- how much time has passed
   , bufferTime :: Number -- how much of the buffer has played before now
   , lastRate :: Maybe Number -- the previous rate if there was one
+  , duration :: Number -- the duration of the whole buffer
   , sector :: Int -- the current sector
   }
 
