@@ -571,7 +571,7 @@ handleAction = case _ of
     unitCache <- H.liftEffect makeUnitCache
     -- in case we want several, we use a traversable
     -- to be able to grab them all later
-    let sound' = Identity "https://freesound.org/data/previews/320/320873_527080-hq.mp3"
+    let sound' = Identity Sector.sample
     sound <- H.liftAff $ sequential $ traverse (parallel <<< toAffE <<< decodeAudioDataFromUri audioCtx) sound'
     let
       ffiAudio = defaultFFIAudio audioCtx unitCache

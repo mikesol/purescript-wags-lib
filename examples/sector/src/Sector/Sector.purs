@@ -22,6 +22,11 @@ import App.Lib (RateInfo, Order, ix, usingNSectors)
 
 -- | Part 2. API
 
+-- | The url of the sample to use.
+-- | While the sample can be anything, the best results tend to be a file from 1-8 seconds. The default is a samba rhythm from freesound.org.
+sample :: String
+sample = "https://freesound.org/data/previews/320/320873_527080-hq.mp3"
+
 -- | The number of sectors as a _type_. The number must be positive.
 -- | Examples are D3, D5, D8 and D96.
 
