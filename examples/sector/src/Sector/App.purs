@@ -25,7 +25,7 @@ import Data.NonEmpty (NonEmpty, (:|))
 import Data.Traversable (for_, traverse)
 import Data.Tuple (snd)
 import Data.Tuple.Nested (type (/\))
-import Data.Typelevel.Num (class Lt, class Nat, class Pos, class Pred, D2, D32, D4, D8, d0, d2, d32, d4, d8, toInt, toInt')
+import Data.Typelevel.Num (class Lt, class Nat, class Pos, class Pred, D2, D32, D10, d0, d10, d2, d32, d8, toInt, toInt')
 import Data.Vec ((+>))
 import Data.Vec as V
 import Effect (Effect)
@@ -63,10 +63,10 @@ import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
 type Time = Number
 type MarkovChainLength = D32
-type NObservations = D4
+type NObservations = D10
 type GaussianDimensions = D2
 
-type NSectors = D8 -- audio file sliced in 8
+type NSectors = Sector.NumberOfSectors
 
 type SectorRuns audio engine =
   V.Vec NSectors (SectorM audio engine Unit)
@@ -391,7 +391,7 @@ type MarkovOptions =
 
 markovOptions :: MarkovOptions
 markovOptions =
-  { observations: d4
+  { observations: d10
   , time: d32
   , states: d8
   , dimensions: d2
