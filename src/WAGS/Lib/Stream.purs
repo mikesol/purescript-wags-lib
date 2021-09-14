@@ -5,9 +5,11 @@ import Prelude
 import Control.Comonad.Cofree (Cofree, deferCofree)
 import Data.Identity (Identity)
 import Data.List (List(..))
-import Data.List.NonEmpty (last)
+import Data.List as L
+import Data.List.NonEmpty (NonEmptyList(..), last)
+import Data.List.NonEmpty as NEL
 import Data.Maybe (Maybe(..), maybe)
-import Data.Newtype (wrap)
+import Data.Newtype (under, wrap)
 import Data.NonEmpty (NonEmpty, (:|))
 import Data.Tuple.Nested ((/\))
 
@@ -17,11 +19,41 @@ stream i l = go l
   go (a :| Nil) = deferCofree \_ -> a /\ wrap (maybe (go l) (\i' -> go (i' :| Nil)) i)
   go (a :| (Cons b c)) = deferCofree \_ -> a /\ wrap (go (b :| c))
 
-deadEnd :: forall a. NonEmpty List a -> Cofree Identity a
-deadEnd l = stream (Just (last (wrap l))) l
+class Stops f where
+  stops :: forall a. NonEmpty f a -> Cofree Identity (Maybe a)
 
-cycle :: forall a. NonEmpty List a -> Cofree Identity a
-cycle = stream Nothing
+stopsL :: forall a. NonEmpty List a -> Cofree Identity (Maybe a)
+stopsL = deadEnd <<< under NonEmptyList (flip NEL.snoc Nothing) <<< map Just
+
+instance stopsList :: Stops List where
+  stops = stopsL
+
+instance stopsArray :: Stops Array where
+  stops (a :| b) = stopsL (a :| L.fromFoldable b)
+
+class DeadEnd f where
+  deadEnd :: NonEmpty f ~> Cofree Identity
+
+deadEndL :: NonEmpty List ~> Cofree Identity
+deadEndL = stream <<< Just <<< last <<< wrap <*> identity
+
+instance deadEndList :: DeadEnd List where
+  deadEnd = deadEndL
+
+instance deadEndArray :: DeadEnd Array where
+  deadEnd (a :| b) = deadEndL (a :| L.fromFoldable b)
+
+class Cycle f where
+  cycle :: NonEmpty f ~> Cofree Identity
+
+cycleL :: forall a. NonEmpty List a -> Cofree Identity a
+cycleL = stream Nothing
+
+instance cycleList :: Cycle List where
+  cycle = cycleL
+
+instance cycleArray :: Cycle Array where
+  cycle (a :| b) = cycleL (a :| L.fromFoldable b)
 
 always :: forall a. a -> Cofree Identity a
-always = cycle <<< flip (:|) Nil
+always = cycleL <<< flip (:|) Nil

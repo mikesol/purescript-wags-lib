@@ -6,7 +6,7 @@ import App.Markov (getObservations)
 import Control.Promise (toAffE)
 import Data.Array as A
 import Data.Foldable (for_)
-import Data.Typelevel.Num (d2, d32, d4, d8, toInt)
+import Data.Typelevel.Num (d10, d2, d32, d8, toInt)
 import Data.Vec ((+>))
 import Data.Vec as V
 import Test.Spec (Spec, describe, it)
@@ -15,7 +15,7 @@ import Test.Spec.Assertions (shouldEqual)
 testMarkov :: Spec Unit
 testMarkov = describe "Markov" do
   it "Returns correct dimensions for markov" do
-    let options = { observations: d4
+    let options = { observations: d10
       , time: d32
       , states: d8
       , dimensions: d2

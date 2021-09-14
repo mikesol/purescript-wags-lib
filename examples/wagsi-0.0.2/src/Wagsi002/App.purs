@@ -42,7 +42,7 @@ import WAGS.Create.Optionals (gain, loopBuf, playBuf, speaker)
 import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (AudioParameter_(..), ff)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
-import WAGS.Lib.BufferPool (ABufferPool, Buffy(..), BuffyVec, CfBufferPool, MakeBufferPoolWithRest)
+import WAGS.Lib.BufferPool (ABufferPool, Buffy(..), BuffyVec, CfBufferPool, MakeBufferPool)
 import WAGS.Lib.Cofree (heads, tails)
 import WAGS.Lib.Latch (ALatchAP, CfLatchAP, MakeLatchAP, LatchAP)
 import WAGS.Lib.Piecewise (makeLoopingTerracedR)
@@ -132,7 +132,7 @@ graph0 (SceneI { time, world }) { room0KickBuf: { buffers } } =
 type Acc1 r
   =
   ( room1ClapLatch :: ALatchAP (First (Maybe Boolean))
-  , room1ClapBuffers :: ABufferPool NBuf RBuf
+  , room1ClapBuffers :: ABufferPool NBuf
   | r
   )
 
@@ -141,19 +141,18 @@ actualizer1
    . SceneI trigger world aCb
   -> { | Acc1 r }
   -> { room1ClapLatch :: CfLatchAP (First (Maybe Boolean))
-     , room1ClapBuffers :: CfBufferPool NBuf RBuf
+     , room1ClapBuffers :: CfBufferPool NBuf
      }
 actualizer1 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
   { room1ClapLatch
   , room1ClapBuffers:
       a.room1ClapBuffers
         { time
-        , headroom
         , offsets: UF.fromMaybe do
             AudioParameter { param, timeOffset } <- extract room1ClapLatch
             (First param') <- param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
             _ <- param'
-            pure { offset: timeOffset, rest: unit }
+            pure { offset: timeOffset }
         }
   }
   where
@@ -170,7 +169,7 @@ actualizer1 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
 
   room1ClapLatch = a.room1ClapLatch fromPW
 
-graph1 :: forall trigger aCb r. SceneI trigger World aCb -> { room1ClapLatch :: (LatchAP (First (Maybe Boolean))), room1ClapBuffers :: BuffyVec NBuf RBuf | r } -> _
+graph1 :: forall trigger aCb r. SceneI trigger World aCb -> { room1ClapLatch :: (LatchAP (First (Maybe Boolean))), room1ClapBuffers :: BuffyVec NBuf | r } -> _
 graph1 (SceneI { time, world }) { room1ClapBuffers } =
   { room1Clap:
       fromTemplate (Proxy :: _ "room1ClapBuffs") room1ClapBuffers \_ -> case _ of
@@ -197,7 +196,7 @@ graph1 (SceneI { time, world }) { room1ClapBuffers } =
 type Acc2 r
   =
   ( room2HiHatLatch :: ALatchAP (First (Maybe Boolean))
-  , room2HiHatBuffers :: ABufferPool NBuf RBuf
+  , room2HiHatBuffers :: ABufferPool NBuf
   | r
   )
 
@@ -206,19 +205,18 @@ actualizer2
    . SceneI trigger world aCb
   -> { | Acc2 r }
   -> { room2HiHatLatch :: CfLatchAP (First (Maybe Boolean))
-     , room2HiHatBuffers :: CfBufferPool NBuf RBuf
+     , room2HiHatBuffers :: CfBufferPool NBuf
      }
 actualizer2 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
   { room2HiHatLatch
   , room2HiHatBuffers:
       a.room2HiHatBuffers
         { time
-        , headroom
         , offsets: UF.fromMaybe do
             AudioParameter { param, timeOffset } <- extract room2HiHatLatch
             (First param') <- param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
             _ <- param'
-            pure { offset: timeOffset, rest: unit }
+            pure { offset: timeOffset }
         }
 
   }
@@ -238,7 +236,7 @@ actualizer2 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
 
   room2HiHatLatch = a.room2HiHatLatch fromPW
 
-graph2 :: forall trigger aCb r. SceneI trigger World aCb -> { room2HiHatLatch :: (LatchAP (First (Maybe Boolean))), room2HiHatBuffers :: BuffyVec NBuf RBuf | r } -> _
+graph2 :: forall trigger aCb r. SceneI trigger World aCb -> { room2HiHatLatch :: (LatchAP (First (Maybe Boolean))), room2HiHatBuffers :: BuffyVec NBuf | r } -> _
 graph2 (SceneI { time, world }) { room2HiHatBuffers } =
   { room2HiHat:
       fromTemplate (Proxy :: _ "room2HiHatBuffs") room2HiHatBuffers \_ -> case _ of

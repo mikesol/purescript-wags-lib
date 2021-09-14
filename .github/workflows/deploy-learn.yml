@@ -1,11 +1,12 @@
-name: Deploys loops
+name: Deploys learn
 on: push
+
 jobs:
   container-job:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./examples/loops
+        working-directory: ./examples/learn
     strategy:
       matrix:
         node-version: [14.x]
@@ -22,4 +23,4 @@ jobs:
         run: npm run build
       - name: deploy to netlify
         if: github.ref == 'refs/heads/main'
-        run: NETLIFY_SITE_ID=${{ secrets.NETLIFY_LOOPS_SITE_ID }} NETLIFY_AUTH_TOKEN=${{ secrets.NETLIFY_AUTH_TOKEN }} netlify deploy --dir=dist --prod
+        run: NETLIFY_SITE_ID=${{ secrets.NETLIFY_LEARN_SITE_ID }} NETLIFY_AUTH_TOKEN=${{ secrets.NETLIFY_AUTH_TOKEN }} netlify deploy --dir=dist --prod

@@ -1,6 +1,6 @@
-# Loop
+# Grains
 
-An Ableton-Live-inspired drum loop.
+Granular bells.
 
 ## Howto
 

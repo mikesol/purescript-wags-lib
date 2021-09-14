@@ -5,14 +5,15 @@ import Prelude
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, (:<))
 import Data.Array as A
+import Data.Eq (class EqRecord)
 import Data.FunctorWithIndex (mapWithIndex)
-import Data.List (List)
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.Newtype (class Newtype, unwrap)
-import Data.NonEmpty (NonEmpty)
-import Data.Tuple.Nested (type (/\))
 import Data.Typelevel.Num (class Pos, toInt')
 import Data.Vec as V
+import Prim.Row (class Lacks)
+import Prim.RowList as RL
+import Record as Record
 import Type.Proxy (Proxy(..))
 import WAGS.Graph.AudioUnit (APOnOff, OnOff(..))
 import WAGS.Graph.Parameter (ff)
@@ -20,14 +21,14 @@ import WAGS.Lib.Blip (makeBlip)
 import WAGS.Lib.Cofree (combineComonadCofreeChooseB)
 import WAGS.Lib.Emitter (fEmitter, makeEmitter)
 
-type TimeHeadroomOffsets rest
-  = { time :: Number, headroom :: Number, offsets :: Array { offset :: Number, rest :: rest } }
+type TimeOffsets
+  = { time :: Number, offsets :: Array { offset :: Number } }
 
 type TimeHeadroomFreq
   = { time :: Number, headroom :: Number, freq :: Number }
 
-type MakeBufferPoolWithRest rest a
-  = TimeHeadroomOffsets rest -> a
+type MakeBufferPool a
+  = TimeOffsets -> a
 
 type MakeHotBufferPool a
   = TimeHeadroomFreq -> a
@@ -35,42 +36,104 @@ type MakeHotBufferPool a
 type MakeSnappyBufferPool a
   = TimeHeadroomFreq -> a
 
-newtype Buffy rest
-  = Buffy { starting :: Boolean, startTime :: Number, rest :: rest }
+newtype Buffy r
+  = Buffy { starting :: Boolean, startTime :: Number | r }
 
-derive instance newtypeBuffy :: Newtype (Buffy rest) _
+derive instance newtypeBuffy :: Newtype (Buffy r) _
+instance showBuffy ::
+  ( Show { | r }
+  , Lacks "starting" r
+  , Lacks "startTime" r
+  ) =>
+  Show (Buffy r) where
+  show (Buffy x@{ starting, startTime }) = show $ "Buffy "
+    <> (show { starting, startTime })
+    <> " "
+    <> (show x')
 
-instance semigroupBuffy :: Semigroup rest => Semigroup (Buffy rest) where
+    where
+    f = Record.delete (Proxy :: _ "starting") <<< Record.delete (Proxy :: _ "startTime")
+    x' = f x
+
+instance eqBuffy ::
+  ( Eq { | r }
+  , Lacks "starting" r
+  , Lacks "startTime" r
+  ) =>
+  Eq (Buffy r) where
+  eq (Buffy x) (Buffy y) = x.starting == y.starting && x.startTime == y.startTime && x' == y'
+    where
+    f = Record.delete (Proxy :: _ "starting") <<< Record.delete (Proxy :: _ "startTime")
+    x' = f x
+    y' = f x
+
+instance ordBuffy ::
+  ( RL.RowToList r rl
+  , EqRecord rl r
+  , Ord { | r }
+  , Lacks "starting" r
+  , Lacks "startTime" r
+  ) =>
+  Ord (Buffy r) where
+  compare (Buffy x) (Buffy y) = if c0 == EQ then if c1 == EQ then c2 else c1 else c0
+    where
+    f = Record.delete (Proxy :: _ "starting") <<< Record.delete (Proxy :: _ "startTime")
+    x' = f x
+    y' = f x
+    c0 = compare x.starting y.starting
+    c1 = compare x.startTime y.startTime
+    c2 = compare x' y'
+
+instance semigroupBuffy ::
+  ( Semigroup { | r }
+  , Lacks "starting" r
+  , Lacks "startTime" r
+  ) =>
+  Semigroup (Buffy r) where
   append (Buffy x) (Buffy y) = Buffy
-    { starting: x.starting || y.starting
-    , startTime: min x.startTime y.startTime
-    , rest: x.rest <> y.rest
-    }
+    $ Record.insert (Proxy :: _ "starting") (x.starting || y.starting)
+    $ Record.insert (Proxy :: _ "startTime") (min x.startTime y.startTime) (x' <> y')
+    where
+    f = Record.delete (Proxy :: _ "starting") <<< Record.delete (Proxy :: _ "startTime")
+    x' = f x
+    y' = f y
 
-type CfBufferPool n rest = Cofree ((->) (TimeHeadroomOffsets rest)) (BuffyVec n rest)
-type CfHotBufferPool n = Cofree ((->) TimeHeadroomFreq) (BuffyVec n Unit)
-type CfSnappyBufferPool n = Cofree ((->) TimeHeadroomFreq) (BuffyVec n Unit)
+type CfBufferPool' n r = Cofree ((->) (TimeOffsets)) (BuffyVec' n r)
+type CfHotBufferPool' n r = Cofree ((->) TimeHeadroomFreq) (BuffyVec' n r)
+type CfSnappyBufferPool' n r = Cofree ((->) TimeHeadroomFreq) (BuffyVec' n r)
+type CfBufferPool n = CfBufferPool' n ()
+type CfHotBufferPool n = CfHotBufferPool' n ()
+type CfSnappyBufferPool n = CfSnappyBufferPool' n ()
 
-type BuffyVec (n :: Type) (rest :: Type)
-  = V.Vec n (Maybe (Buffy rest))
+type BuffyVec' (n :: Type) (r :: Row Type)
+  = V.Vec n (Maybe (Buffy r))
 
-type ABufferPool n rest
-  = MakeBufferPoolWithRest rest (CfBufferPool n rest)
+type BuffyVec n = BuffyVec' n ()
+
+type ABufferPool' n r
+  = MakeBufferPool (CfBufferPool' n r)
+
+type AHotBufferPool' n r
+  = MakeHotBufferPool (CfHotBufferPool' n r)
+
+type ASnappyBufferPool' n r
+  = MakeSnappyBufferPool (CfSnappyBufferPool' n r)
+
+type ABufferPool n
+  = ABufferPool' n ()
 
 type AHotBufferPool n
-  = MakeHotBufferPool (CfHotBufferPool n)
+  = AHotBufferPool' n ()
 
 type ASnappyBufferPool n
-  = MakeSnappyBufferPool (CfSnappyBufferPool n)
+  = ASnappyBufferPool' n ()
 
 makeBufferPool'
-  :: forall n r
+  :: forall n
    . Pos n
   => Proxy n
-  -> Maybe Number
-  -> Maybe (NonEmpty List (Number /\ Number))
-  -> ABufferPool n r
-makeBufferPool' _ _ _ = go 0 (V.fill (const (Nothing :: Maybe (Buffy r))))
+  -> ABufferPool n
+makeBufferPool' _ = go 0 (V.fill (const (Nothing :: Maybe (Buffy ()))))
   where
   len :: Int
   len = toInt' (Proxy :: _ n)
@@ -78,60 +141,55 @@ makeBufferPool' _ _ _ = go 0 (V.fill (const (Nothing :: Maybe (Buffy r))))
   -- cPos myPos
   maybeBufferToGainOnOff
     :: Int
-    -> TimeHeadroomOffsets r
+    -> TimeOffsets
     -> Int
-    -> Maybe (Buffy r)
-    -> Maybe (Buffy r)
+    -> Maybe (Buffy ())
+    -> Maybe (Buffy ())
+  -- for now, we normalize offset to 0 as negative emitters make sense theoretically but not when starting a buffer
   maybeBufferToGainOnOff cPos { time, offsets } myPos Nothing
-    | Just { offset, rest } <- A.index offsets (myPos - cPos `mod` len) = Just (Buffy { startTime: time, starting: true, rest })
+    | Just { offset } <- A.index offsets (myPos - cPos `mod` len) = Just (Buffy { startTime: time + (max 0.0 offset), starting: true })
     | otherwise = Nothing
 
   maybeBufferToGainOnOff cPos { time, offsets } myPos (Just (Buffy b))
-    | Just { offset, rest } <- A.index offsets (myPos - cPos `mod` len) = Just (Buffy { startTime: time, starting: true, rest })
-    | otherwise = Just (Buffy { startTime: b.startTime, rest: b.rest, starting: false })
+    | Just { offset } <- A.index offsets (myPos - cPos `mod` len) = Just (Buffy { startTime: time + (max 0.0 offset), starting: true })
+    | otherwise = Just (Buffy { startTime: b.startTime, starting: false })
 
   go
     :: Int
-    -> V.Vec n (Maybe (Buffy r))
-    -> TimeHeadroomOffsets r
-    -> CfBufferPool n r
+    -> V.Vec n (Maybe (Buffy ()))
+    -> TimeOffsets
+    -> CfBufferPool n
   go cIdx v tht@{ offsets } = internalStates :< go ((cIdx + A.length offsets) `mod` len) internalStates
     where
     internalStates = mapWithIndex (maybeBufferToGainOnOff cIdx tht) v
 
 makeBufferPool
-  :: forall n r
+  :: forall n
    . Pos n
-  => Maybe Number
-  -> Maybe (NonEmpty List (Number /\ Number))
-  -> ABufferPool n r
+  => ABufferPool n
 makeBufferPool = makeBufferPool' (Proxy :: _ n)
 
 makeHotBufferPool
   :: forall n
    . Pos n
-  => { prevTime :: Number, startsAt :: Number }
-  -> Maybe Number
-  -> Maybe (NonEmpty List (Number /\ Number))
+  => { startsAt :: Number }
   -> AHotBufferPool n
-makeHotBufferPool ptsa dur pwf = combineComonadCofreeChooseB
+makeHotBufferPool sa = combineComonadCofreeChooseB
   ( \cont e b ({ time, headroom, freq } :: TimeHeadroomFreq) ->
       let
         enow = e { time, headroom, freq }
-        bnow = b { time, headroom, offsets: map { rest: unit, offset: _ } (extract enow) }
+        bnow = b { time, offsets: map { offset: _ } (extract enow) }
       in
         cont enow bnow
   )
-  (makeEmitter ptsa)
-  (makeBufferPool' (Proxy :: _ n) dur pwf)
+  (makeEmitter sa)
+  (makeBufferPool' (Proxy :: _ n))
 
 makeSnappyBufferPool
   :: forall n
    . Pos n
-  => Maybe Number
-  -> Maybe (NonEmpty List (Number /\ Number))
-  -> ASnappyBufferPool n
-makeSnappyBufferPool dur pwf = combineComonadCofreeChooseB
+  => ASnappyBufferPool n
+makeSnappyBufferPool = combineComonadCofreeChooseB
   ( \cont e b ({ time, headroom, freq } :: TimeHeadroomFreq) ->
       let
         emitted = fEmitter freq { time, headroom }
@@ -139,20 +197,19 @@ makeSnappyBufferPool dur pwf = combineComonadCofreeChooseB
         bnow =
           b
             { time
-            , headroom
             , offsets:
                 if unwrap (extract enow) then
-                  fromMaybe [] (pure <<< { offset: _, rest: unit } <$> emitted)
+                  fromMaybe [] (pure <<< { offset: _ } <$> emitted)
                 else []
             }
       in
         cont enow bnow
   )
   makeBlip
-  (makeBufferPool dur pwf)
+  makeBufferPool
 
 type Time
   = Number
 
-bOnOff :: forall r. Time -> Maybe (Buffy r) -> APOnOff
+bOnOff :: Time -> Maybe (Buffy ()) -> APOnOff
 bOnOff time = maybe (pure Off) (unwrap >>> \{ starting, startTime } -> if starting then ff (max (startTime - time) 0.0) (pure OffOn) else pure On)

@@ -61,7 +61,7 @@ piece =
           ichange (scene time bells entropy (extract actualized.hbp)) $> tails actualized
     )
   where
-  scene (time :: Number) (bells :: BrowserAudioBuffer) (entropy :: Number) (v :: BuffyVec D20 Unit) =
+  scene (time :: Number) (bells :: BrowserAudioBuffer) (entropy :: Number) (v :: BuffyVec D20) =
     speaker
       { mainBus:
           fromTemplate (Proxy :: _ "myPool") v \i gor ->

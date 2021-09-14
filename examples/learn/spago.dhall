@@ -5,14 +5,11 @@ in      conf
         , dependencies =
               conf.dependencies
             # [ "halogen"
+              , "halogen-storybook"
               , "aff"
-              , "aff-promise"
               , "behaviors"
               , "effect"
               , "event"
-              , "record"
               , "foreign-object"
-              , "parallel"
-              , "profunctor"
               ]
         }
