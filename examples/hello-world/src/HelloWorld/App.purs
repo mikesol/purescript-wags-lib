@@ -80,7 +80,7 @@ createFrame = \(SceneI { time, world: { bell } }) ->
             $>
               { myRate: makeRate { prevTime: 0.0, startsAt: time }
               , myEmitter: makeEmitter { prevTime: 0.0, startsAt: time }
-              , buffy: makeBufferPool (pure 6.0) empty
+              , buffy: makeBufferPool (pure 6.0)
               }
         )
   )
@@ -94,7 +94,7 @@ piece =
 
         emitter = a.myEmitter { time, headroom, freq: 4.0 + cos (time * pi * 0.25) * 3.5 }
 
-        bufz = a.buffy { time, headroom, offsets: map { rest: unit, offset: _ } (extract emitter) }
+        bufz = a.buffy { time, headroom, offsets: map { offset: _ } (extract emitter) }
 
         hbufz = extract bufz
       in

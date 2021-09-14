@@ -5,8 +5,12 @@ import Prelude hiding (Ordering(..))
 import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree (Cofree, deferCofree, (:<))
 import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
+import Control.Monad.State (class MonadState, get, put, runState)
+import Data.Identity (Identity)
+import Data.Newtype (unwrap)
+import Data.Traversable (class Traversable, sequence)
+import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (class Nat)
-import Data.Tuple.Nested ((/\))
 import Data.Vec as V
 import Heterogeneous.Mapping (class HMap, class Mapping, hmap)
 
@@ -129,3 +133,47 @@ deferComposeComonadCofree
   -> (a -> Cofree ((->) a) b)
   -> f (Cofree f b)
 deferComposeComonadCofree = deferCombineComonadCofreeChooseB (\cont e b -> map (cont <*> b <<< extract) e)
+
+distributeInternal
+  :: forall a m c f w b
+   . Monad m
+  => MonadState (w b) m
+  => Comonad f
+  => ComonadCofree f w
+  => Comonad w
+  => (a -> b -> c)
+  -> a
+  -> m c
+distributeInternal f a = do
+  b <- get
+  put $ extract $ unwrapCofree b
+  pure (f a (extract b))
+
+distributeCofree
+  :: forall a b c w f
+   . Comonad w
+  => Traversable f
+  => (a -> b -> c)
+  -> f a
+  -> Cofree w b
+  -> f c /\ Cofree w b
+distributeCofree f = runState
+  <<< sequence
+  <<< map (distributeInternal f)
+
+distributeCofreeM
+  :: forall m a b c w f
+   . Traversable m
+  => Comonad w
+  => Traversable f
+  => (a -> b -> c)
+  -> f (m a)
+  -> Cofree w b
+  -> f (m c) /\ Cofree w b
+distributeCofreeM f = runState
+  <<< sequence
+  <<< map sequence
+  <<< map (map (distributeInternal f))
+
+identityToMoore :: forall a b. Cofree Identity (a -> b) -> a -> Cofree ((->) a) b
+identityToMoore cf a = extract cf a :< identityToMoore (unwrap $ unwrapCofree cf)

@@ -13,9 +13,21 @@ testEmitter = do
   describe "Tests emitter" do
     it "Produces the correct emissions for a simple emitter" do
       let
-        freq = makeEmitter { startsAt: 0.0, prevTime: 0.0 }
+        freq = makeEmitter { startsAt: 0.0 }
 
         r0 = freq { time: 0.04, freq: 1.0, headroom: 0.02 }
+
+        r1 = unwrapCofree r0 { time: 0.1, freq: 1.0, headroom: 0.02 }
+
+        r2 = unwrapCofree r1 { time: 0.95, freq: 1.0, headroom: 0.06 }
+      extract r0 `shouldEqualIsh` ([ -0.04 ])
+      extract r1 `shouldEqualIsh` ([])
+      extract r2 `shouldEqualIsh` ([ 0.05 ])
+    it "Produces the correct emissions for a simple emitter starting at 0" do
+      let
+        freq = makeEmitter { startsAt: 0.0 }
+
+        r0 = freq { time: 0.00, freq: 1.0, headroom: 0.02 }
 
         r1 = unwrapCofree r0 { time: 0.1, freq: 1.0, headroom: 0.02 }
 
@@ -25,7 +37,7 @@ testEmitter = do
       extract r2 `shouldEqualIsh` ([ 0.05 ])
     it "Produces the correct emissions for a 2x speed emitter" do
       let
-        freq = makeEmitter { startsAt: 0.0, prevTime: 0.0 }
+        freq = makeEmitter { startsAt: 0.0 }
 
         r0 = freq { time: 0.04, freq: 2.0, headroom: 0.02 }
 
@@ -37,7 +49,7 @@ testEmitter = do
 
         r4 = unwrapCofree r3 { time: 0.78, freq: 2.0, headroom: 0.03 }
 
-      extract r0 `shouldEqualIsh` ([ 0.0 ])
+      extract r0 `shouldEqualIsh` ([ -0.04 ])
       extract r1 `shouldEqualIsh` ([])
       extract r2 `shouldEqualIsh` ([ 0.02 ])
       extract r3 `shouldEqualIsh` ([])

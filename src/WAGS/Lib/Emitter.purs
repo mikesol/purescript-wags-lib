@@ -2,12 +2,11 @@
 module WAGS.Lib.Emitter where
 
 import Prelude
+
 import Control.Comonad.Cofree (Cofree, (:<))
-import Data.Array as A
-import Data.Int as DInt
+import Data.Lens (_1, over)
 import Data.Maybe (Maybe(..))
 import Data.Tuple.Nested ((/\), type (/\))
-import Math (floor)
 import Math as Math
 
 -------
@@ -21,47 +20,21 @@ type CfEmitter = Cofree ((->) { time :: Number, headroom :: Number, freq :: Numb
 
 type AnEmitter = MakeEmitter CfEmitter
 
-consumeLookahead :: { tnow :: Number, lookahead :: Number, freq :: Number } -> Array Number
-consumeLookahead { lookahead, tnow, freq }
-  | tnow <= lookahead =
-      consumeLookahead { lookahead: lookahead - 1.0, tnow, freq }
-        <> [ (lookahead - tnow) / freq ]
-  | otherwise = []
+makeOffsets :: { time :: Number, headroom :: Number, freq :: Number, playhead :: Number } -> Array Number /\ Number
+makeOffsets { time, headroom, freq, playhead }
+  | time + (headroom / freq) >= playhead = over _1 (append [ playhead - time ]) (makeOffsets { time, headroom, freq, playhead: playhead + 1.0 / freq })
+  | otherwise = [] /\ playhead
 
-makeOffsets
-  :: { tnow :: Number
-     , headroom :: Number
-     , clearedSoFar :: Number
-     , freq :: Number
-     }
-  -> Array Number /\ Number
-makeOffsets { tnow, headroom, clearedSoFar, freq } =
-  ( A.replicate urgent 0.0
-      <> if lookahead <= clearedSoFar then [] else consumeLookahead { lookahead, tnow, freq }
-  )
-    /\ lookahead
-  where
-  urgent = DInt.floor (tnow - clearedSoFar)
-
-  lookahead = floor (tnow + (headroom * freq))
-
-makeEmitter :: { startsAt :: Number, prevTime :: Number } -> AnEmitter
-makeEmitter { startsAt, prevTime } =
-  go
-    (if floorStartsAt == startsAt then startsAt - 1.0 else startsAt)
-    startsAt
-    prevTime
+makeEmitter :: { startsAt :: Number } -> AnEmitter
+makeEmitter { startsAt } =
+  go startsAt
 
   where
-  floorStartsAt = floor startsAt
-
-  go clearedSoFar n i { time, headroom, freq } =
+  go playhead { time, headroom, freq } =
     let
-      tnow = (time - i) * freq + n
-
-      offsets /\ newCleared = makeOffsets { tnow, headroom, clearedSoFar, freq }
+      offsets /\ newPlayhead = makeOffsets { time, headroom, freq, playhead }
     in
-      offsets :< go newCleared tnow time
+      offsets :< go newPlayhead
 
 fEmitter' :: { sensitivity :: Number } -> Number -> { time :: Number, headroom :: Number } -> Maybe Number
 fEmitter' { sensitivity } freq { time, headroom } = if dist < sensitivity then Just (if tGap < (gap / 2.0) then 0.0 else (gap - tGap)) else Nothing

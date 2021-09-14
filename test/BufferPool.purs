@@ -5,33 +5,53 @@ import Prelude
 import Control.Comonad (extract)
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Data.Maybe (Maybe(..))
-import Data.Typelevel.Num (D5, d0, d1)
+import Data.Typelevel.Num (D5)
+import Data.Vec ((+>))
 import Data.Vec as V
 import Test.Spec (Spec, describe, it)
-import Test.Util (shouldEqualIsh)
-import WAGS.Graph.AudioUnit (OnOff(..))
-import WAGS.Lib.BufferPool (ABufferPool, bOnOff, makeBufferPool)
+import Test.Spec.Assertions (shouldEqual)
+import WAGS.Lib.BufferPool (ABufferPool, AHotBufferPool, Buffy(..), makeBufferPool, makeHotBufferPool)
 
 testBufferPool :: Spec Unit
 testBufferPool = do
   describe "Tests buffer pool" do
     it "Produces a correct buffer pool" do
       let
-        buf = makeBufferPool (Just 0.4) Nothing :: ABufferPool D5 Unit
-
-        b0 = buf { time: 0.0, headroom: 0.02, offsets: [ { offset: 0.0, rest: unit } ] }
-
-        b1 = unwrapCofree b0 { time: 0.3, headroom: 0.02, offsets: [] }
-
-        b2 = unwrapCofree b1 { time: 0.34, headroom: 0.02, offsets: [ { offset: 0.0, rest: unit } ] }
-
-        b3 = unwrapCofree b2 { time: 0.41, headroom: 0.02, offsets: [] }
+        buf = makeBufferPool :: ABufferPool D5
+        b0 = buf { time: 0.0, offsets: [ { offset: 0.0} ] }
+        b1 = unwrapCofree b0 { time: 0.3, offsets: [] }
+        b2 = unwrapCofree b1 { time: 0.34, offsets: [ { offset: 0.03 } ] }
+        b3 = unwrapCofree b2 { time: 0.41, offsets: [] }
+        b4 = unwrapCofree b3 { time: 0.5, offsets: [{offset:0.02}] }
+        b5 = unwrapCofree b4 { time: 0.8, offsets: [{offset:0.00}] }
+        b6 = unwrapCofree b5 { time: 1.0, offsets: [{offset:0.00}] }
+        b7 = unwrapCofree b6 { time: 1.1, offsets: [{offset:0.00}] }
       --
-      bOnOff 0.0 (V.index (extract b0) d0) `shouldEqualIsh` (pure OffOn)
-      bOnOff 0.0 (V.index (extract b0) d1) `shouldEqualIsh` (pure Off)
-      bOnOff 0.3 (V.index (extract b1) d0) `shouldEqualIsh` (pure On)
-      bOnOff 0.3 (V.index (extract b1) d1) `shouldEqualIsh` (pure Off)
-      bOnOff 0.34 (V.index (extract b2) d0) `shouldEqualIsh` (pure On)
-      bOnOff 0.34 (V.index (extract b2) d1) `shouldEqualIsh` (pure OffOn)
-      bOnOff 0.41 (V.index (extract b3) d0) `shouldEqualIsh` (pure On)
-      bOnOff 0.41 (V.index (extract b3) d1) `shouldEqualIsh` (pure On)
+      extract b0 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: true }) +> Nothing +> Nothing +> Nothing +> Nothing +> V.empty)
+      extract b1 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: false }) +> Nothing +> Nothing +> Nothing +> Nothing +> V.empty)
+      extract b2 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: false }) +> Just (Buffy { startTime: 0.37, starting: true }) +> Nothing +> Nothing +> Nothing +> V.empty)
+      extract b3 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: false }) +> Just (Buffy { startTime: 0.37, starting: false }) +> Nothing +> Nothing +> Nothing +> V.empty)
+      extract b4 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: false }) +> Just (Buffy { startTime: 0.37, starting: false }) +> Just (Buffy { startTime: 0.52, starting: true }) +> Nothing +> Nothing +> V.empty)
+      extract b5 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: false }) +> Just (Buffy { startTime: 0.37, starting: false }) +> Just (Buffy { startTime: 0.52, starting: false }) +> Just (Buffy { startTime: 0.8, starting: true }) +> Nothing +> V.empty)
+      extract b6 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: false }) +> Just (Buffy { startTime: 0.37, starting: false }) +> Just (Buffy { startTime: 0.52, starting: false }) +> Just (Buffy { startTime: 0.8, starting: false }) +> Just (Buffy { startTime: 1.0, starting: true }) +> V.empty)
+      extract b7 `shouldEqual` (Just (Buffy { startTime: 1.1, starting: true }) +> Just (Buffy { startTime: 0.37, starting: false }) +> Just (Buffy { startTime: 0.52, starting: false }) +> Just (Buffy { startTime: 0.8, starting: false }) +> Just (Buffy { startTime: 1.0, starting: false }) +> V.empty)
+    it "Produces a correct hot buffer pool" do
+      let
+        buf = makeHotBufferPool { startsAt: 0.0 } :: AHotBufferPool D5
+        b0 = buf { time: 0.0, headroom: 0.02, freq: 1.0 }
+        b1 = unwrapCofree b0 { time: 0.5, headroom: 0.02, freq: 1.0 }
+        b2 = unwrapCofree b1 { time: 0.99, headroom: 0.02, freq: 1.0 }
+        b3 = unwrapCofree b2 { time: 1.2, headroom: 0.02, freq: 1.0 }
+        b4 = unwrapCofree b3 { time: 1.99, headroom: 0.02, freq: 1.0 }
+        b5 = unwrapCofree b4 { time: 3.03, headroom: 0.02, freq: 1.0 }
+        b6 = unwrapCofree b5 { time: 4.0, headroom: 0.02, freq: 1.0 }
+        b7 = unwrapCofree b6 { time: 5.01, headroom: 0.02, freq: 1.0 }
+      --
+      extract b0 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: true }) +> Nothing +> Nothing +> Nothing +> Nothing +> V.empty)
+      extract b1 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: false }) +> Nothing +> Nothing +> Nothing +> Nothing +> V.empty)
+      extract b2 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: false }) +> Just (Buffy { startTime: 1.0, starting: true }) +> Nothing +> Nothing +> Nothing +> V.empty)
+      extract b3 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: false }) +> Just (Buffy { startTime: 1.0, starting: false }) +> Nothing +> Nothing +> Nothing +> V.empty)
+      extract b4 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: false }) +> Just (Buffy { startTime: 1.0, starting: false }) +> Just (Buffy { startTime: 2.0, starting: true }) +> Nothing +> Nothing +> V.empty)
+      extract b5 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: false }) +> Just (Buffy { startTime: 1.0, starting: false }) +> Just (Buffy { startTime: 2.0, starting: false }) +> Just (Buffy { startTime: 3.03, starting: true }) +> Nothing +> V.empty)
+      extract b6 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: false }) +> Just (Buffy { startTime: 1.0, starting: false }) +> Just (Buffy { startTime: 2.0, starting: false }) +> Just (Buffy { startTime: 3.03, starting: false }) +> Just (Buffy { startTime: 4.0, starting: true }) +> V.empty)
+      extract b7 `shouldEqual` (Just (Buffy { startTime: 5.01, starting: true }) +> Just (Buffy { startTime: 1.0, starting: false }) +> Just (Buffy { startTime: 2.0, starting: false }) +> Just (Buffy { startTime: 3.03, starting: false }) +> Just (Buffy { startTime: 4.0, starting: false }) +> V.empty)

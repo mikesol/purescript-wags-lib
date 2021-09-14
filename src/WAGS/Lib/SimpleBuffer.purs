@@ -2,7 +2,8 @@ module WAGS.Lib.SimpleBuffer where
 
 import Prelude
 
-import Control.Comonad (extract)
+import Control.Comonad (class Comonad, extract)
+import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Array.NonEmpty as NEA
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Lens (Lens', lens, over)
@@ -13,28 +14,38 @@ import Data.NonEmpty ((:|))
 import Data.Semigroup.First (First(..))
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\))
-import Data.Typelevel.Num (class Pos)
 import Data.Unfoldable as UF
 import WAGS.Graph.Parameter (AudioParameter_(..))
-import WAGS.Lib.BufferPool (ABufferPool, CfBufferPool, BuffyVec)
+import WAGS.Lib.BufferPool (ABufferPool, BuffyVec, CfBufferPool, TimeOffsets)
 import WAGS.Lib.Latch (ALatchAP, CfLatchAP, LatchAP)
 import WAGS.Lib.Piecewise (makeLoopingTerracedR)
 import WAGS.Run (SceneI(..))
 
-type SimpleBuffer nbuf
+type SimpleBuffer' nbuf r
   =
-  { latch :: ALatchAP (First (Maybe Int))
-  , buffers :: ABufferPool nbuf Unit
-  }
+  ( latch :: ALatchAP (First (Maybe Int))
+  , buffers :: ABufferPool nbuf
+  | r
+  )
+
+type SimpleBufferCf' nbuf r
+  =
+  ( latch :: CfLatchAP (First (Maybe Int))
+  , buffers :: CfBufferPool nbuf
+  | r
+  )
+
+type SimpleBufferHead' nbuf r
+  = (latch :: LatchAP (First (Maybe Int)), buffers :: BuffyVec nbuf | r)
+
+type SimpleBuffer nbuf
+  = { | SimpleBuffer' nbuf () }
 
 type SimpleBufferCf nbuf
-  =
-  { latch :: CfLatchAP (First (Maybe Int))
-  , buffers :: CfBufferPool nbuf Unit
-  }
+  = { | SimpleBufferCf' nbuf () }
 
-type SimpleBufferHead nbuf
-  = { latch :: LatchAP (First (Maybe Int)), buffers :: BuffyVec nbuf Unit }
+type SimpleBufferHead nbuf (rest :: Type)
+  = { | SimpleBufferHead' nbuf () }
 
 neaHead :: forall n. Lens' (NEA.NonEmptyArray n) n
 neaHead = lens NEA.head (\a b -> let (_ :| r) = NEA.toNonEmpty a in NEA.fromNonEmpty (b :| r))
@@ -43,13 +54,18 @@ nea2nel :: NEA.NonEmptyArray ~> NEL.NonEmptyList
 nea2nel x = let (a :| b) = NEA.toNonEmpty x in NEL.NonEmptyList (a :| L.fromFoldable b)
 
 actualizeSimpleBuffer
-  :: forall trigger world analyserCallbacks nbuf
-   . Pos nbuf
-  => NEA.NonEmptyArray Number
+  :: forall trigger world analyserCbs r w latched cofree
+   . Comonad w
+  => NonEmptyArray Number
   -> Number
-  -> SceneI trigger world analyserCallbacks
-  -> SimpleBuffer nbuf
-  -> SimpleBufferCf nbuf
+  -> SceneI trigger world analyserCbs
+  -> { buffers :: TimeOffsets -> cofree
+     , latch :: AudioParameter_ (First (Maybe Int)) -> w (Maybe (AudioParameter_ (First (Maybe latched))))
+     | r
+     }
+  -> { buffers :: cofree
+     , latch :: w (Maybe (AudioParameter_ (First (Maybe latched))))
+     }
 actualizeSimpleBuffer nea' end'' = go
   where
   nea = if NEA.length nea' == 1 then nea' <> map (add end'') nea' else nea'
@@ -71,17 +87,16 @@ actualizeSimpleBuffer nea' end'' = go
   loopingTerraced = makeLoopingTerracedR step4
   -- (SceneI { time, headroomInSeconds: headroom }) offsets = r { time, headroom, offsets }
 
-  go (SceneI e'@{ time, headroomInSeconds: headroom }) { latch: latch', buffers } =
+  go (SceneI e'@{ time }) { latch: latch', buffers } =
     { latch
     , buffers:
         buffers
           { time
-          , headroom
           , offsets: UF.fromMaybe do
               AudioParameter { param, timeOffset } <- extract latch
               (First param') <- param
               _ <- param'
-              pure { offset: timeOffset, rest: unit }
+              pure { offset: timeOffset }
           }
     }
     where
