@@ -177,3 +177,6 @@ distributeCofreeM f = runState
 
 identityToMoore :: forall a b. Cofree Identity (a -> b) -> a -> Cofree ((->) a) b
 identityToMoore cf a = extract cf a :< identityToMoore (unwrap $ unwrapCofree cf)
+
+trivialMoore :: forall a. a -> Cofree ((->) a) a
+trivialMoore a = a :< trivialMoore

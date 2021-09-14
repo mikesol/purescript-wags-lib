@@ -132,7 +132,7 @@ graph0 (SceneI { time, world }) { room0KickBuf: { buffers } } =
 type Acc1 r
   =
   ( room1ClapLatch :: ALatchAP (First (Maybe Boolean))
-  , room1ClapBuffers :: ABufferPool NBuf RBuf
+  , room1ClapBuffers :: ABufferPool NBuf
   | r
   )
 
@@ -141,7 +141,7 @@ actualizer1
    . SceneI trigger world aCb
   -> { | Acc1 r }
   -> { room1ClapLatch :: CfLatchAP (First (Maybe Boolean))
-     , room1ClapBuffers :: CfBufferPool NBuf RBuf
+     , room1ClapBuffers :: CfBufferPool NBuf
      }
 actualizer1 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
   { room1ClapLatch
@@ -153,7 +153,7 @@ actualizer1 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
             AudioParameter { param, timeOffset } <- extract room1ClapLatch
             (First param') <- param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
             _ <- param'
-            pure { offset: timeOffset, rest: unit }
+            pure { offset: timeOffset }
         }
   }
   where
@@ -197,7 +197,7 @@ graph1 (SceneI { time, world }) { room1ClapBuffers } =
 type Acc2 r
   =
   ( room2HiHatLatch :: ALatchAP (First (Maybe Boolean))
-  , room2HiHatBuffers :: ABufferPool NBuf RBuf
+  , room2HiHatBuffers :: ABufferPool NBuf
   | r
   )
 
@@ -206,7 +206,7 @@ actualizer2
    . SceneI trigger world aCb
   -> { | Acc2 r }
   -> { room2HiHatLatch :: CfLatchAP (First (Maybe Boolean))
-     , room2HiHatBuffers :: CfBufferPool NBuf RBuf
+     , room2HiHatBuffers :: CfBufferPool NBuf
      }
 actualizer2 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
   { room2HiHatLatch
@@ -218,7 +218,7 @@ actualizer2 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
             AudioParameter { param, timeOffset } <- extract room2HiHatLatch
             (First param') <- param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
             _ <- param'
-            pure { offset: timeOffset, rest: unit }
+            pure { offset: timeOffset }
         }
 
   }

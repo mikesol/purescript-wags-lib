@@ -79,7 +79,7 @@ createFrame = \(SceneI { time, world: { bell } }) ->
             }
             $>
               { myRate: makeRate { prevTime: 0.0, startsAt: time }
-              , myEmitter: makeEmitter { prevTime: 0.0, startsAt: time }
+              , myEmitter: makeEmitter { startsAt: 0.0 }
               , buffy: makeBufferPool (pure 6.0)
               }
         )
