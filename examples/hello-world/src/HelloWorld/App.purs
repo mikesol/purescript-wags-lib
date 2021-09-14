@@ -94,7 +94,7 @@ piece =
 
         emitter = a.myEmitter { time, headroom, freq: 4.0 + cos (time * pi * 0.25) * 3.5 }
 
-        bufz = a.buffy { time, headroom, offsets: map { offset: _ } (extract emitter) }
+        bufz = a.buffy { time, offsets: map { offset: _ } (extract emitter) }
 
         hbufz = extract bufz
       in

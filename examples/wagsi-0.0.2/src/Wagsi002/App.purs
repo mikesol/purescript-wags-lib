@@ -148,7 +148,6 @@ actualizer1 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
   , room1ClapBuffers:
       a.room1ClapBuffers
         { time
-        , headroom
         , offsets: UF.fromMaybe do
             AudioParameter { param, timeOffset } <- extract room1ClapLatch
             (First param') <- param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
@@ -213,7 +212,6 @@ actualizer2 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
   , room2HiHatBuffers:
       a.room2HiHatBuffers
         { time
-        , headroom
         , offsets: UF.fromMaybe do
             AudioParameter { param, timeOffset } <- extract room2HiHatLatch
             (First param') <- param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
