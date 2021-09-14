@@ -170,7 +170,7 @@ actualizer1 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
 
   room1ClapLatch = a.room1ClapLatch fromPW
 
-graph1 :: forall trigger aCb r. SceneI trigger World aCb -> { room1ClapLatch :: (LatchAP (First (Maybe Boolean))), room1ClapBuffers :: BuffyVec NBuf RBuf | r } -> _
+graph1 :: forall trigger aCb r. SceneI trigger World aCb -> { room1ClapLatch :: (LatchAP (First (Maybe Boolean))), room1ClapBuffers :: BuffyVec NBuf | r } -> _
 graph1 (SceneI { time, world }) { room1ClapBuffers } =
   { room1Clap:
       fromTemplate (Proxy :: _ "room1ClapBuffs") room1ClapBuffers \_ -> case _ of
@@ -238,7 +238,7 @@ actualizer2 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
 
   room2HiHatLatch = a.room2HiHatLatch fromPW
 
-graph2 :: forall trigger aCb r. SceneI trigger World aCb -> { room2HiHatLatch :: (LatchAP (First (Maybe Boolean))), room2HiHatBuffers :: BuffyVec NBuf RBuf | r } -> _
+graph2 :: forall trigger aCb r. SceneI trigger World aCb -> { room2HiHatLatch :: (LatchAP (First (Maybe Boolean))), room2HiHatBuffers :: BuffyVec NBuf | r } -> _
 graph2 (SceneI { time, world }) { room2HiHatBuffers } =
   { room2HiHat:
       fromTemplate (Proxy :: _ "room2HiHatBuffs") room2HiHatBuffers \_ -> case _ of
