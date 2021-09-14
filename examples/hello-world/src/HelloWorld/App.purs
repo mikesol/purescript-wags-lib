@@ -62,7 +62,7 @@ type Acc
   =
   { myRate :: ARate
   , myEmitter :: AnEmitter
-  , buffy :: ABufferPool D4 Unit
+  , buffy :: ABufferPool D4
   }
 
 type World = { bell :: BrowserAudioBuffer }
