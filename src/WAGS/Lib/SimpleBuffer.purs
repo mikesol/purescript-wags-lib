@@ -44,7 +44,7 @@ type SimpleBuffer nbuf
 type SimpleBufferCf nbuf
   = { | SimpleBufferCf' nbuf () }
 
-type SimpleBufferHead nbuf (rest :: Type)
+type SimpleBufferHead nbuf
   = { | SimpleBufferHead' nbuf () }
 
 neaHead :: forall n. Lens' (NEA.NonEmptyArray n) n
@@ -85,7 +85,6 @@ actualizeSimpleBuffer nea' end'' = go
   (NEL.NonEmptyList step4) = nea2nel step3
 
   loopingTerraced = makeLoopingTerracedR step4
-  -- (SceneI { time, headroomInSeconds: headroom }) offsets = r { time, headroom, offsets }
 
   go (SceneI e'@{ time }) { latch: latch', buffers } =
     { latch
