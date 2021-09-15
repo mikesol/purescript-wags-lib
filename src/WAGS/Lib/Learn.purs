@@ -5,6 +5,7 @@ import Prelude
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
+import Control.Promise (toAffE)
 import Data.Array as A
 import Data.Foldable (for_)
 import Data.Identity (Identity)
@@ -15,7 +16,9 @@ import Data.List as L
 import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (unwrap)
 import Data.NonEmpty (NonEmpty, (:|))
+import Data.Symbol (class IsSymbol)
 import Data.Traversable (sequence)
+import Data.Tuple (snd)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D4)
 import Data.Vec as V
@@ -31,23 +34,27 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.VDom.Driver (runUI)
 import Math (pow)
+import Prim.Row (class Cons, class Lacks)
 import Prim.RowList as RL
+import Record as Record
 import Type.Proxy (Proxy(..))
+import WAGS.Change (class Change)
 import WAGS.Control.Functions.Validated (freeze, loopUsingScene, (@!>))
 import WAGS.Control.Types (Frame0, Scene)
-import WAGS.Create (icreate)
-import WAGS.Create.Optionals (constant, gain, sinOsc, speaker)
+import WAGS.Create (class Create, icreate)
+import WAGS.Create.Optionals (constant, gain, sinOsc, playBuf, speaker)
 import WAGS.Graph.AudioUnit (APOnOff)
 import WAGS.Graph.AudioUnit as CTOR
 import WAGS.Graph.Parameter (AudioParameter_, AudioParameter, ff)
-import WAGS.Interpret (close, context, defaultFFIAudio, makeUnitCache)
+import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (AHotBufferPool, AHotBufferPool', Buffy(..), makeHotBufferPool)
 import WAGS.Lib.Piecewise (makePiecewise)
 import WAGS.Lib.Stream (stops)
 import WAGS.Lib.Vec (foldV)
 import WAGS.Run (class AnalyserRefs, class Analysers, class MakeAnalyserCallbacks, Run, RunAudio, RunEngine, SceneI(..), run)
 import WAGS.Template (fromTemplate)
-import WAGS.WebAPI (AudioContext)
+import WAGS.Validation (class GraphIsRenderable)
+import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
 -- global fast forward to avoid clicks and pops
 gff :: AudioParameter_ ~> AudioParameter_
@@ -58,9 +65,8 @@ class ToScene a res analysers | a -> res analysers where
 
 newtype FullScene trigger world analyserCallbacks res =
   FullScene
-    { trigger :: Aff (Event trigger)
-    , world :: Aff (Behavior world)
-    , piece :: Scene (SceneI trigger world analyserCallbacks) RunAudio RunEngine Frame0 res
+    { triggerWorld :: AudioContext -> Aff (Event { | trigger } /\ Behavior { | world })
+    , piece :: Scene (SceneI { | trigger } { | world } analyserCallbacks) RunAudio RunEngine Frame0 res
     }
 
 type EmptyAnalysers :: forall k. Row k
@@ -73,10 +79,12 @@ easingAlgorithm =
   in
     fOf 20
 
+defaultTriggerWorld :: AudioContext -> Aff (Event {} /\ Behavior {})
+defaultTriggerWorld = pure (pure (pure {} /\ pure {}))
+
 nothing :: Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 nothing = makeFullScene $ FullScene
-  { trigger: pure (pure unit)
-  , world: pure (pure unit)
+  { triggerWorld: defaultTriggerWorld
   , piece: loopUsingScene (const $ const $ { control: unit, scene: speaker { c: constant 0.0 } }) unit
   }
 
@@ -191,8 +199,7 @@ instance toSceneFunctionOfTimeInt :: ToScene (Number -> Int) Unit EmptyAnalysers
 
 makeFunctionOfTimeNumber :: (Number -> Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeFunctionOfTimeNumber f = makeFullScene $ FullScene
-  { trigger: pure (pure unit)
-  , world: pure (pure unit)
+  { triggerWorld: defaultTriggerWorld
   , piece: (\(SceneI { time }) -> icreate (speaker { gain: gain (gff $ pure 0.3) (sinOsc (gff $ pure $ f time)) }) $> unit) @!> freeze
   }
 
@@ -265,8 +272,7 @@ instance toSceneCofreeFunctionOfTimeNumber :: ToScene (Cofree Identity (Number -
 
 makeCofreeFunctionOfTimeMaybeNumber :: Cofree Identity (Number -> Maybe Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeCofreeFunctionOfTimeMaybeNumber notes' = makeFullScene $ FullScene
-  { trigger: pure (pure unit)
-  , world: pure (pure unit)
+  { triggerWorld: defaultTriggerWorld
   , piece: loopUsingScene
       ( \(SceneI { time, headroomInSeconds: headroom }) { oscSimple } ->
           let
@@ -333,6 +339,186 @@ instance toSceneCofreeFunctionOfTimeMaybeNumber :: ToScene (Cofree Identity (Num
   where
   toScene = makeCofreeFunctionOfTimeMaybeNumber
 
+makeLoop
+  :: forall scene graph
+   . Create scene () graph
+  => GraphIsRenderable graph
+  => Change scene graph
+  => { | scene }
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeLoop scene = makeFullScene $ FullScene
+  { triggerWorld: defaultTriggerWorld
+  , piece: loopUsingScene (const $ const $ { control: unit, scene }) unit
+  }
+
+instance toSceneLoop ::
+  ( Create scene () graph
+  , GraphIsRenderable graph
+  , Change scene graph
+  ) =>
+  ToScene { | scene } Unit EmptyAnalysers
+  where
+  toScene = makeLoop
+
+makeFunctionOfTimeLoop
+  :: forall scene graph
+   . Create scene () graph
+  => GraphIsRenderable graph
+  => Change scene graph
+  => (Number -> { | scene })
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeFunctionOfTimeLoop scene = makeFullScene $ FullScene
+  { triggerWorld: defaultTriggerWorld
+  , piece: loopUsingScene (\(SceneI { time }) -> const $ { control: unit, scene: scene time }) unit
+  }
+
+instance toSceneFunctionOfTimeLoop ::
+  ( Create scene () graph
+  , GraphIsRenderable graph
+  , Change scene graph
+  ) =>
+  ToScene (Number -> { | scene }) Unit EmptyAnalysers
+  where
+  toScene = makeFunctionOfTimeLoop
+
+newtype WithControl control scene = WithControl
+  ( control
+      /\ (Number -> control -> { control :: control, scene :: { | scene } })
+  )
+
+withControl :: forall control scene. control -> (Number -> control -> { control :: control, scene :: { | scene } }) -> WithControl control scene
+withControl control scene = WithControl (control /\ scene)
+
+makeFunctionOfTimeAndControlLoop
+  :: forall control scene graph
+   . Create scene () graph
+  => GraphIsRenderable graph
+  => Change scene graph
+  => (WithControl control scene)
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeFunctionOfTimeAndControlLoop (WithControl (control /\ scene)) = makeFullScene $ FullScene
+  { triggerWorld: defaultTriggerWorld
+  , piece: loopUsingScene (\(SceneI { time }) -> scene time) control
+  }
+
+instance toSceneFunctionOfTimeAndControlLoop ::
+  ( Create scene () graph
+  , GraphIsRenderable graph
+  , Change scene graph
+  ) =>
+  ToScene (WithControl control scene) Unit EmptyAnalysers
+  where
+  toScene = makeFunctionOfTimeAndControlLoop
+
+makeString :: String -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeString url = makeFullScene $ FullScene
+  { triggerWorld: \audioCtx -> do
+      buffer <- toAffE $ decodeAudioDataFromUri audioCtx url
+      pure (pure {} /\ pure { buffer })
+  , piece: loopUsingScene
+      ( \(SceneI { world: { buffer } }) ->
+          const $ { control: unit, scene: speaker { b: playBuf buffer } }
+      )
+      unit
+  }
+
+instance toSceneString :: ToScene String Unit EmptyAnalysers
+  where
+  toScene = makeString
+
+class MatchBuffersRL :: forall k1 k2. k1 -> k2 -> Row Type -> Row Type -> Constraint
+class MatchBuffersRL buffersSRL buffersRL buffersS buffers | buffersSRL -> buffersRL buffersS buffers where
+  getBuffersRL :: AudioContext -> Proxy buffersSRL -> Proxy buffersRL -> { | buffersS } -> Aff { | buffers }
+
+instance matchBuffersRLNil :: MatchBuffersRL RL.Nil RL.Nil () () where
+  getBuffersRL _ _ _ _ = pure {}
+
+instance matchBuffersRLCons ::
+  ( IsSymbol key
+  , Cons key String buffersS' buffersS
+  , Cons key BrowserAudioBuffer buffers' buffers
+  , Lacks key buffersS'
+  , Lacks key buffers'
+  , MatchBuffersRL x y buffersS' buffers'
+  ) =>
+  MatchBuffersRL (RL.Cons key String x) (RL.Cons key BrowserAudioBuffer y) buffersS buffers where
+  getBuffersRL audioCtx _ _ a = do
+    buffer <- toAffE $ decodeAudioDataFromUri audioCtx (Record.get (Proxy :: _ key) a)
+    rest <- getBuffersRL audioCtx (Proxy :: _ x) (Proxy :: _ y) (Record.delete (Proxy :: _ key) a)
+    pure $ Record.insert (Proxy :: _ key) buffer rest
+
+class MatchBuffers buffersS buffers | buffersS -> buffers where
+  getBuffers :: AudioContext -> { | buffersS } -> Aff { | buffers }
+
+instance matchBuffersAll ::
+  ( RL.RowToList buffersS buffersSRL
+  , RL.RowToList buffers buffersRL
+  , MatchBuffersRL buffersSRL buffersRL buffersS buffers
+  ) =>
+  MatchBuffers buffersS buffers where
+  getBuffers ctx a = getBuffersRL ctx (Proxy :: _ buffersSRL) (Proxy :: _ buffersRL) a
+
+newtype FullSceneBuilder trigger world scene control =
+  FullSceneBuilder
+    { triggerWorld :: AudioContext /\ Aff (Event {} /\ Behavior {}) -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
+    , piece :: control /\ (SceneI { | trigger } { | world } EmptyAnalysers -> control -> control /\ { | scene })
+    }
+
+using
+  :: forall trigger world scene
+   . ( AudioContext /\ Aff (Event {} /\ Behavior {})
+       -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
+     )
+  -> (SceneI { | trigger } { | world } () -> { | scene })
+  -> FullSceneBuilder trigger world scene Unit
+using triggerWorld piece = FullSceneBuilder { triggerWorld, piece: unit /\ (\x y -> y /\ (piece x)) }
+
+usingc
+  :: forall trigger world scene control
+   . ( AudioContext /\ Aff (Event {} /\ Behavior {})
+       -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
+     )
+  -> control
+  -> (SceneI { | trigger } { | world } () -> control -> control /\ { | scene })
+  -> FullSceneBuilder trigger world scene control
+usingc triggerWorld control piece = FullSceneBuilder { triggerWorld, piece: control /\ piece }
+
+
+buffers
+  :: forall buffersS buffers trigger world
+   . Lacks "buffers" world
+  => MatchBuffers buffersS buffers
+  => { | buffersS }
+  -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
+  -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { buffers :: { | buffers } | world })
+buffers bf (ac /\ aff) = ac /\ do
+  trigger /\ world <- aff
+  b' <- b
+  pure (trigger /\ (Record.insert (Proxy :: _ "buffers") b' <$> world))
+  where
+  b = getBuffers ac bf
+
+makeFullSceneUsing
+  :: forall trigger world scene graph control
+   . Create scene () graph
+  => GraphIsRenderable graph
+  => Change scene graph
+  => FullSceneBuilder trigger world scene control
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeFullSceneUsing (FullSceneBuilder { triggerWorld, piece: ctrl /\ sc' }) = makeFullScene $ FullScene
+  { triggerWorld: \audioContext -> snd $ triggerWorld (audioContext /\ pure (pure {} /\ pure {}))
+  , piece: loopUsingScene (\a b ->  let control /\ scene = (sc' a b) in { control, scene } ) ctrl
+  }
+
+instance toSceneFullSceneUsing ::
+  ( Create scene () graph
+  , GraphIsRenderable graph
+  , Change scene graph
+  ) =>
+  ToScene (FullSceneBuilder trigger world scene control) Unit EmptyAnalysers
+  where
+  toScene = makeFullSceneUsing
+
 makeFullScene
   :: forall analysersRL analysers analyserCallbacks analyserRefs trigger world res
    . RL.RowToList analysers analysersRL
@@ -342,17 +528,11 @@ makeFullScene
   => Monoid res
   => FullScene trigger world analyserCallbacks res
   -> Aff { audioCtx :: AudioContext, event :: Event (Run res analysers) }
-makeFullScene (FullScene { trigger, world, piece }) = do
+makeFullScene (FullScene { triggerWorld, piece }) = do
   audioCtx <- liftEffect context
   unitCache <- liftEffect makeUnitCache
-  { audioCtx, event: _ } <$>
-    ( run
-        <$> trigger
-        <*> world
-        <*> pure { easingAlgorithm }
-        <*> pure (defaultFFIAudio audioCtx unitCache)
-        <*> pure piece
-    )
+  trigger /\ world <- triggerWorld audioCtx
+  pure { audioCtx, event: run trigger world { easingAlgorithm } (defaultFFIAudio audioCtx unitCache) piece }
 
 instance toSceneFullScene ::
   ( RL.RowToList analysers analysersRL
