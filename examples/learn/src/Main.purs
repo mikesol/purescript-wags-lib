@@ -15,8 +15,10 @@ import Halogen.Aff as HA
 import Halogen.HTML as HH
 import Halogen.Storybook (Stories, runStorybook, proxy)
 import Type.Proxy (Proxy(..))
-import WAGS.Lib.Learn (component)
+import WAGS.Create.Optionals (speaker, loopBuf)
+import WAGS.Lib.Learn (component, using, buffers)
 import WAGS.Lib.Stream (cycle)
+import WAGS.Run (SceneI(..))
 
 type Slots = (audio :: forall q. H.Slot q Void Unit)
 
@@ -48,6 +50,7 @@ stories = Object.fromFoldable
   , Tuple "array" $ proxy (parent "Array of notes" (component [ 60, 62, 64, 68, 73, 49, 41 ]))
   , Tuple "cyclic array" $ proxy (parent "Cyclic array of notes" (component $ cycle $ 60 :| [ 62, 64, 68, 73, 49, 41 ]))
   , Tuple "freq array" $ proxy (parent "Array of detuned notes" (component $ cycle $ 440.0 :| [ 447.0, 483.0, 499.9999 ]))
+  , Tuple "buffer" $ proxy (parent "Play a buffer" (component "https://freesound.org/data/previews/493/493864_5583677-hq.mp3"))
   , Tuple "cofree" $ proxy
       ( parent "Cofree comonad full of notes"
           ( component
@@ -59,6 +62,15 @@ stories = Object.fromFoldable
                           (if x >= 70 then false else if x <= 60 then true else b)
                 in
                   f 60 true
+              )
+          )
+      )
+  , Tuple "loop buffer"
+      ( proxy
+          ( parent "Loop a buffer"
+              ( component
+                  $ using (buffers { loopy: "https://freesound.org/data/previews/493/493864_5583677-hq.mp3" })
+                      \(SceneI { world: { buffers: { loopy } } }) -> speaker $ loopBuf loopy
               )
           )
       )

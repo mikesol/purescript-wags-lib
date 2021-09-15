@@ -1,6 +1,7 @@
 { name = "purescript-wags"
 , dependencies =
   [ "aff"
+  , "aff-promise"
   , "arrays"
   , "behaviors"
   , "control"
@@ -31,6 +32,7 @@
   , "tailrec"
   , "transformers"
   , "tuples"
+  , "type-equality"
   , "typelevel"
   , "unfoldable"
   , "unsafe-coerce"
