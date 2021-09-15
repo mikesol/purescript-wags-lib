@@ -458,10 +458,10 @@ instance matchBuffersAll ::
   MatchBuffers buffersS buffers where
   getBuffers ctx a = getBuffersRL ctx (Proxy :: _ buffersSRL) (Proxy :: _ buffersRL) a
 
-newtype FullSceneBuilder trigger world scene =
+newtype FullSceneBuilder trigger world scene control =
   FullSceneBuilder
     { triggerWorld :: AudioContext /\ Aff (Event {} /\ Behavior {}) -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
-    , piece :: SceneI { | trigger } { | world } EmptyAnalysers -> { | scene }
+    , piece :: control /\ (SceneI { | trigger } { | world } EmptyAnalysers -> control -> control /\ { | scene })
     }
 
 using
@@ -470,8 +470,19 @@ using
        -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
      )
   -> (SceneI { | trigger } { | world } () -> { | scene })
-  -> FullSceneBuilder trigger world scene
-using triggerWorld piece = FullSceneBuilder { triggerWorld, piece }
+  -> FullSceneBuilder trigger world scene Unit
+using triggerWorld piece = FullSceneBuilder { triggerWorld, piece: unit /\ (\x y -> y /\ (piece x)) }
+
+usingc
+  :: forall trigger world scene control
+   . ( AudioContext /\ Aff (Event {} /\ Behavior {})
+       -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
+     )
+  -> control
+  -> (SceneI { | trigger } { | world } () -> control -> control /\ { | scene })
+  -> FullSceneBuilder trigger world scene control
+usingc triggerWorld control piece = FullSceneBuilder { triggerWorld, piece: control /\ piece }
+
 
 buffers
   :: forall buffersS buffers trigger world
@@ -488,23 +499,23 @@ buffers bf (ac /\ aff) = ac /\ do
   b = getBuffers ac bf
 
 makeFullSceneUsing
-  :: forall trigger world scene graph
+  :: forall trigger world scene graph control
    . Create scene () graph
   => GraphIsRenderable graph
   => Change scene graph
-  => FullSceneBuilder trigger world scene
+  => FullSceneBuilder trigger world scene control
   -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeFullSceneUsing (FullSceneBuilder { triggerWorld, piece }) = makeFullScene $ FullScene
+makeFullSceneUsing (FullSceneBuilder { triggerWorld, piece: ctrl /\ sc' }) = makeFullScene $ FullScene
   { triggerWorld: \audioContext -> snd $ triggerWorld (audioContext /\ pure (pure {} /\ pure {}))
-  , piece: loopUsingScene (\si -> const $ { control: unit, scene: piece si }) unit
+  , piece: loopUsingScene (\a b ->  let control /\ scene = (sc' a b) in { control, scene } ) ctrl
   }
 
 instance toSceneFullSceneUsing ::
   ( Create scene () graph
   , GraphIsRenderable graph
-  , Change scene graph 
+  , Change scene graph
   ) =>
-  ToScene (FullSceneBuilder trigger world scene) Unit EmptyAnalysers
+  ToScene (FullSceneBuilder trigger world scene control) Unit EmptyAnalysers
   where
   toScene = makeFullSceneUsing
 

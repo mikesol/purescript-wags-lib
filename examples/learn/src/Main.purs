@@ -2,11 +2,15 @@ module Main where
 
 import Prelude
 
+import Control.Comonad (extract)
 import Control.Comonad.Cofree (deferCofree)
+import Control.Comonad.Cofree.Class (unwrapCofree)
+import Data.Array as A
 import Data.Identity (Identity(..))
 import Data.Maybe (Maybe(..))
 import Data.NonEmpty ((:|))
 import Data.Tuple (Tuple(..))
+import Data.Tuple.Nested ((/\))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Foreign.Object as Object
@@ -14,9 +18,13 @@ import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
 import Halogen.Storybook (Stories, runStorybook, proxy)
+import Math (pi, sin)
 import Type.Proxy (Proxy(..))
-import WAGS.Create.Optionals (speaker, loopBuf)
-import WAGS.Lib.Learn (component, using, buffers)
+import WAGS.Create.Optionals (speaker, playBuf, loopBuf)
+import WAGS.Graph.AudioUnit (OnOff(..))
+import WAGS.Graph.Parameter (ff)
+import WAGS.Lib.Emitter (makeEmitter)
+import WAGS.Lib.Learn (buffers, component, using, usingc)
 import WAGS.Lib.Stream (cycle)
 import WAGS.Run (SceneI(..))
 
@@ -71,6 +79,28 @@ stories = Object.fromFoldable
               ( component
                   $ using (buffers { loopy: "https://freesound.org/data/previews/493/493864_5583677-hq.mp3" })
                       \(SceneI { world: { buffers: { loopy } } }) -> speaker $ loopBuf loopy
+              )
+          )
+      )
+  , Tuple "emitter"
+      ( proxy
+          ( parent "Change on emit"
+              ( component
+                  $ usingc (buffers { loopy: "https://freesound.org/data/previews/493/493864_5583677-hq.mp3" }) (makeEmitter { startsAt: 0.0 })
+                      \( SceneI
+                           { world: { buffers: { loopy } }
+                           , time
+                           , headroomInSeconds: headroom
+                           }
+                       )
+                       emitter ->
+                        let
+                          emitted = emitter { time, headroom, freq: sin (pi * time) + 2.0 }
+                        in
+                          unwrapCofree emitted /\
+                            ( speaker $
+                                playBuf { onOff: ff 0.04 $ pure $ if A.null (extract emitted) then On else OffOn } loopy
+                            )
               )
           )
       )
