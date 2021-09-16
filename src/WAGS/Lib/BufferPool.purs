@@ -56,7 +56,8 @@ instance semigroupBuffy :: Semigroup rest => Semigroup (Buffy rest) where
 type CfBufferPool' n r = Cofree ((->) (TimeOffsetsRest r)) (BuffyVec' n r)
 type CfHotBufferPool' n r = Cofree ((->) TimeHeadroomFreq) (BuffyVec' n r)
 type CfSnappyBufferPool' n r = Cofree ((->) TimeHeadroomFreq) (BuffyVec' n r)
-type CfBufferPool n = CfBufferPool' n Unit
+type CfBufferPoolWithRest n = CfBufferPool' n Unit
+type CfBufferPool n = Cofree ((->) TimeOffsets) (BuffyVec' n Unit)
 type CfHotBufferPool n = CfHotBufferPool' n Unit
 type CfSnappyBufferPool n = CfSnappyBufferPool' n Unit
 

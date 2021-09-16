@@ -97,10 +97,11 @@ stories = Object.fromFoldable
                         let
                           emitted = emitter { time, headroomInSeconds, freq: sin (pi * time) + 2.0 }
                         in
-                          unwrapCofree emitted /\
-                            ( speaker $
+                          { control: unwrapCofree emitted
+                          , scene:
+                              speaker $
                                 playBuf { onOff: ff 0.04 $ pure $ if A.null (extract emitted) then On else OffOn } loopy
-                            )
+                          }
               )
           )
       )

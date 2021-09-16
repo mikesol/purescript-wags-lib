@@ -88,13 +88,13 @@ createFrame = \(SceneI { time, world: { bell } }) ->
 piece :: Scene (SceneI Unit World ()) RunAudio RunEngine Frame0 Unit
 piece =
   createFrame
-    @!> iloop \e@(SceneI { time, headroomInSeconds: headroom }) a ->
+    @!> iloop \(SceneI { time, headroomInSeconds }) a ->
       let
         rate = a.myRate { time, rate: 4.0 + sin (time * pi * 0.25) * 3.5 }
 
-        emitter = a.myEmitter { time, headroom, freq: 4.0 + cos (time * pi * 0.25) * 3.5 }
+        emitter = a.myEmitter { time, headroomInSeconds, freq: 4.0 + cos (time * pi * 0.25) * 3.5 }
 
-        bufz = a.buffy { time, offsets: map { offset: _ } (extract emitter) }
+        bufz = a.buffy { time, offsets: map (\{ offset } -> { offset }) (extract emitter) }
 
         hbufz = extract bufz
       in
