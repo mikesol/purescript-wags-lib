@@ -13,6 +13,7 @@ import Test.Latch (testLatch)
 import Test.Piecewise (testPiecewise)
 import Test.Rate (testRate)
 import Test.Record (testRecord)
+import Test.Score (testScore)
 import Test.Spec.Reporter (consoleReporter)
 import Test.Spec.Runner (runSpec)
 import Test.Stream (testStream)
@@ -29,6 +30,7 @@ main = do
         testStream
         testImpulse
         testEmitter
+        testScore
         testBlip
         testPiecewise
         testTrigger

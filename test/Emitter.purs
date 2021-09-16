@@ -3,16 +3,19 @@ module Test.Emitter where
 import Prelude
 
 import Control.Comonad (extract)
+import Control.Comonad.Cofree (deferCofree)
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Data.Int (floor)
 import Data.Lens (over, traversed)
 import Data.Lens.Record (prop)
 import Data.Maybe (Maybe(..))
+import Data.Newtype (wrap)
+import Data.Tuple (Tuple(..))
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Test.Util (shouldEqualIsh)
 import Type.Proxy (Proxy(..))
-import WAGS.Lib.Emitter (makeEmitter, fEmitter)
+import WAGS.Lib.Emitter (fEmitter, makeEmitter, makeEmitter')
 
 intize :: forall r. Array { offset :: Number | r } -> Array { offset :: Int | r }
 intize = over (traversed <<< prop (Proxy :: _ "offset")) (floor <<< mul 100000.0)
@@ -46,7 +49,7 @@ testEmitter = do
       (intize $ extract r2) `shouldEqual` intize ([ { offset: 0.05, rest: unit } ])
     it "Produces the correct emissions for a 2x speed emitter" do
       let
-        freq = makeEmitter { startsAt: 0.0 }
+        freq = makeEmitter' { startsAt: 0.0, rest: let f x = deferCofree \_ -> Tuple x $ wrap (f (x + 1)) in f 0 }
 
         r0 = freq { time: 0.04, freq: 2.0, headroomInSeconds: 0.02 }
 
@@ -58,9 +61,9 @@ testEmitter = do
 
         r4 = unwrapCofree r3 { time: 0.78, freq: 2.0, headroomInSeconds: 0.03 }
 
-      (intize $ extract r0) `shouldEqual` intize ([ { offset: -0.04, rest: unit } ])
+      (intize $ extract r0) `shouldEqual` intize ([ { offset: -0.04, rest: 0 } ])
       (intize $ extract r1) `shouldEqual` intize ([])
-      (intize $ extract r2) `shouldEqual` intize ([ { offset: 0.02, rest: unit } ])
+      (intize $ extract r2) `shouldEqual` intize ([ { offset: 0.02, rest: 1 } ])
       (intize $ extract r3) `shouldEqual` intize ([])
       (intize $ extract r4) `shouldEqual` intize ([ ])
     it "Produces the correct emissions for a function emitter" do
