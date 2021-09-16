@@ -10,7 +10,6 @@ import Data.Identity (Identity(..))
 import Data.Maybe (Maybe(..))
 import Data.NonEmpty ((:|))
 import Data.Tuple (Tuple(..))
-import Data.Tuple.Nested ((/\))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Foreign.Object as Object

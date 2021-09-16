@@ -48,7 +48,7 @@ import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, 
 import WAGS.Lib.BufferPool (AHotBufferPool', Buffy(..), makeHotBufferPoolWithRest)
 import WAGS.Lib.Piecewise (makePiecewise)
 import WAGS.Lib.Stream (stops)
-import WAGS.Run (class AnalyserRefs, class Analysers, class MakeAnalyserCallbacks, Run, RunAudio, RunEngine, SceneI(..), run)
+import WAGS.Run (Run, RunAudio, RunEngine, SceneI(..), run)
 import WAGS.Template (fromTemplate)
 import WAGS.Validation (class GraphIsRenderable)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
@@ -57,13 +57,13 @@ import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 gff :: AudioParameter_ ~> AudioParameter_
 gff = ff 0.03
 
-class ToScene a res analysers | a -> res analysers where
-  toScene :: a -> Aff { audioCtx :: AudioContext, event :: Event (Run res analysers) }
+class ToScene a res | a -> res where
+  toScene :: a -> Aff { audioCtx :: AudioContext, event :: Event (Run res EmptyAnalysers) }
 
-newtype FullScene trigger world analyserCallbacks res =
+newtype FullScene trigger world res =
   FullScene
     { triggerWorld :: AudioContext -> Aff (Event { | trigger } /\ Behavior { | world })
-    , piece :: Scene (SceneI { | trigger } { | world } analyserCallbacks) RunAudio RunEngine Frame0 res
+    , piece :: Scene (SceneI { | trigger } { | world } EmptyAnalysers) RunAudio RunEngine Frame0 res
     }
 
 type EmptyAnalysers :: forall k. Row k
@@ -91,14 +91,14 @@ midiToCps i = 440.0 * (2.0 `pow` ((i - 69.0) / 12.0))
 makeInt :: Int -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeInt = makeNumber <<< midiToCps <<< toNumber
 
-instance toSceneInt :: ToScene Int Unit EmptyAnalysers
+instance toSceneInt :: ToScene Int Unit
   where
   toScene = makeInt
 
 makeNumber :: Number -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeNumber = makeFunctionOfTimeNumber <<< const
 
-instance toSceneNumber :: ToScene Number Unit EmptyAnalysers
+instance toSceneNumber :: ToScene Number Unit
   where
   toScene = makeNumber
 
@@ -107,7 +107,7 @@ makeArrayInt = A.uncons >>> case _ of
   Nothing -> nothing
   Just { head, tail } -> makeNonEmptyArrayInt (head :| tail)
 
-instance toSceneArrayInt :: ToScene (Array Int) Unit EmptyAnalysers
+instance toSceneArrayInt :: ToScene (Array Int) Unit
   where
   toScene = makeArrayInt
 
@@ -116,21 +116,21 @@ makeArrayNumber = A.uncons >>> case _ of
   Nothing -> nothing
   Just { head, tail } -> makeNonEmptyArrayNumber (head :| tail)
 
-instance toSceneArrayNumber :: ToScene (Array Number) Unit EmptyAnalysers
+instance toSceneArrayNumber :: ToScene (Array Number) Unit
   where
   toScene = makeArrayNumber
 
 makeNonEmptyArrayInt :: NonEmpty Array Int -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeNonEmptyArrayInt = makeNonEmptyArrayNumber <<< map (midiToCps <<< toNumber)
 
-instance toSceneNonEmptyArrayInt :: ToScene (NonEmpty Array Int) Unit EmptyAnalysers
+instance toSceneNonEmptyArrayInt :: ToScene (NonEmpty Array Int) Unit
   where
   toScene = makeNonEmptyArrayInt
 
 makeNonEmptyArrayNumber :: NonEmpty Array Number -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeNonEmptyArrayNumber (a :| b) = makeNonEmptyListNumber (a :| L.fromFoldable b)
 
-instance toSceneNonEmptyArrayNumber :: ToScene (NonEmpty Array Number) Unit EmptyAnalysers
+instance toSceneNonEmptyArrayNumber :: ToScene (NonEmpty Array Number) Unit
   where
   toScene = makeNonEmptyArrayNumber
 
@@ -139,7 +139,7 @@ makeListInt = L.uncons >>> case _ of
   Nothing -> nothing
   Just { head, tail } -> makeNonEmptyListInt (head :| tail)
 
-instance toSceneListInt :: ToScene (List Int) Unit EmptyAnalysers
+instance toSceneListInt :: ToScene (List Int) Unit
   where
   toScene = makeListInt
 
@@ -148,49 +148,49 @@ makeListNumber = L.uncons >>> case _ of
   Nothing -> nothing
   Just { head, tail } -> makeNonEmptyListNumber (head :| tail)
 
-instance toSceneListNumber :: ToScene (List Number) Unit EmptyAnalysers
+instance toSceneListNumber :: ToScene (List Number) Unit
   where
   toScene = makeListNumber
 
 makeNonEmptyListInt :: NonEmpty List Int -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeNonEmptyListInt = makeNonEmptyListNumber <<< map (midiToCps <<< toNumber)
 
-instance toSceneNonEmptyListInt :: ToScene (NonEmpty List Int) Unit EmptyAnalysers
+instance toSceneNonEmptyListInt :: ToScene (NonEmpty List Int) Unit
   where
   toScene = makeNonEmptyListInt
 
 makeNonEmptyListNumber :: NonEmpty List Number -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeNonEmptyListNumber = makeCofreeMaybeNumber <<< stops
 
-instance toSceneNonEmptyListNumber :: ToScene (NonEmpty List Number) Unit EmptyAnalysers
+instance toSceneNonEmptyListNumber :: ToScene (NonEmpty List Number) Unit
   where
   toScene = makeNonEmptyListNumber
 
 makeCofreeInt :: Cofree Identity Int -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeCofreeInt = makeCofreeNumber <<< map (midiToCps <<< toNumber)
 
-instance toSceneCofreeInt :: ToScene (Cofree Identity Int) Unit EmptyAnalysers
+instance toSceneCofreeInt :: ToScene (Cofree Identity Int) Unit
   where
   toScene = makeCofreeInt
 
 makeCofreeNumber :: Cofree Identity Number -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeCofreeNumber = makeCofreeFunctionOfTimeNumber <<< map const
 
-instance toSceneCofreeNumber :: ToScene (Cofree Identity Number) Unit EmptyAnalysers
+instance toSceneCofreeNumber :: ToScene (Cofree Identity Number) Unit
   where
   toScene = makeCofreeNumber
 
 makeCofreeMaybeNumber :: Cofree Identity (Maybe Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeCofreeMaybeNumber = makeCofreeFunctionOfTimeMaybeNumber <<< map const
 
-instance toSceneCofreeMaybeNumber :: ToScene (Cofree Identity (Maybe Number)) Unit EmptyAnalysers
+instance toSceneCofreeMaybeNumber :: ToScene (Cofree Identity (Maybe Number)) Unit
   where
   toScene = makeCofreeMaybeNumber
 
 makeFunctionOfTimeInt :: (Number -> Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeFunctionOfTimeInt = makeFunctionOfTimeNumber <<< map (midiToCps <<< toNumber)
 
-instance toSceneFunctionOfTimeInt :: ToScene (Number -> Int) Unit EmptyAnalysers
+instance toSceneFunctionOfTimeInt :: ToScene (Number -> Int) Unit
   where
   toScene = makeFunctionOfTimeInt
 
@@ -200,7 +200,7 @@ makeFunctionOfTimeNumber f = makeFullScene $ FullScene
   , piece: (\(SceneI { time }) -> icreate (speaker { gain: gain (gff $ pure 0.3) (sinOsc (gff $ pure $ f time)) }) $> unit) @!> freeze
   }
 
-instance toSceneFunctionOfTimeNumber :: ToScene (Number -> Number) Unit EmptyAnalysers
+instance toSceneFunctionOfTimeNumber :: ToScene (Number -> Number) Unit
   where
   toScene = makeFunctionOfTimeNumber
 
@@ -209,7 +209,7 @@ makeArrayFunctionOfTimeInt = A.uncons >>> case _ of
   Nothing -> nothing
   Just { head, tail } -> makeNonEmptyArrayFunctionOfTimeInt (head :| tail)
 
-instance toSceneArrayFunctionOfTimeInt :: ToScene (Array (Number -> Int)) Unit EmptyAnalysers
+instance toSceneArrayFunctionOfTimeInt :: ToScene (Array (Number -> Int)) Unit
   where
   toScene = makeArrayFunctionOfTimeInt
 
@@ -218,42 +218,42 @@ makeArrayFunctionOfTimeNumber = A.uncons >>> case _ of
   Nothing -> nothing
   Just { head, tail } -> makeNonEmptyArrayFunctionOfTimeNumber (head :| tail)
 
-instance toSceneArrayFunctionOfTimeNumber :: ToScene (Array (Number -> Number)) Unit EmptyAnalysers
+instance toSceneArrayFunctionOfTimeNumber :: ToScene (Array (Number -> Number)) Unit
   where
   toScene = makeArrayFunctionOfTimeNumber
 
 makeNonEmptyArrayFunctionOfTimeInt :: NonEmpty Array (Number -> Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeNonEmptyArrayFunctionOfTimeInt = makeNonEmptyArrayFunctionOfTimeNumber <<< (map <<< map) (midiToCps <<< toNumber)
 
-instance toSceneNonEmptyArrayFunctionOfTimeInt :: ToScene (NonEmpty Array (Number -> Int)) Unit EmptyAnalysers
+instance toSceneNonEmptyArrayFunctionOfTimeInt :: ToScene (NonEmpty Array (Number -> Int)) Unit
   where
   toScene = makeNonEmptyArrayFunctionOfTimeInt
 
 makeNonEmptyArrayFunctionOfTimeNumber :: NonEmpty Array (Number -> Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeNonEmptyArrayFunctionOfTimeNumber (a :| b) = makeNonEmptyListFunctionOfTimeNumber (a :| L.fromFoldable b)
 
-instance toSceneNonEmptyArrayFunctionOfTimeNumber :: ToScene (NonEmpty Array (Number -> Number)) Unit EmptyAnalysers
+instance toSceneNonEmptyArrayFunctionOfTimeNumber :: ToScene (NonEmpty Array (Number -> Number)) Unit
   where
   toScene = makeNonEmptyArrayFunctionOfTimeNumber
 
 makeNonEmptyListFunctionOfTimeInt :: NonEmpty List (Number -> Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeNonEmptyListFunctionOfTimeInt = makeNonEmptyListFunctionOfTimeNumber <<< (map <<< map) (midiToCps <<< toNumber)
 
-instance toScenemakeNonEmptyListFunctionOfTimeInt :: ToScene (NonEmpty List (Number -> Int)) Unit EmptyAnalysers
+instance toScenemakeNonEmptyListFunctionOfTimeInt :: ToScene (NonEmpty List (Number -> Int)) Unit
   where
   toScene = makeNonEmptyListFunctionOfTimeInt
 
 makeNonEmptyListFunctionOfTimeNumber :: NonEmpty List (Number -> Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeNonEmptyListFunctionOfTimeNumber = makeCofreeFunctionOfTimeMaybeNumber <<< map sequence <<< stops
 
-instance toSceneNonEmptyListFunctionOfTimeNumber :: ToScene (NonEmpty List (Number -> Number)) Unit EmptyAnalysers
+instance toSceneNonEmptyListFunctionOfTimeNumber :: ToScene (NonEmpty List (Number -> Number)) Unit
   where
   toScene = makeNonEmptyListFunctionOfTimeNumber
 
 makeCofreeFunctionOfTimeInt :: Cofree Identity (Number -> Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeCofreeFunctionOfTimeInt = makeCofreeFunctionOfTimeNumber <<< (map <<< map) (midiToCps <<< toNumber)
 
-instance toSceneCofreeFunctionOfTimeInt :: ToScene (Cofree Identity (Number -> Int)) Unit EmptyAnalysers
+instance toSceneCofreeFunctionOfTimeInt :: ToScene (Cofree Identity (Number -> Int)) Unit
   where
   toScene = makeCofreeFunctionOfTimeInt
 
@@ -263,7 +263,7 @@ noSine = gain 0.0 (sinOsc 0.1)
 makeCofreeFunctionOfTimeNumber :: Cofree Identity (Number -> Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeCofreeFunctionOfTimeNumber = makeCofreeFunctionOfTimeMaybeNumber <<< ((map <<< map) Just)
 
-instance toSceneCofreeFunctionOfTimeNumber :: ToScene (Cofree Identity (Number -> Number)) Unit EmptyAnalysers
+instance toSceneCofreeFunctionOfTimeNumber :: ToScene (Cofree Identity (Number -> Number)) Unit
   where
   toScene = makeCofreeFunctionOfTimeNumber
 
@@ -295,7 +295,7 @@ makeCofreeFunctionOfTimeMaybeNumber notes' = makeFullScene $ FullScene
   emitter :: AHotBufferPool' D4 (Number -> Maybe Number)
   emitter = makeHotBufferPoolWithRest { startsAt: 0.0, rest: notes' }
 
-instance toSceneCofreeFunctionOfTimeMaybeNumber :: ToScene (Cofree Identity (Number -> Maybe Number)) Unit EmptyAnalysers
+instance toSceneCofreeFunctionOfTimeMaybeNumber :: ToScene (Cofree Identity (Number -> Maybe Number)) Unit
   where
   toScene = makeCofreeFunctionOfTimeMaybeNumber
 
@@ -316,7 +316,7 @@ instance toSceneLoop ::
   , GraphIsRenderable graph
   , Change scene graph
   ) =>
-  ToScene { | scene } Unit EmptyAnalysers
+  ToScene { | scene } Unit
   where
   toScene = makeLoop
 
@@ -337,7 +337,7 @@ instance toSceneFunctionOfTimeLoop ::
   , GraphIsRenderable graph
   , Change scene graph
   ) =>
-  ToScene (Number -> { | scene }) Unit EmptyAnalysers
+  ToScene (Number -> { | scene }) Unit
   where
   toScene = makeFunctionOfTimeLoop
 
@@ -366,7 +366,7 @@ instance toSceneFunctionOfTimeAndControlLoop ::
   , GraphIsRenderable graph
   , Change scene graph
   ) =>
-  ToScene (WithControl control scene) Unit EmptyAnalysers
+  ToScene (WithControl control scene) Unit
   where
   toScene = makeFunctionOfTimeAndControlLoop
 
@@ -382,7 +382,7 @@ makeString url = makeFullScene $ FullScene
       unit
   }
 
-instance toSceneString :: ToScene String Unit EmptyAnalysers
+instance toSceneString :: ToScene String Unit
   where
   toScene = makeString
 
@@ -418,10 +418,10 @@ instance matchBuffersAll ::
   MatchBuffers buffersS buffers where
   getBuffers ctx a = getBuffersRL ctx (Proxy :: _ buffersSRL) (Proxy :: _ buffersRL) a
 
-newtype FullSceneBuilder trigger world analyserCallbacks res =
+newtype FullSceneBuilder trigger world res =
   FullSceneBuilder
     { triggerWorld :: AudioContext /\ Aff (Event {} /\ Behavior {}) -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
-    , piece :: Scene (SceneI { | trigger } { | world } analyserCallbacks) RunAudio RunEngine Frame0 res
+    , piece :: Scene (SceneI { | trigger } { | world } EmptyAnalysers) RunAudio RunEngine Frame0 res
     }
 
 using
@@ -433,7 +433,7 @@ using
        -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
      )
   -> (SceneI { | trigger } { | world } () -> { | scene })
-  -> FullSceneBuilder trigger world EmptyAnalysers Unit
+  -> FullSceneBuilder trigger world Unit
 using triggerWorld piece = FullSceneBuilder
   { triggerWorld
   , piece: loopUsingScene (\x y -> { control: y, scene: piece x }) unit
@@ -449,7 +449,7 @@ usingc
      )
   -> control
   -> (SceneI { | trigger } { | world } EmptyAnalysers -> control -> { scene :: { | scene }, control :: control })
-  -> FullSceneBuilder trigger world EmptyAnalysers Unit
+  -> FullSceneBuilder trigger world Unit
 usingc triggerWorld control piece = FullSceneBuilder { triggerWorld, piece: loopUsingScene piece control }
 
 buffers
@@ -467,39 +467,27 @@ buffers bf (ac /\ aff) = ac /\ do
   b = getBuffers ac bf
 
 makeFullSceneUsing
-  :: forall analysersRL analysers analyserCallbacks analyserRefs trigger world res
-   . RL.RowToList analysers analysersRL
-  => AnalyserRefs analysersRL analyserRefs
-  => MakeAnalyserCallbacks analysersRL analyserRefs analyserCallbacks
-  => Analysers analysersRL analyserRefs analysers
-  => Monoid res
-  => FullSceneBuilder trigger world analyserCallbacks res
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run res analysers) }
+  :: forall trigger world res
+   . Monoid res
+  => FullSceneBuilder trigger world res
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run res EmptyAnalysers) }
 makeFullSceneUsing (FullSceneBuilder { triggerWorld, piece }) = makeFullScene $ FullScene
   { triggerWorld: \audioContext -> snd $ triggerWorld (audioContext /\ pure (pure {} /\ pure {}))
   , piece
   }
 
 instance toSceneFullSceneUsing ::
-  ( RL.RowToList analysers analysersRL
-  , AnalyserRefs analysersRL analyserRefs
-  , MakeAnalyserCallbacks analysersRL analyserRefs analyserCallbacks
-  , Analysers analysersRL analyserRefs analysers
-  , Monoid res
+  ( Monoid res
   ) =>
-  ToScene (FullSceneBuilder trigger world analyserCallbacks res) res analysers
+  ToScene (FullSceneBuilder trigger world res) res
   where
   toScene = makeFullSceneUsing
 
 makeFullScene
-  :: forall analysersRL analysers analyserCallbacks analyserRefs trigger world res
-   . RL.RowToList analysers analysersRL
-  => AnalyserRefs analysersRL analyserRefs
-  => MakeAnalyserCallbacks analysersRL analyserRefs analyserCallbacks
-  => Analysers analysersRL analyserRefs analysers
-  => Monoid res
-  => FullScene trigger world analyserCallbacks res
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run res analysers) }
+  :: forall trigger world res
+   . Monoid res
+  => FullScene trigger world res
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run res EmptyAnalysers) }
 makeFullScene (FullScene { triggerWorld, piece }) = do
   audioCtx <- liftEffect context
   unitCache <- liftEffect makeUnitCache
@@ -507,13 +495,9 @@ makeFullScene (FullScene { triggerWorld, piece }) = do
   pure { audioCtx, event: run trigger world { easingAlgorithm } (defaultFFIAudio audioCtx unitCache) piece }
 
 instance toSceneFullScene ::
-  ( RL.RowToList analysers analysersRL
-  , AnalyserRefs analysersRL analyserRefs
-  , MakeAnalyserCallbacks analysersRL analyserRefs analyserCallbacks
-  , Analysers analysersRL analyserRefs analysers
-  , Monoid res
+  ( Monoid res
   ) =>
-  ToScene (FullScene trigger world analyserCallbacks res) res analysers
+  ToScene (FullScene trigger world res) res
   where
   toScene = makeFullScene
 
@@ -529,10 +513,10 @@ data Action
   | StopAudio
 
 component
-  :: forall toScene res analysers query input output m
+  :: forall toScene res query input output m
    . MonadEffect m
   => MonadAff m
-  => ToScene toScene res analysers
+  => ToScene toScene res
   => toScene
   -> H.Component query input output m
 component i =
@@ -583,8 +567,8 @@ handleAction aff = case _ of
     H.modify_ _ { unsubscribe = pure unit, audioCtx = Nothing, playing = false }
 
 play
-  :: forall toScene res analysers
-   . ToScene toScene res analysers
+  :: forall toScene res
+   . ToScene toScene res
   => toScene
   -> Effect Unit
 play toScene = runHalogenAff do
