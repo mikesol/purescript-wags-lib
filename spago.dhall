@@ -22,6 +22,7 @@
   , "ordered-collections"
   , "partial"
   , "prelude"
+  , "profunctor"
   , "profunctor-lenses"
   , "psci-support"
   , "record"

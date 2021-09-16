@@ -90,12 +90,12 @@ stories = Object.fromFoldable
                       \( SceneI
                            { world: { buffers: { loopy } }
                            , time
-                           , headroomInSeconds: headroom
+                           , headroomInSeconds
                            }
                        )
                        emitter ->
                         let
-                          emitted = emitter { time, headroom, freq: sin (pi * time) + 2.0 }
+                          emitted = emitter { time, headroomInSeconds, freq: sin (pi * time) + 2.0 }
                         in
                           unwrapCofree emitted /\
                             ( speaker $

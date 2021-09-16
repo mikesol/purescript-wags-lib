@@ -99,6 +99,6 @@ actualizeSimpleBuffer nea' end'' = go
           }
     }
     where
-    fromPW = loopingTerraced { time: e'.time, headroom: e'.headroomInSeconds }
+    fromPW = loopingTerraced { time: e'.time, headroomInSeconds: e'.headroomInSeconds }
 
     latch = latch' fromPW

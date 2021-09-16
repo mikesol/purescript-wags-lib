@@ -143,7 +143,7 @@ actualizer1
   -> { room1ClapLatch :: CfLatchAP (First (Maybe Boolean))
      , room1ClapBuffers :: CfBufferPool NBuf
      }
-actualizer1 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
+actualizer1 e@(SceneI e'@{ time, headroomInSeconds }) a =
   { room1ClapLatch
   , room1ClapBuffers:
       a.room1ClapBuffers
@@ -165,7 +165,7 @@ actualizer1 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
               : Nil
         )
 
-  fromPW = claps { time: e'.time, headroom: e'.headroomInSeconds }
+  fromPW = claps { time: e'.time, headroomInSeconds: e'.headroomInSeconds }
 
   room1ClapLatch = a.room1ClapLatch fromPW
 
@@ -207,7 +207,7 @@ actualizer2
   -> { room2HiHatLatch :: CfLatchAP (First (Maybe Boolean))
      , room2HiHatBuffers :: CfBufferPool NBuf
      }
-actualizer2 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
+actualizer2 e@(SceneI e'@{ time, headroomInSeconds }) a =
   { room2HiHatLatch
   , room2HiHatBuffers:
       a.room2HiHatBuffers
@@ -232,7 +232,7 @@ actualizer2 e@(SceneI e'@{ time, headroomInSeconds: headroom }) a =
               : Nil
         )
 
-  fromPW = hiHats { time: e'.time, headroom: e'.headroomInSeconds }
+  fromPW = hiHats { time: e'.time, headroomInSeconds: e'.headroomInSeconds }
 
   room2HiHatLatch = a.room2HiHatLatch fromPW
 

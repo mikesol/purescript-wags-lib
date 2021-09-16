@@ -54,9 +54,9 @@ piece =
     scene
     { microphone: Nothing }
     acc
-    ( iloop \(SceneI { time, headroomInSeconds: headroom, world: { entropy, buffers: { bells } } }) (a :: Acc) ->
+    ( iloop \(SceneI { time, headroomInSeconds, world: { entropy, buffers: { bells } } }) (a :: Acc) ->
         let
-          actualized = { hbp: a.hbp { time, headroom, freq: 12.0 * (entropy `pow` 6.0) } }
+          actualized = { hbp: a.hbp { time, headroomInSeconds, freq: 12.0 * (entropy `pow` 6.0) } }
         in
           ichange (scene time bells entropy (extract actualized.hbp)) $> tails actualized
     )

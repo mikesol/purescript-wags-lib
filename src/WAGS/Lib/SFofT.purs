@@ -25,7 +25,7 @@ import WAGS.Graph.Parameter (AudioParameterTransition(..), AudioParameter, Audio
 import WAGS.Math (calcSlope)
 
 type TimeHeadroom
-  = { time :: Number, headroom :: Number }
+  = { time :: Number, headroomInSeconds :: Number }
 
 type SAPFofT
   = TimeHeadroom -> Cofree ((->) TimeHeadroom) AudioParameter
@@ -42,10 +42,10 @@ makeLoopingPiecewise v0 v1 = go v0 v1 v1
     in
       go n l (a /\ b :| (l' : l'')) th
 
-  go n l v@(a /\ b :| (Cons (c /\ d) e)) { time, headroom }
+  go n l v@(a /\ b :| (Cons (c /\ d) e)) { time, headroomInSeconds }
     | time >= a && time < c =
         let
-          lookahead = time + headroom
+          lookahead = time + headroomInSeconds
         in
           ( if lookahead >= c then
               AudioParameter
@@ -57,7 +57,7 @@ makeLoopingPiecewise v0 v1 = go v0 v1 v1
               AudioParameter { param: Just (calcSlope a b c d time), timeOffset: 0.0, transition: LinearRamp }
           )
             :< go n l v
-    | otherwise = go n l (c /\ d :| e) { time, headroom }
+    | otherwise = go n l (c /\ d :| e) { time, headroomInSeconds }
 
 infixl 6 makeLoopingPiecewise as /@:<
 
@@ -72,10 +72,10 @@ makePiecewise (a /\ b :| Nil) _ =
     }
     :< makePiecewise (a /\ b :| Nil)
 
-makePiecewise v@(a /\ b :| (Cons (c /\ d) e)) { time, headroom }
+makePiecewise v@(a /\ b :| (Cons (c /\ d) e)) { time, headroomInSeconds }
   | time >= a && time < c =
       let
-        lookahead = time + headroom
+        lookahead = time + headroomInSeconds
       in
         ( if lookahead >= c then
             AudioParameter
@@ -87,7 +87,7 @@ makePiecewise v@(a /\ b :| (Cons (c /\ d) e)) { time, headroom }
             AudioParameter { param: Just (calcSlope a b c d time), timeOffset: 0.0, transition: LinearRamp }
         )
           :< makePiecewise v
-  | otherwise = makePiecewise (c /\ d :| e) { time, headroom }
+  | otherwise = makePiecewise (c /\ d :| e) { time, headroomInSeconds }
 
 infixl 6 makePiecewise as /:<
 

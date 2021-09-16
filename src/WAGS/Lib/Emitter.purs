@@ -3,47 +3,60 @@ module WAGS.Lib.Emitter where
 
 import Prelude
 
+import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, (:<))
-import Data.Lens (_1, over)
+import Control.Comonad.Cofree.Class (unwrapCofree)
+import Data.Identity (Identity)
+import Data.Lens (over)
+import Data.Lens.Record (prop)
 import Data.Maybe (Maybe(..))
-import Data.Tuple.Nested ((/\), type (/\))
+import Data.Newtype (unwrap)
 import Math as Math
+import Type.Proxy (Proxy(..))
 
 -------
 type MakeEmitter a
-  = { time :: Number, headroom :: Number, freq :: Number } -> a
+  = { time :: Number, headroomInSeconds :: Number, freq :: Number } -> a
 
-type Emission
-  = Array Number
+type Emission' rest
+  = Array { offset :: Number, rest :: rest }
 
-type CfEmitter = Cofree ((->) { time :: Number, headroom :: Number, freq :: Number }) Emission
+type Emission = Emission' Unit
 
-type AnEmitter = MakeEmitter CfEmitter
+type CfEmitter' rest = Cofree ((->) { time :: Number, headroomInSeconds :: Number, freq :: Number }) (Emission' rest)
+type CfEmitter = CfEmitter' Unit
 
-makeOffsets :: { time :: Number, headroom :: Number, freq :: Number, playhead :: Number } -> Array Number /\ Number
-makeOffsets { time, headroom, freq, playhead }
-  | time + (headroom / freq) >= playhead = over _1 (append [ playhead - time ]) (makeOffsets { time, headroom, freq, playhead: playhead + 1.0 / freq })
-  | otherwise = [] /\ playhead
+type AnEmitter' rest = MakeEmitter (CfEmitter' rest)
+type AnEmitter = MakeEmitter (CfEmitter' Unit)
 
-makeEmitter :: { startsAt :: Number } -> AnEmitter
-makeEmitter { startsAt } =
-  go startsAt
+makeOffsets :: forall rest. { time :: Number, headroomInSeconds :: Number, freq :: Number, playhead :: Number, rest :: Cofree Identity rest } -> { offsets :: Array { offset :: Number, rest :: rest }, playhead :: Number, rest :: Cofree Identity rest }
+makeOffsets { time, headroomInSeconds, freq, playhead, rest }
+  | time + (headroomInSeconds / freq) >= playhead = over (prop (Proxy :: Proxy "offsets"))
+      (append [ { offset: playhead - time, rest: extract rest } ])
+      (makeOffsets { time, headroomInSeconds, freq, playhead: playhead + 1.0 / freq, rest: unwrap $ unwrapCofree rest })
+  | otherwise = { offsets: [], playhead, rest }
+
+makeEmitter' :: forall rest. { startsAt :: Number, rest :: Cofree Identity rest } -> AnEmitter' rest
+makeEmitter' { startsAt, rest: r } = go r startsAt
 
   where
-  go playhead { time, headroom, freq } =
+  go rest playhead { time, headroomInSeconds, freq } =
     let
-      offsets /\ newPlayhead = makeOffsets { time, headroom, freq, playhead }
+      o = makeOffsets { time, headroomInSeconds, freq, playhead, rest }
     in
-      offsets :< go newPlayhead
+      o.offsets :< go o.rest o.playhead
 
-fEmitter' :: { sensitivity :: Number } -> Number -> { time :: Number, headroom :: Number } -> Maybe Number
-fEmitter' { sensitivity } freq { time, headroom } = if dist < sensitivity then Just (if tGap < (gap / 2.0) then 0.0 else (gap - tGap)) else Nothing
+makeEmitter :: { startsAt :: Number } -> AnEmitter
+makeEmitter { startsAt } = makeEmitter' { startsAt, rest: mempty }
+
+fEmitter' :: { sensitivity :: Number } -> Number -> { time :: Number, headroomInSeconds :: Number } -> Maybe Number
+fEmitter' { sensitivity } freq { time, headroomInSeconds } = if dist < sensitivity then Just (if tGap < (gap / 2.0) then 0.0 else (gap - tGap)) else Nothing
   where
   gap = 1.0 / freq
 
-  dist = Math.abs ((time + headroom) `Math.remainder` gap)
+  dist = Math.abs ((time + headroomInSeconds) `Math.remainder` gap)
 
   tGap = time `Math.remainder` gap
 
-fEmitter :: Number -> { time :: Number, headroom :: Number } -> Maybe Number
+fEmitter :: Number -> { time :: Number, headroomInSeconds :: Number } -> Maybe Number
 fEmitter = fEmitter' { sensitivity: 0.04 }

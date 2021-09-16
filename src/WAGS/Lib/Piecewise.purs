@@ -20,7 +20,7 @@ import WAGS.Graph.Parameter (AudioParameterTransition(..), AudioParameter_(..))
 import WAGS.Math (calcSlope)
 
 type TimeHeadroom
-  = { time :: Number, headroom :: Number }
+  = { time :: Number, headroomInSeconds :: Number }
 
 type APFofT v
   = TimeHeadroom -> AudioParameter_ v
@@ -74,9 +74,9 @@ makeChunks' spillover inChunk l' = (snd shead) /\ map PWChunk (go sorted)
                           { left: fst cur
                           , right: fst a
                           , apfot:
-                              \{ time, headroom } ->
+                              \{ time, headroomInSeconds } ->
                                 let
-                                  lookahead = time + headroom
+                                  lookahead = time + headroomInSeconds
                                 in
                                   ( if lookahead >= fst a then
                                       spillover
@@ -157,12 +157,12 @@ makePiecewise' mkc l = go
 
   asSet = Set.fromFoldable chunks
 
-  go th@{ time, headroom } = case lookupLE (Beacon time) asSet of
+  go th@{ time, headroomInSeconds } = case lookupLE (Beacon time) asSet of
     Nothing -> pure defaultV
     Just (PWRealized { apfot }) -> apfot th
 
 makeLoopingPiecewise' :: MakePiecewise ~> MakePiecewise
-makeLoopingPiecewise' mpw l { time, headroom } = mpw l { time: time % (foldl max 0.0 (map fst l)), headroom }
+makeLoopingPiecewise' mpw l { time, headroomInSeconds } = mpw l { time: time % (foldl max 0.0 (map fst l)), headroomInSeconds }
 
 makePiecewise :: MakePiecewise Number
 makePiecewise = makePiecewise' makeChunks

@@ -15,7 +15,7 @@ type TimeOffset
   = { time :: Number, offset :: Maybe Number }
 
 type TimeHeadroomFreq
-  = { time :: Number, headroom :: Number, freq :: Number }
+  = { time :: Number, headroomInSeconds :: Number, freq :: Number }
 
 type MakeTriggerWithOffset a
   = TimeOffset -> a
@@ -49,9 +49,9 @@ makeTrigger = go Nothing
 
 makeSnappyTrigger :: ASnappyTrigger
 makeSnappyTrigger = combineComonadCofreeChooseB
-  ( \cont e b ({ time, headroom, freq } :: TimeHeadroomFreq) ->
+  ( \cont e b ({ time, headroomInSeconds, freq } :: TimeHeadroomFreq) ->
       let
-        emitted = fEmitter freq { time, headroom }
+        emitted = fEmitter freq { time, headroomInSeconds }
         enow = e (isJust emitted)
         bnow =
           b
