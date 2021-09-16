@@ -3,13 +3,11 @@ module Test.Score where
 import Prelude
 
 import Control.Comonad (extract)
-import Control.Comonad.Cofree (deferCofree)
+import Control.Comonad.Cofree ((:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Data.Int (floor)
 import Data.Lens (over, traversed)
 import Data.Lens.Record (prop)
-import Data.Newtype (wrap)
-import Data.Tuple (Tuple(..))
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Type.Proxy (Proxy(..))
@@ -23,7 +21,7 @@ testScore = do
   describe "Tests score" do
     it "Produces the correct score" do
       let
-        freq = makeScore { startsAt: 0.0, rest: let f x b = deferCofree \_ -> Tuple { duration: if x == 0 then 0.0 else if b then 1.0 else 0.5, rest: x } $ wrap (f (x + 1) (not b)) in f 0 false }
+        freq = makeScore { startsAt: 0.0, rest: let f x b _ = { duration: if x == 0 then 0.0 else if b then 1.0 else 0.5, rest: x } :< (f (x + 1) (not b)) in f 0 false }
         r0 = freq { time: 0.04, headroomInSeconds: 0.02 }
         r1 = unwrapCofree r0 { time: 0.1, headroomInSeconds: 0.02 }
         r2 = unwrapCofree r1 { time: 0.98, headroomInSeconds: 0.06 }

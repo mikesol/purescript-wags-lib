@@ -21,6 +21,7 @@ import WAGS.Graph.Parameter (ff)
 import WAGS.Lib.Blip (makeBlip)
 import WAGS.Lib.Cofree (combineComonadCofreeChooseB)
 import WAGS.Lib.Emitter (fEmitter, makeEmitter')
+import WAGS.Lib.Score (MakeScore, CfRest, makeScore)
 
 type TimeOffsetsRest rest
   = { time :: Number, offsets :: Array { offset :: Number, rest :: rest } }
@@ -31,6 +32,9 @@ type TimeOffsets
 type TimeHeadroomFreq
   = { time :: Number, headroomInSeconds :: Number, freq :: Number }
 
+type TimeHeadroom
+  = { time :: Number, headroomInSeconds :: Number }
+
 type MakeBufferPoolWithRest rest a
   = TimeOffsetsRest rest -> a
 
@@ -39,6 +43,9 @@ type MakeBufferPool a
 
 type MakeHotBufferPool a
   = TimeHeadroomFreq -> a
+
+type MakeScoredBufferPool a
+  = TimeHeadroom -> a
 
 type MakeSnappyBufferPool a
   = TimeHeadroomFreq -> a
@@ -60,6 +67,7 @@ type CfBufferPoolWithRest n = CfBufferPool' n Unit
 type CfBufferPool n = Cofree ((->) TimeOffsets) (BuffyVec' n Unit)
 type CfHotBufferPool n = CfHotBufferPool' n Unit
 type CfSnappyBufferPool n = CfSnappyBufferPool' n Unit
+type CfScoredBufferPool n r = Cofree ((->) TimeHeadroom) (BuffyVec' n r)
 
 type BuffyVec' (n :: Type) (r :: Type)
   = V.Vec n (Maybe (Buffy r))
@@ -83,6 +91,9 @@ type AHotBufferPool n
 
 type ASnappyBufferPool n
   = ASnappyBufferPool' n Unit
+
+type AScoredBufferPool n r
+  = MakeScoredBufferPool (CfScoredBufferPool n r)
 
 makeBufferPoolWithRest'
   :: forall n r
@@ -133,6 +144,22 @@ makeBufferPool
    . Pos n
   => ABufferPool n
 makeBufferPool = unitRest $ map (hoistCofree unitRest) makeBufferPoolWithRest
+
+makeScoredBufferPool
+  :: forall n rest
+   . Pos n
+  => { startsAt :: Number, rest :: MakeScore (CfRest rest) }
+  -> AScoredBufferPool n rest
+makeScoredBufferPool sar = combineComonadCofreeChooseB
+  ( \cont e b ({ time, headroomInSeconds } :: TimeHeadroom) ->
+      let
+        enow = e { time, headroomInSeconds }
+        bnow = b { time, offsets: extract enow }
+      in
+        cont enow bnow
+  )
+  (makeScore sar)
+  (makeBufferPoolWithRest)
 
 makeHotBufferPoolWithRest
   :: forall n rest

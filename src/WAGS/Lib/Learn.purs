@@ -13,11 +13,15 @@ import Data.Int (toNumber)
 import Data.Lens (_1, over)
 import Data.List (List(..), (:))
 import Data.List as L
+import Data.List.NonEmpty as NEL
+import Data.List.Types (NonEmptyList(..))
 import Data.Maybe (Maybe(..), maybe)
+import Data.Newtype (under)
 import Data.NonEmpty (NonEmpty, (:|))
+import Data.Profunctor (lcmap)
 import Data.Symbol (class IsSymbol)
 import Data.Traversable (sequence)
-import Data.Tuple (snd)
+import Data.Tuple (snd, uncurry)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D4)
 import Effect (Effect)
@@ -45,9 +49,10 @@ import WAGS.Graph.AudioUnit (APOnOff)
 import WAGS.Graph.AudioUnit as CTOR
 import WAGS.Graph.Parameter (AudioParameter_, AudioParameter, ff)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
-import WAGS.Lib.BufferPool (AHotBufferPool', Buffy(..), makeHotBufferPoolWithRest)
+import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeScoredBufferPool)
+import WAGS.Lib.Cofree (identityToMoore)
 import WAGS.Lib.Piecewise (makePiecewise)
-import WAGS.Lib.Stream (stops)
+import WAGS.Lib.Stream (deadEnd, stops)
 import WAGS.Run (Run, RunAudio, RunEngine, SceneI(..), run)
 import WAGS.Template (fromTemplate)
 import WAGS.Validation (class GraphIsRenderable)
@@ -111,6 +116,15 @@ instance toSceneArrayInt :: ToScene (Array Int) Unit
   where
   toScene = makeArrayInt
 
+makeArrayScoreInt :: Array (Number /\ Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeArrayScoreInt = A.uncons >>> case _ of
+  Nothing -> nothing
+  Just { head, tail } -> makeNonEmptyArrayScoreInt (head :| tail)
+
+instance toSceneArrayScoreInt :: ToScene (Array (Number /\ Int)) Unit
+  where
+  toScene = makeArrayScoreInt
+
 makeArrayNumber :: Array Number -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeArrayNumber = A.uncons >>> case _ of
   Nothing -> nothing
@@ -120,6 +134,15 @@ instance toSceneArrayNumber :: ToScene (Array Number) Unit
   where
   toScene = makeArrayNumber
 
+makeArrayScoreNumber :: Array (Number /\ Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeArrayScoreNumber = A.uncons >>> case _ of
+  Nothing -> nothing
+  Just { head, tail } -> makeNonEmptyArrayScoreNumber (head :| tail)
+
+instance toSceneArrayScoreNumber :: ToScene (Array (Number /\ Number)) Unit
+  where
+  toScene = makeArrayScoreNumber
+
 makeNonEmptyArrayInt :: NonEmpty Array Int -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeNonEmptyArrayInt = makeNonEmptyArrayNumber <<< map (midiToCps <<< toNumber)
 
@@ -127,12 +150,26 @@ instance toSceneNonEmptyArrayInt :: ToScene (NonEmpty Array Int) Unit
   where
   toScene = makeNonEmptyArrayInt
 
+makeNonEmptyArrayScoreInt :: NonEmpty Array (Number /\ Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeNonEmptyArrayScoreInt = makeNonEmptyArrayScoreNumber <<< (map <<< map) (midiToCps <<< toNumber)
+
+instance toSceneNonEmptyArrayScoreInt :: ToScene (NonEmpty Array (Number /\ Int)) Unit
+  where
+  toScene = makeNonEmptyArrayScoreInt
+
 makeNonEmptyArrayNumber :: NonEmpty Array Number -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeNonEmptyArrayNumber (a :| b) = makeNonEmptyListNumber (a :| L.fromFoldable b)
+makeNonEmptyArrayNumber = makeCofreeMaybeNumber <<< stops
 
 instance toSceneNonEmptyArrayNumber :: ToScene (NonEmpty Array Number) Unit
   where
   toScene = makeNonEmptyArrayNumber
+
+makeNonEmptyArrayScoreNumber :: NonEmpty Array (Number /\ Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeNonEmptyArrayScoreNumber (a :| b) = makeNonEmptyListScoreNumber (a :| L.fromFoldable b)
+
+instance toSceneNonEmptyScoreArrayNumber :: ToScene (NonEmpty Array (Number /\ Number)) Unit
+  where
+  toScene = makeNonEmptyArrayScoreNumber
 
 makeListInt :: List Int -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeListInt = L.uncons >>> case _ of
@@ -143,6 +180,15 @@ instance toSceneListInt :: ToScene (List Int) Unit
   where
   toScene = makeListInt
 
+makeListScoreInt :: List (Number /\ Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeListScoreInt = L.uncons >>> case _ of
+  Nothing -> nothing
+  Just { head, tail } -> makeNonEmptyListScoreInt (head :| tail)
+
+instance toSceneListScoreInt :: ToScene (List (Number /\ Int)) Unit
+  where
+  toScene = makeListScoreInt
+
 makeListNumber :: List Number -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeListNumber = L.uncons >>> case _ of
   Nothing -> nothing
@@ -152,12 +198,28 @@ instance toSceneListNumber :: ToScene (List Number) Unit
   where
   toScene = makeListNumber
 
+makeListScoreNumber :: List (Number /\ Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeListScoreNumber = L.uncons >>> case _ of
+  Nothing -> nothing
+  Just { head, tail } -> makeNonEmptyListScoreNumber (head :| tail)
+
+instance toSceneListScoreNumber :: ToScene (List (Number /\ Number)) Unit
+  where
+  toScene = makeListScoreNumber
+
 makeNonEmptyListInt :: NonEmpty List Int -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeNonEmptyListInt = makeNonEmptyListNumber <<< map (midiToCps <<< toNumber)
 
 instance toSceneNonEmptyListInt :: ToScene (NonEmpty List Int) Unit
   where
   toScene = makeNonEmptyListInt
+
+makeNonEmptyListScoreInt :: NonEmpty List (Number /\ Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeNonEmptyListScoreInt = makeNonEmptyListScoreNumber <<< (map <<< map) (midiToCps <<< toNumber)
+
+instance toSceneNonEmptyListScoreInt :: ToScene (NonEmpty List (Number /\ Int)) Unit
+  where
+  toScene = makeNonEmptyListScoreInt
 
 makeNonEmptyListNumber :: NonEmpty List Number -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeNonEmptyListNumber = makeCofreeMaybeNumber <<< stops
@@ -166,12 +228,26 @@ instance toSceneNonEmptyListNumber :: ToScene (NonEmpty List Number) Unit
   where
   toScene = makeNonEmptyListNumber
 
+makeNonEmptyListScoreNumber :: NonEmpty List (Number /\ Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeNonEmptyListScoreNumber = makeCofreeScoreMaybeNumber <<< (deadEnd <<< under NonEmptyList (flip NEL.snoc (1.0 /\ Nothing)) <<< map (map Just))
+
+instance toSceneNonEmptyScoreListNumber :: ToScene (NonEmpty List (Number /\ Number)) Unit
+  where
+  toScene = makeNonEmptyListScoreNumber
+
 makeCofreeInt :: Cofree Identity Int -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeCofreeInt = makeCofreeNumber <<< map (midiToCps <<< toNumber)
 
 instance toSceneCofreeInt :: ToScene (Cofree Identity Int) Unit
   where
   toScene = makeCofreeInt
+
+makeCofreeScoreInt :: Cofree Identity (Number /\ Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeCofreeScoreInt = makeCofreeScoreNumber <<< (map <<< map) (midiToCps <<< toNumber)
+
+instance toSceneCofreeScoreInt :: ToScene (Cofree Identity (Number /\ Int)) Unit
+  where
+  toScene = makeCofreeScoreInt
 
 makeCofreeNumber :: Cofree Identity Number -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeCofreeNumber = makeCofreeFunctionOfTimeNumber <<< map const
@@ -180,12 +256,33 @@ instance toSceneCofreeNumber :: ToScene (Cofree Identity Number) Unit
   where
   toScene = makeCofreeNumber
 
+makeCofreeScoreNumber :: Cofree Identity (Number /\ Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeCofreeScoreNumber = makeCofreeFunctionOfTimeScoreNumber <<< map const
+
+instance toSceneCofreeScoreNumber :: ToScene (Cofree Identity (Number /\ Number)) Unit
+  where
+  toScene = makeCofreeScoreNumber
+
 makeCofreeMaybeNumber :: Cofree Identity (Maybe Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeCofreeMaybeNumber = makeCofreeFunctionOfTimeMaybeNumber <<< map const
 
 instance toSceneCofreeMaybeNumber :: ToScene (Cofree Identity (Maybe Number)) Unit
   where
   toScene = makeCofreeMaybeNumber
+
+makeCofreeScoreMaybeInt :: Cofree Identity (Number /\ Maybe Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeCofreeScoreMaybeInt = makeCofreeFunctionOfTimeScoreMaybeInt <<< map const
+
+instance toSceneCofreeScoreMaybeInt :: ToScene (Cofree Identity (Number /\ Maybe Int)) Unit
+  where
+  toScene = makeCofreeScoreMaybeInt
+
+makeCofreeScoreMaybeNumber :: Cofree Identity (Number /\ Maybe Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeCofreeScoreMaybeNumber = makeCofreeFunctionOfTimeScoreMaybeNumber <<< map const
+
+instance toSceneCofreeScoreMaybeNumber :: ToScene (Cofree Identity (Number /\ Maybe Number)) Unit
+  where
+  toScene = makeCofreeScoreMaybeNumber
 
 makeFunctionOfTimeInt :: (Number -> Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeFunctionOfTimeInt = makeFunctionOfTimeNumber <<< map (midiToCps <<< toNumber)
@@ -267,19 +364,48 @@ instance toSceneCofreeFunctionOfTimeNumber :: ToScene (Cofree Identity (Number -
   where
   toScene = makeCofreeFunctionOfTimeNumber
 
+makeCofreeFunctionOfTimeMaybeInt:: Cofree Identity (Number -> Maybe Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeCofreeFunctionOfTimeMaybeInt = makeCofreeFunctionOfTimeScoreMaybeInt <<< (map <<< map) ((/\) 1.0)
+
+instance toSceneCofreeFunctionOfTimeMaybeInt :: ToScene (Cofree Identity (Number -> Maybe Int)) Unit
+  where
+  toScene = makeCofreeFunctionOfTimeMaybeInt
+
 makeCofreeFunctionOfTimeMaybeNumber :: Cofree Identity (Number -> Maybe Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeCofreeFunctionOfTimeMaybeNumber notes' = makeFullScene $ FullScene
+makeCofreeFunctionOfTimeMaybeNumber = makeCofreeFunctionOfTimeScoreMaybeNumber <<< (map <<< map) ((/\) 1.0)
+
+instance toSceneCofreeFunctionOfTimeMaybeNumber :: ToScene (Cofree Identity (Number -> Maybe Number)) Unit
+  where
+  toScene = makeCofreeFunctionOfTimeMaybeNumber
+
+makeCofreeFunctionOfTimeScoreNumber :: Cofree Identity (Number -> Number /\ Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeCofreeFunctionOfTimeScoreNumber = makeCofreeFunctionOfTimeScoreMaybeNumber <<< (map <<< map <<< map) Just
+
+instance toSceneCofreeFunctionOfTimeScoreNumber :: ToScene (Cofree Identity (Number -> Number /\ Number)) Unit
+  where
+  toScene = makeCofreeFunctionOfTimeScoreNumber
+
+
+makeCofreeFunctionOfTimeScoreMaybeInt:: Cofree Identity (Number -> Number /\ Maybe Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeCofreeFunctionOfTimeScoreMaybeInt = makeCofreeFunctionOfTimeScoreMaybeNumber <<< (map <<< map <<< map <<< map) (midiToCps <<< toNumber)
+
+instance toSceneCofreeFunctionOfTimeScoreMaybeInt :: ToScene (Cofree Identity (Number -> Number /\ Maybe Int)) Unit
+  where
+  toScene = makeCofreeFunctionOfTimeScoreMaybeInt
+
+makeCofreeFunctionOfTimeScoreMaybeNumber :: Cofree Identity (Number -> Number /\ Maybe Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeCofreeFunctionOfTimeScoreMaybeNumber notes' = makeFullScene $ FullScene
   { triggerWorld: defaultTriggerWorld
   , piece: loopUsingScene
       ( \(SceneI { time, headroomInSeconds: headroomInSeconds }) { oscSimple } ->
           let
-            actualized = oscSimple { time, headroomInSeconds, freq: 1.0 }
+            actualized = oscSimple { time, headroomInSeconds }
           in
             { control: { oscSimple: unwrapCofree actualized }
             , scene: speaker
                 { piece: fromTemplate (Proxy :: _ "sinOsc") (extract actualized) \_ -> case _ of
-                    Just (Buffy { startTime, rest: pitch }) -> pitch time # maybe noSine \pitch' -> gain
-                      (gff (makePiecewise (map (over _1 (add startTime)) pwl) { time, headroomInSeconds }))
+                    Just (Buffy { startTime, rest: pitch }) -> pitch # maybe noSine \pitch' -> gain
+                      (gff (makePiecewise (map (over _1 (add startTime)) (pwl 1.0)) { time, headroomInSeconds }))
                       (sinOsc (gff $ pure $ pitch'))
 
                     Nothing -> noSine
@@ -289,15 +415,14 @@ makeCofreeFunctionOfTimeMaybeNumber notes' = makeFullScene $ FullScene
       { oscSimple: emitter }
   }
   where
-  fixedDuration = 1.0
-  pwl = ((0.0 /\ 0.0) :| ((min (fixedDuration * 0.3) 0.1) /\ 1.0) : ((min (fixedDuration * 0.45) 0.3) /\ 0.2) : (fixedDuration /\ 0.0) : Nil)
+  pwl dr = ((0.0 /\ 0.0) :| ((min (dr * 0.3) 0.1) /\ 1.0) : ((min (dr * 0.45) 0.3) /\ 0.2) : (dr /\ 0.0) : Nil)
 
-  emitter :: AHotBufferPool' D4 (Number -> Maybe Number)
-  emitter = makeHotBufferPoolWithRest { startsAt: 0.0, rest: notes' }
+  emitter :: AScoredBufferPool D4 (Maybe Number)
+  emitter = makeScoredBufferPool { startsAt: 0.0, rest: (map <<< map) (uncurry { duration: _, rest: _ }) (identityToMoore (map (lcmap _.time) notes')) }
 
-instance toSceneCofreeFunctionOfTimeMaybeNumber :: ToScene (Cofree Identity (Number -> Maybe Number)) Unit
+instance toSceneCofreeFunctionOfTimeScoreMaybeNumber :: ToScene (Cofree Identity (Number -> Number /\ Maybe Number)) Unit
   where
-  toScene = makeCofreeFunctionOfTimeMaybeNumber
+  toScene = makeCofreeFunctionOfTimeScoreMaybeNumber
 
 makeLoop
   :: forall scene graph
