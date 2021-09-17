@@ -54,13 +54,36 @@ makeScore { startsAt, rest: r } = go r startsAt
 class Scorify a b | a -> b where
   scorify :: forall t. Applicative t => Traversable t => Semigroup (t b) => Number -> t a -> t b
 
+scorifyN :: forall t a. Applicative t => Traversable t => Semigroup (t (Number /\ Maybe a)) => Number -> t (Number /\ a) -> t (Number /\ Maybe a)
+scorifyN st t = fst res <> pure (snd res /\ Nothing)
+  where
+  res = runState
+    ( t # traverse \(n /\ i) -> do
+        x <- get
+        put n
+        pure (x /\ Just i)
+    )
+    st
+
+scorifyM :: forall t a. Applicative t => Traversable t => Semigroup (t (Number /\ Maybe a)) => Number -> t (Number /\ Maybe a) -> t (Number /\ Maybe a)
+scorifyM st t = fst res <> pure (snd res /\ Nothing)
+  where
+  res = runState
+    ( t # traverse \(n /\ i) -> do
+        x <- get
+        put n
+        pure (x /\ i)
+    )
+    st
+
 instance scorifyNonEmptyArrayInt :: Scorify (Number /\ Int) (Number /\ Maybe Int) where
-  scorify st t = fst res <> pure (snd res /\ Nothing)
-    where
-    res = runState
-      ( t # traverse \(n /\ i) -> do
-          x <- get
-          put n
-          pure (x /\ Just i)
-      )
-      st
+  scorify = scorifyN
+
+instance scorifyNonEmptyArrayNumber :: Scorify (Number /\ Number) (Number /\ Maybe Number) where
+  scorify = scorifyN
+
+instance scorifyNonEmptyArrayMaybeInt :: Scorify (Number /\ Maybe Int) (Number /\ Maybe Int) where
+  scorify = scorifyM
+
+instance scorifyNonEmptyArrayMaybeNumber :: Scorify (Number /\ Maybe Number) (Number /\ Maybe Number) where
+  scorify = scorifyM

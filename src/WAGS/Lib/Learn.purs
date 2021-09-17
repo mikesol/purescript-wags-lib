@@ -417,7 +417,7 @@ makeCofreeFunctionOfTimeScoreMaybeNumber notes' = makeFullScene $ FullScene
       { oscSimple: emitter }
   }
   where
-  pwl dr = ((0.0 /\ 0.0) :| ((min (dr * 0.3) 0.1) /\ 1.0) : ((min (dr * 0.45) 0.3) /\ 0.2) : (dr /\ 0.0) : Nil)
+  pwl dr = ((0.0 /\ 0.0) :| ((min (dr * 0.3) 0.1) /\ 0.6) : ((min (dr * 0.45) 0.3) /\ 0.2) : (dr /\ 0.0) : Nil)
 
   emitter :: AScoredBufferPool D4 (Maybe Number)
   emitter = makeBufferPoolWithAnchor ((map <<< map) (filter (isJust <<< _.rest)) (makeScore { startsAt: 0.0, rest: (map <<< map) (uncurry { duration: _, rest: _ }) (identityToMoore (map (lcmap _.time) notes')) }))

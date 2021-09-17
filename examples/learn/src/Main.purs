@@ -8,6 +8,7 @@ import Control.Comonad.Cofree.Class (unwrapCofree)
 import Data.Array as A
 import Data.Array.NonEmpty as NEA
 import Data.Identity (Identity(..))
+import Data.Lens (_1, over)
 import Data.Maybe (Maybe(..))
 import Data.NonEmpty ((:|))
 import Data.Tuple (Tuple(..))
@@ -108,6 +109,7 @@ stories = Object.fromFoldable
           )
       )
   , Tuple "score" $ proxy (parent "A score with timings" (component $ cycle $ NEA.toNonEmpty $ scorify 0.0 $ NEA.fromNonEmpty $ (1.0 /\ 64) :| [ 1.0 /\ 62, 1.0 /\ 60, 1.0 /\ 62, 1.0 /\ 64, 1.0 /\ 64, 2.0 /\ 64, 1.0 /\ 62, 1.0 /\ 62, 2.0 /\ 62, 1.0 /\ 64, 1.0 /\ 67, 2.0 /\ 67, 1.0 /\ 64, 1.0 /\ 62, 1.0 /\ 60, 1.0 /\ 62, 1.0 /\ 64, 1.0 /\ 64, 1.0 /\ 64, 1.0 /\ 64, 1.0 /\ 62, 1.0 /\ 62, 1.0 /\ 64, 1.0 /\ 62, 4.0 /\ 60 ]))
+  , Tuple "score2" $ proxy (parent "A score with timings sped up 2x" (component $ cycle $ NEA.toNonEmpty $ scorify 0.0 $ map (over _1 (mul 0.5)) $ NEA.fromNonEmpty $ (1.0 /\ 64) :| [ 1.0 /\ 62, 1.0 /\ 60, 1.0 /\ 62, 1.0 /\ 64, 1.0 /\ 64, 2.0 /\ 64, 1.0 /\ 62, 1.0 /\ 62, 2.0 /\ 62, 1.0 /\ 64, 1.0 /\ 67, 2.0 /\ 67, 1.0 /\ 64, 1.0 /\ 62, 1.0 /\ 60, 1.0 /\ 62, 1.0 /\ 64, 1.0 /\ 64, 1.0 /\ 64, 1.0 /\ 64, 1.0 /\ 62, 1.0 /\ 62, 1.0 /\ 64, 1.0 /\ 62, 4.0 /\ 60 ]))
   ]
 
 main :: Effect Unit
