@@ -6,8 +6,8 @@ import Control.Comonad (extract)
 import Control.Comonad.Cofree (deferCofree)
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Data.Array as A
+import Data.Array.NonEmpty as NEA
 import Data.Identity (Identity(..))
-import Data.Lens (_2, over, traversed)
 import Data.Maybe (Maybe(..))
 import Data.NonEmpty ((:|))
 import Data.Tuple (Tuple(..))
@@ -26,6 +26,7 @@ import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (ff)
 import WAGS.Lib.Emitter (makeEmitter)
 import WAGS.Lib.Learn (buffers, component, using, usingc)
+import WAGS.Lib.Score (scorify)
 import WAGS.Lib.Stream (cycle)
 import WAGS.Run (SceneI(..))
 
@@ -106,7 +107,7 @@ stories = Object.fromFoldable
               )
           )
       )
-  , Tuple "score" $ proxy (parent "A score with timings" (component $ cycle $ (0.0 /\ Just 64) :| (over (traversed <<< _2) Just [ 1.0 /\ 62, 1.0 /\ 60, 1.0 /\ 62, 1.0 /\ 64, 1.0 /\ 64, 1.0 /\ 64, 2.0 /\ 62, 1.0 /\ 62, 1.0 /\ 62, 2.0 /\ 64, 1.0 /\ 67, 1.0 /\ 67, 2.0 /\ 64, 1.0 /\ 62, 1.0 /\ 60, 1.0 /\ 62, 1.0 /\ 64, 1.0 /\ 64, 1.0 /\ 64, 1.0 /\ 64, 1.0 /\ 62, 1.0 /\ 62, 1.0 /\ 64, 1.0 /\ 62, 1.0 /\ 60 ]) <> [4.0 /\ Nothing] ))
+  , Tuple "score" $ proxy (parent "A score with timings" (component $ cycle $ NEA.toNonEmpty $ scorify 0.0 $ NEA.fromNonEmpty $ (1.0 /\ 64) :| [ 1.0 /\ 62, 1.0 /\ 60, 1.0 /\ 62, 1.0 /\ 64, 1.0 /\ 64, 2.0 /\ 64, 1.0 /\ 62, 1.0 /\ 62, 2.0 /\ 62, 1.0 /\ 64, 1.0 /\ 67, 2.0 /\ 67, 1.0 /\ 64, 1.0 /\ 62, 1.0 /\ 60, 1.0 /\ 62, 1.0 /\ 64, 1.0 /\ 64, 1.0 /\ 64, 1.0 /\ 64, 1.0 /\ 62, 1.0 /\ 62, 1.0 /\ 64, 1.0 /\ 62, 4.0 /\ 60 ]))
   ]
 
 main :: Effect Unit

@@ -145,37 +145,36 @@ makeBufferPool
   => ABufferPool n
 makeBufferPool = unitRest $ map (hoistCofree unitRest) makeBufferPoolWithRest
 
+makeBufferPoolWithAnchor
+  :: forall input n rest
+   . Pos n
+  => ({ time :: Number | input } -> Cofree ((->) { time :: Number | input }) (Array { offset :: Number, rest :: rest }))
+  -> { time :: Number | input }
+  -> Cofree ((->) { time :: Number | input }) (V.Vec n (Maybe (Buffy rest)))
+makeBufferPoolWithAnchor cf = combineComonadCofreeChooseB
+  ( \cont e b (a@{ time }) ->
+      let
+        enow = e a
+        bnow = b { time, offsets: extract enow }
+      in
+        cont enow bnow
+  )
+  cf
+  (makeBufferPoolWithRest)
+
 makeScoredBufferPool
   :: forall n rest
    . Pos n
   => { startsAt :: Number, rest :: MakeScore (CfRest rest) }
   -> AScoredBufferPool n rest
-makeScoredBufferPool sar = combineComonadCofreeChooseB
-  ( \cont e b ({ time, headroomInSeconds } :: TimeHeadroom) ->
-      let
-        enow = e { time, headroomInSeconds }
-        bnow = b { time, offsets: extract enow }
-      in
-        cont enow bnow
-  )
-  (makeScore sar)
-  (makeBufferPoolWithRest)
+makeScoredBufferPool sar = makeBufferPoolWithAnchor (makeScore sar)
 
 makeHotBufferPoolWithRest
   :: forall n rest
    . Pos n
   => { startsAt :: Number, rest :: Cofree Identity rest }
   -> AHotBufferPool' n rest
-makeHotBufferPoolWithRest sar = combineComonadCofreeChooseB
-  ( \cont e b ({ time, headroomInSeconds, freq } :: TimeHeadroomFreq) ->
-      let
-        enow = e { time, headroomInSeconds, freq }
-        bnow = b { time, offsets: extract enow }
-      in
-        cont enow bnow
-  )
-  (makeEmitter' sar)
-  (makeBufferPoolWithRest)
+makeHotBufferPoolWithRest sar = makeBufferPoolWithAnchor (makeEmitter' sar)
 
 makeHotBufferPool
   :: forall n

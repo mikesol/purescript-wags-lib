@@ -8,6 +8,7 @@
   , "effect"
   , "either"
   , "event"
+  , "filterable"
   , "foldable-traversable"
   , "free"
   , "halogen"

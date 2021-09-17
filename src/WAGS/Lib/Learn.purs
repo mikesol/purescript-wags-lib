@@ -7,6 +7,7 @@ import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Control.Promise (toAffE)
 import Data.Array as A
+import Data.Filterable (filter)
 import Data.Foldable (for_)
 import Data.Identity (Identity)
 import Data.Int (toNumber)
@@ -15,7 +16,7 @@ import Data.List (List(..), (:))
 import Data.List as L
 import Data.List.NonEmpty as NEL
 import Data.List.Types (NonEmptyList(..))
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..), isJust, maybe)
 import Data.Newtype (under)
 import Data.NonEmpty (NonEmpty, (:|))
 import Data.Profunctor (lcmap)
@@ -49,9 +50,10 @@ import WAGS.Graph.AudioUnit (APOnOff)
 import WAGS.Graph.AudioUnit as CTOR
 import WAGS.Graph.Parameter (AudioParameter_, AudioParameter, ff)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
-import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeScoredBufferPool)
+import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeBufferPoolWithAnchor)
 import WAGS.Lib.Cofree (identityToMoore)
 import WAGS.Lib.Piecewise (makePiecewise)
+import WAGS.Lib.Score (makeScore)
 import WAGS.Lib.Stream (deadEnd, stops)
 import WAGS.Run (Run, RunAudio, RunEngine, SceneI(..), run)
 import WAGS.Template (fromTemplate)
@@ -418,7 +420,7 @@ makeCofreeFunctionOfTimeScoreMaybeNumber notes' = makeFullScene $ FullScene
   pwl dr = ((0.0 /\ 0.0) :| ((min (dr * 0.3) 0.1) /\ 1.0) : ((min (dr * 0.45) 0.3) /\ 0.2) : (dr /\ 0.0) : Nil)
 
   emitter :: AScoredBufferPool D4 (Maybe Number)
-  emitter = makeScoredBufferPool { startsAt: 0.0, rest: (map <<< map) (uncurry { duration: _, rest: _ }) (identityToMoore (map (lcmap _.time) notes')) }
+  emitter = makeBufferPoolWithAnchor ((map <<< map) (filter (isJust <<< _.rest)) (makeScore { startsAt: 0.0, rest: (map <<< map) (uncurry { duration: _, rest: _ }) (identityToMoore (map (lcmap _.time) notes')) }))
 
 instance toSceneCofreeFunctionOfTimeScoreMaybeNumber :: ToScene (Cofree Identity (Number -> Number /\ Maybe Number)) Unit
   where

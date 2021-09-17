@@ -6,8 +6,13 @@ import Prelude
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
+import Control.Monad.State (get, put, runState)
 import Data.Lens (over)
 import Data.Lens.Record (prop)
+import Data.Maybe (Maybe(..))
+import Data.Traversable (class Traversable, traverse)
+import Data.Tuple (fst, snd)
+import Data.Tuple.Nested (type (/\), (/\))
 import Type.Proxy (Proxy(..))
 
 -------
@@ -45,3 +50,17 @@ makeScore { startsAt, rest: r } = go r startsAt
       o = makeOffsets { time, headroomInSeconds, playhead, rest }
     in
       o.offsets :< go o.rest o.playhead
+
+class Scorify a b | a -> b where
+  scorify :: forall t. Applicative t => Traversable t => Semigroup (t b) => Number -> t a -> t b
+
+instance scorifyNonEmptyArrayInt :: Scorify (Number /\ Int) (Number /\ Maybe Int) where
+  scorify st t = fst res <> pure (snd res /\ Nothing)
+    where
+    res = runState
+      ( t # traverse \(n /\ i) -> do
+          x <- get
+          put n
+          pure (x /\ Just i)
+      )
+      st
