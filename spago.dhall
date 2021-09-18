@@ -15,6 +15,7 @@
   , "heterogeneous"
   , "identity"
   , "integers"
+  , "lazy"
   , "lists"
   , "math"
   , "maybe"
