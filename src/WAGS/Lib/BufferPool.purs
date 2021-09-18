@@ -23,8 +23,11 @@ import WAGS.Lib.Cofree (combineComonadCofreeChooseB)
 import WAGS.Lib.Emitter (fEmitter, makeEmitter')
 import WAGS.Lib.Score (MakeScore, CfRest, makeScore)
 
+-- | rest is of the form startTime starting rest
+-- | use the currying to perform expensive computations based on the start time
+-- | and cheaper ones based on starting
 type TimeOffsetsRest rest
-  = { time :: Number, offsets :: Array { offset :: Number, rest :: rest } }
+  = { time :: Number, offsets :: Array { offset :: Number, rest :: (Number -> Boolean -> rest) } }
 
 type TimeOffsets
   = { time :: Number, offsets :: Array { offset :: Number } }
@@ -100,7 +103,7 @@ makeBufferPoolWithRest'
    . Pos n
   => Proxy n
   -> ABufferPool' n r
-makeBufferPoolWithRest' _ = go 0 (V.fill (const (Nothing :: Maybe (Buffy r))))
+makeBufferPoolWithRest' _ = go 0 (V.fill (const (Nothing :: Maybe { tag :: Boolean -> r, buf :: Buffy r })))
   where
   len :: Int
   len = toInt' (Proxy :: _ n)
@@ -110,23 +113,33 @@ makeBufferPoolWithRest' _ = go 0 (V.fill (const (Nothing :: Maybe (Buffy r))))
     :: Int
     -> TimeOffsetsRest r
     -> Int
-    -> Maybe (Buffy r)
-    -> Maybe (Buffy r)
+    -> Maybe { tag :: Boolean -> r, buf :: Buffy r }
+    -> Maybe { tag :: Boolean -> r, buf :: Buffy r }
   -- for now, we normalize offset to 0 as negative emitters make sense theoretically but not when starting a buffer
   maybeBufferToGainOnOff cPos { time, offsets } myPos Nothing
-    | Just { offset, rest } <- A.index offsets (myPos - cPos `mod` len) = Just (Buffy { startTime: time + (max 0.0 offset), starting: true, rest })
+    | Just { offset, rest } <- A.index offsets (myPos - cPos `mod` len) =
+        let
+          startTime = time + (max 0.0 offset)
+          tag = rest startTime
+        in
+          Just { tag, buf: Buffy { startTime, starting: true, rest: tag true } }
     | otherwise = Nothing
 
-  maybeBufferToGainOnOff cPos { time, offsets } myPos (Just (Buffy b))
-    | Just { offset, rest } <- A.index offsets (myPos - cPos `mod` len) = Just (Buffy { startTime: time + (max 0.0 offset), starting: true, rest })
-    | otherwise = Just (Buffy { startTime: b.startTime, starting: false, rest: b.rest })
+  maybeBufferToGainOnOff cPos { time, offsets } myPos (Just { tag, buf: (Buffy b) })
+    | Just { offset, rest } <- A.index offsets (myPos - cPos `mod` len) =
+        let
+          startTime = time + (max 0.0 offset)
+          tg = rest startTime
+        in
+          Just { tag: tg, buf: Buffy { startTime, starting: true, rest: tag true } }
+    | otherwise = Just { tag, buf: Buffy { startTime: b.startTime, starting: false, rest: tag false } }
 
   go
     :: Int
-    -> V.Vec n (Maybe (Buffy r))
+    -> V.Vec n (Maybe { tag :: Boolean -> r, buf :: Buffy r })
     -> TimeOffsetsRest r
     -> CfBufferPool' n r
-  go cIdx v tht@{ offsets } = internalStates :< go ((cIdx + A.length offsets) `mod` len) internalStates
+  go cIdx v tht@{ offsets } = ((map <<< map) _.buf internalStates) :< go ((cIdx + A.length offsets) `mod` len) internalStates
     where
     internalStates = mapWithIndex (maybeBufferToGainOnOff cIdx tht) v
 
@@ -137,7 +150,7 @@ makeBufferPoolWithRest
 makeBufferPoolWithRest = makeBufferPoolWithRest' (Proxy :: _ n)
 
 unitRest :: forall a. (TimeOffsetsRest Unit -> a) -> TimeOffsets -> a
-unitRest = lcmap (over (prop (Proxy :: _ "offsets") <<< traversed) (Record.union { rest: unit }))
+unitRest = lcmap (over (prop (Proxy :: _ "offsets") <<< traversed) (Record.union { rest: (const $ const unit) }))
 
 makeBufferPool
   :: forall n
@@ -148,7 +161,7 @@ makeBufferPool = unitRest $ map (hoistCofree unitRest) makeBufferPoolWithRest
 makeBufferPoolWithAnchor
   :: forall input n rest
    . Pos n
-  => ({ time :: Number | input } -> Cofree ((->) { time :: Number | input }) (Array { offset :: Number, rest :: rest }))
+  => ({ time :: Number | input } -> Cofree ((->) { time :: Number | input }) (Array { offset :: Number, rest :: Number -> Boolean -> rest }))
   -> { time :: Number | input }
   -> Cofree ((->) { time :: Number | input }) (V.Vec n (Maybe (Buffy rest)))
 makeBufferPoolWithAnchor cf = combineComonadCofreeChooseB
@@ -167,14 +180,14 @@ makeScoredBufferPool
    . Pos n
   => { startsAt :: Number, rest :: MakeScore (CfRest rest) }
   -> AScoredBufferPool n rest
-makeScoredBufferPool sar = makeBufferPoolWithAnchor (makeScore sar)
+makeScoredBufferPool { startsAt, rest } = makeBufferPoolWithAnchor (makeScore { startsAt, rest: (map <<< map) (\{ duration, rest: r } -> { duration, rest: const $ const r }) rest })
 
 makeHotBufferPoolWithRest
   :: forall n rest
    . Pos n
   => { startsAt :: Number, rest :: Cofree Identity rest }
   -> AHotBufferPool' n rest
-makeHotBufferPoolWithRest sar = makeBufferPoolWithAnchor (makeEmitter' sar)
+makeHotBufferPoolWithRest { startsAt, rest } = makeBufferPoolWithAnchor (makeEmitter' { startsAt, rest: map (const <<< const) rest })
 
 makeHotBufferPool
   :: forall n

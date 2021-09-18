@@ -7,7 +7,7 @@ import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Control.Promise (toAffE)
 import Data.Array as A
-import Data.Filterable (filter)
+import Data.Filterable (filterMap)
 import Data.Foldable (for_)
 import Data.Identity (Identity)
 import Data.Int (toNumber)
@@ -16,7 +16,7 @@ import Data.List (List(..), (:))
 import Data.List as L
 import Data.List.NonEmpty as NEL
 import Data.List.Types (NonEmptyList(..))
-import Data.Maybe (Maybe(..), isJust, maybe)
+import Data.Maybe (Maybe(..))
 import Data.Newtype (under)
 import Data.NonEmpty (NonEmpty, (:|))
 import Data.Profunctor (lcmap)
@@ -52,7 +52,7 @@ import WAGS.Graph.Parameter (AudioParameter_, AudioParameter, ff)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeBufferPoolWithAnchor)
 import WAGS.Lib.Cofree (identityToMoore)
-import WAGS.Lib.Piecewise (makePiecewise)
+import WAGS.Lib.Piecewise (APFofT, makePiecewise)
 import WAGS.Lib.Score (makeScore)
 import WAGS.Lib.Stream (deadEnd, stops)
 import WAGS.Run (Run, RunAudio, RunEngine, SceneI(..), run)
@@ -366,7 +366,7 @@ instance toSceneCofreeFunctionOfTimeNumber :: ToScene (Cofree Identity (Number -
   where
   toScene = makeCofreeFunctionOfTimeNumber
 
-makeCofreeFunctionOfTimeMaybeInt:: Cofree Identity (Number -> Maybe Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeCofreeFunctionOfTimeMaybeInt :: Cofree Identity (Number -> Maybe Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeCofreeFunctionOfTimeMaybeInt = makeCofreeFunctionOfTimeScoreMaybeInt <<< (map <<< map) ((/\) 1.0)
 
 instance toSceneCofreeFunctionOfTimeMaybeInt :: ToScene (Cofree Identity (Number -> Maybe Int)) Unit
@@ -387,8 +387,7 @@ instance toSceneCofreeFunctionOfTimeScoreNumber :: ToScene (Cofree Identity (Num
   where
   toScene = makeCofreeFunctionOfTimeScoreNumber
 
-
-makeCofreeFunctionOfTimeScoreMaybeInt:: Cofree Identity (Number -> Number /\ Maybe Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeCofreeFunctionOfTimeScoreMaybeInt :: Cofree Identity (Number -> Number /\ Maybe Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeCofreeFunctionOfTimeScoreMaybeInt = makeCofreeFunctionOfTimeScoreMaybeNumber <<< (map <<< map <<< map <<< map) (midiToCps <<< toNumber)
 
 instance toSceneCofreeFunctionOfTimeScoreMaybeInt :: ToScene (Cofree Identity (Number -> Number /\ Maybe Int)) Unit
@@ -406,9 +405,9 @@ makeCofreeFunctionOfTimeScoreMaybeNumber notes' = makeFullScene $ FullScene
             { control: { oscSimple: unwrapCofree actualized }
             , scene: speaker
                 { piece: fromTemplate (Proxy :: _ "sinOsc") (extract actualized) \_ -> case _ of
-                    Just (Buffy { startTime, rest: pitch }) -> pitch # maybe noSine \pitch' -> gain
-                      (gff (makePiecewise (map (over _1 (add startTime)) (pwl 1.0)) { time, headroomInSeconds }))
-                      (sinOsc (gff $ pure $ pitch'))
+                    Just (Buffy { rest: { pitch, pw } }) -> gain
+                      (gff (pw { time, headroomInSeconds }))
+                      (sinOsc (gff $ pure $ pitch))
 
                     Nothing -> noSine
                 }
@@ -419,8 +418,8 @@ makeCofreeFunctionOfTimeScoreMaybeNumber notes' = makeFullScene $ FullScene
   where
   pwl dr = ((0.0 /\ 0.0) :| ((min (dr * 0.3) 0.1) /\ 0.6) : ((min (dr * 0.45) 0.3) /\ 0.2) : (dr /\ 0.0) : Nil)
 
-  emitter :: AScoredBufferPool D4 (Maybe Number)
-  emitter = makeBufferPoolWithAnchor ((map <<< map) (filter (isJust <<< _.rest)) (makeScore { startsAt: 0.0, rest: (map <<< map) (uncurry { duration: _, rest: _ }) (identityToMoore (map (lcmap _.time) notes')) }))
+  emitter :: AScoredBufferPool D4 ({ pitch :: Number, pw :: APFofT Number })
+  emitter = makeBufferPoolWithAnchor ((map <<< map) (filterMap (\{ offset, rest } -> rest # map \r -> { offset, rest: \st -> let pw = makePiecewise (map (over _1 (add st)) (pwl 1.0)) in const { pitch: r, pw } })) (makeScore { startsAt: 0.0, rest: (map <<< map) (uncurry { duration: _, rest: _ }) (identityToMoore (map (lcmap _.time) notes')) }))
 
 instance toSceneCofreeFunctionOfTimeScoreMaybeNumber :: ToScene (Cofree Identity (Number -> Number /\ Maybe Number)) Unit
   where
