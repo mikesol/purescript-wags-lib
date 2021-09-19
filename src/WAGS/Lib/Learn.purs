@@ -35,6 +35,7 @@ import Halogen as H
 import Halogen.Aff (awaitBody, runHalogenAff)
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
+import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
 import Math (pow)
 import Prim.Row (class Cons, class Lacks)
@@ -659,20 +660,37 @@ initialState _ =
   , playing: false
   }
 
+classes :: forall r p. Array String -> HP.IProp (class :: String | r) p
+classes = HP.classes <<< map H.ClassName
+
+{-
+<div class="row center-xs">
+    <div class="col-xs-6">
+        <div class="box">
+            start
+        </div>
+    </div>
+</div>
+-}
+
 render :: forall m. State -> H.ComponentHTML Action () m
 render { playing } = do
-  HH.div_
-    $
-      if playing then
-        [ HH.button
-            [ HE.onClick \_ -> StopAudio ]
-            [ HH.text "Stop audio" ]
+  HH.div [ classes [ "row", "center-xs" ] ]
+    [ HH.div [ classes [ "col-xs-6" ] ]
+        [ HH.div [ classes [ "box" ] ]
+            if playing then
+              [ HH.button
+                  [ HE.onClick \_ -> StopAudio, classes [ "siimple-btn", "siimple-btn--error" ] ]
+                  [ HH.text "Stop audio" ]
+              ]
+            else
+              [ HH.button
+                  [ HE.onClick \_ -> StartAudio, classes [ "siimple-btn", "siimple-btn--primary" ] ]
+                  [ HH.text "Start audio" ]
+              ]
+
         ]
-      else
-        [ HH.button
-            [ HE.onClick \_ -> StartAudio ]
-            [ HH.text "Start audio" ]
-        ]
+    ]
 
 handleAction
   :: forall res analysers output m

@@ -30,11 +30,23 @@ streamLazy i l = go l
     LLazy.Nil -> a /\ wrap (maybe (go l) (\i' -> go (i' :| empty)) i)
     (LLazy.Cons b c) -> a /\ wrap (go (b :| c))
 
+deadEndLazy :: NonEmpty LLazy.List ~> Cofree Identity
+deadEndLazy l = go l
+  where
+  go :: NonEmpty LLazy.List ~> Cofree Identity
+  go (a :| (LLazy.List x)) = deferCofree \_ -> case force x of
+    LLazy.Nil -> a /\ wrap (go (a :| empty))
+    (LLazy.Cons b c) -> a /\ wrap (go (b :| c))
+
+
 class Stops f where
   stops :: forall a. NonEmpty f a -> Cofree Identity (Maybe a)
 
 stopsL :: forall a. NonEmpty List a -> Cofree Identity (Maybe a)
 stopsL = deadEnd <<< under NonEmptyList (flip NEL.snoc Nothing) <<< map Just
+
+stopsLazy :: forall a. NonEmpty LLazy.List a -> Cofree Identity (Maybe a)
+stopsLazy = deadEnd <<< (\(a :| b) -> (a :| (b <> (pure Nothing)))) <<< map Just
 
 instance stopsList :: Stops List where
   stops = stopsL
@@ -50,6 +62,9 @@ deadEndL = stream <<< Just <<< last <<< wrap <*> identity
 
 instance deadEndList :: DeadEnd List where
   deadEnd = deadEndL
+
+instance deadEndLLazy :: DeadEnd LLazy.List where
+  deadEnd = deadEndLazy
 
 instance deadEndArray :: DeadEnd Array where
   deadEnd (a :| b) = deadEndL (a :| L.fromFoldable b)
