@@ -5,11 +5,9 @@ in      conf
         , dependencies =
               conf.dependencies
             # [ "halogen"
-              , "halogen-storybook"
               , "aff"
               , "behaviors"
               , "effect"
               , "event"
-              , "foreign-object"
               ]
         }

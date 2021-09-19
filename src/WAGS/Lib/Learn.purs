@@ -660,32 +660,25 @@ initialState _ =
   , playing: false
   }
 
-classes :: forall r p. Array String -> HP.IProp (class :: String | r) p
-classes = HP.classes <<< map H.ClassName
+buttonCSS :: String -> String
+buttonCSS rgb = """align-items:flex-start;appearance:none;background-color:""" <> rgb <> """;background-image:none;border-bottom-color:rgb(229, 231, 235);border-bottom-left-radius:8px;border-bottom-right-radius:8px;border-bottom-style:solid;border-bottom-width:0px;border-image-outset:0;border-image-repeat:stretch;border-image-slice:100%;border-image-source:none;border-image-width:1;border-left-color:rgb(229, 231, 235);border-left-style:solid;border-left-width:0px;border-right-color:rgb(229, 231, 235);border-right-style:solid;border-right-width:0px;border-top-color:rgb(229, 231, 235);border-top-left-radius:8px;border-top-right-radius:8px;border-top-style:solid;border-top-width:0px;box-sizing:border-box;color:rgb(255, 255, 255);cursor:pointer;display:block;font-family:ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe:UI", Roboto, "Helvetica:Neue", Arial, "Noto:Sans", sans-serif, "Apple:Color:Emoji", "Segoe:UI:Emoji", "Segoe:UI:Symbol", "Noto:Color:Emoji";font-size:24px;font-stretch:100%;font-style:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-weight:400;height:56px;letter-spacing:normal;line-height:32px;margin-bottom:20px;margin-left:20px;margin-right:20px;margin-top:20px;padding-bottom:12px;padding-left:12px;padding-right:12px;padding-top:12px;tab-size:4;text-align:center;text-indent:0px;text-rendering:auto;text-shadow:none;text-size-adjust:100%;text-transform:none;width:172.5px;word-spacing:0px;writing-mode:horizontal-tb;-webkit-border-image:none;"""
 
-{-
-<div class="row center-xs">
-    <div class="col-xs-6">
-        <div class="box">
-            start
-        </div>
-    </div>
-</div>
--}
+onCSS = buttonCSS "rgb(99, 102, 241)" :: String
+offCSS = buttonCSS "rgb(236, 72, 153)" :: String
 
 render :: forall m. State -> H.ComponentHTML Action () m
 render { playing } = do
-  HH.div [ classes [ "row", "center-xs" ] ]
-    [ HH.div [ classes [ "col-xs-6" ] ]
-        [ HH.div [ classes [ "box" ] ]
+  HH.div []
+    [ HH.div []
+        [ HH.div []
             if playing then
               [ HH.button
-                  [ HE.onClick \_ -> StopAudio, classes [ "siimple-btn", "siimple-btn--error" ] ]
+                  [ HE.onClick \_ -> StopAudio, HP.style offCSS ]
                   [ HH.text "Stop audio" ]
               ]
             else
               [ HH.button
-                  [ HE.onClick \_ -> StartAudio, classes [ "siimple-btn", "siimple-btn--primary" ] ]
+                  [ HE.onClick \_ -> StartAudio, HP.style onCSS ]
                   [ HH.text "Start audio" ]
               ]
 
@@ -710,6 +703,35 @@ handleAction aff = case _ of
     for_ audioCtx (H.liftEffect <<< close)
     H.modify_ _ { unsubscribe = pure unit, audioCtx = Nothing, playing = false }
 
+---
+type ParentSlots = (audio :: forall q. H.Slot q Void Unit)
+
+_audio = Proxy :: Proxy "audio"
+
+type ParentState = {}
+
+type ParentAction = Void
+
+flexTop = """width:100%;height:100%;flex-direction:column;display:flex;""" :: String
+flexRows = "flex-grow:1;display:block;" :: String
+
+parent :: forall query input output m. (forall query2 input2 output2. H.Component query2 input2 output2 m) -> H.Component query input output m
+parent audio =
+  H.mkComponent
+    { initialState: iS
+    , render: rdr
+    , eval: H.mkEval $ H.defaultEval
+        { handleAction = absurd }
+    }
+  where
+  iS :: input -> ParentState
+  iS _ = {}
+
+  rdr :: ParentState -> H.ComponentHTML ParentAction ParentSlots m
+  rdr _ =
+    HH.div_ [ HH.slot_ _audio unit audio unit ]
+      
+
 play
   :: forall toScene res
    . ToScene toScene res
@@ -717,4 +739,4 @@ play
   -> Effect Unit
 play toScene = runHalogenAff do
   body <- awaitBody
-  runUI (component toScene) unit body
+  runUI (parent (component toScene)) unit body

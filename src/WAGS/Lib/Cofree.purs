@@ -6,7 +6,7 @@ import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree (Cofree, deferCofree, (:<))
 import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
 import Control.Monad.State (class MonadState, get, put, runState)
-import Data.Identity (Identity)
+import Data.Identity (Identity(..))
 import Data.Newtype (unwrap)
 import Data.Traversable (class Traversable, sequence)
 import Data.Tuple.Nested ((/\), type (/\))
@@ -180,3 +180,9 @@ identityToMoore cf a = extract cf a :< identityToMoore (unwrap $ unwrapCofree cf
 
 trivialMoore :: forall a. a -> Cofree ((->) a) a
 trivialMoore a = a :< trivialMoore
+
+ana' :: forall f a. Functor f => (a -> f a) -> a -> Cofree f a
+ana' f a = deferCofree \_ -> a /\ map (ana' f) (f a)
+
+ana :: forall a. (a -> a) -> a -> Cofree Identity a
+ana = ana' <<< map Identity
