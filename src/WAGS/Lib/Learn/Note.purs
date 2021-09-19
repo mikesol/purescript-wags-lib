@@ -4,21 +4,17 @@ import Prelude
 
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Int (toNumber)
-import Data.Lens (Lens', over)
-import Data.Lens.Iso.Newtype (unto)
-import Data.Lens.Record (prop)
-import Data.Maybe (Maybe, maybe)
-import Data.Newtype (class Newtype)
+import Data.Lens (Lens', _Just, lens, over)
+import Data.Maybe (Maybe(..), maybe)
+import Data.Profunctor.Choice (class Choice)
+import Data.Profunctor.Strong (class Strong)
 import Math (pow)
 import Safe.Coerce (coerce)
-import Type.Proxy (Proxy(..))
 import WAGS.Lib.Learn.Duration (Duration(..))
 import WAGS.Lib.Learn.Pitch (Pitch)
 import WAGS.Lib.Learn.Volume (Volume)
 
-newtype Note = Note { volume :: Volume, duration :: Duration, pitch :: Pitch }
-
-derive instance newtypeNote :: Newtype Note _
+data Note = Note { volume :: Volume, duration :: Duration, pitch :: Pitch } | Rest { duration :: Duration }
 
 class IntableIndex a where
   indexToInt :: a -> Int
@@ -32,14 +28,34 @@ instance intableIndexMaybeInt :: IntableIndex (Maybe Int) where
 note :: Volume -> Duration -> Pitch -> Note
 note v d p = Note { volume: v, duration: d, pitch: p }
 
-volume :: Lens' Note Volume
-volume = unto Note <<< prop (Proxy :: _ "volume")
+volume :: forall p b. Strong p => Choice p => p Volume b -> p Note Note
+volume =
+  lens
+    ( case _ of
+        Note { volume: v } -> Just v
+        Rest _ -> Nothing
+    )
+    const <<< _Just
 
 duration :: Lens' Note Duration
-duration = unto Note <<< prop (Proxy :: _ "duration")
+duration = lens
+  ( case _ of
+      Note { duration: d } -> d
+      Rest { duration: d } -> d
+  )
+  ( case _ of
+      Note i -> Note <<< i { duration = _ }
+      Rest i -> Rest <<< i { duration = _ }
+  )
 
-pitch :: Lens' Note Pitch
-pitch = unto Note <<< prop (Proxy :: _ "pitch")
+pitch :: forall p b. Strong p => Choice p => p Pitch b -> p Note Note
+pitch =
+  lens
+    ( case _ of
+        Note { pitch: p } -> Just p
+        Rest _ -> Nothing
+    )
+    const <<< _Just
 
 accelerando :: forall f i. IntableIndex i => FunctorWithIndex i f => f Note -> f Note
 accelerando = mapWithIndex (over duration <<< mul <<< coerce <<< div 1.0 <<< pow 0.2 <<< toNumber <<< indexToInt)

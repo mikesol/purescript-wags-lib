@@ -10,7 +10,6 @@ import Data.Array as A
 import Data.Filterable (filterMap)
 import Data.Foldable (for_)
 import Data.Identity (Identity)
-import Data.Int (toNumber)
 import Data.Lens (_1, over)
 import Data.List (List(..), (:))
 import Data.List as L
