@@ -43,9 +43,9 @@ import Prim.RowList as RL
 import Record as Record
 import Type.Proxy (Proxy(..))
 import WAGS.Change (class Change)
-import WAGS.Control.Functions.Validated (freeze, loopUsingScene, (@!>))
+import WAGS.Control.Functions.Validated (loopUsingScene)
 import WAGS.Control.Types (Frame0, Scene)
-import WAGS.Create (class Create, icreate)
+import WAGS.Create (class Create)
 import WAGS.Create.Optionals (constant, gain, sinOsc, playBuf, speaker)
 import WAGS.Graph.AudioUnit (APOnOff)
 import WAGS.Graph.AudioUnit as CTOR
@@ -295,10 +295,7 @@ instance toSceneFunctionOfTimeInt :: ToScene (Number -> Int) Unit
   toScene = makeFunctionOfTimeInt
 
 makeFunctionOfTimeNumber :: (Number -> Number) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeFunctionOfTimeNumber f = makeFullScene $ FullScene
-  { triggerWorld: defaultTriggerWorld
-  , piece: (\(SceneI { time }) -> icreate (speaker { gain: gain (gff $ pure 0.3) (sinOsc (gff $ pure $ f time)) }) $> unit) @!> freeze
-  }
+makeFunctionOfTimeNumber f = makeFunctionOfTimeLoop \time -> speaker { gain: gain (gff $ pure 0.3) (sinOsc (gff $ pure $ f time)) }
 
 instance toSceneFunctionOfTimeNumber :: ToScene (Number -> Number) Unit
   where
@@ -387,6 +384,13 @@ makeCofreeFunctionOfTimeScoreNumber = makeCofreeFunctionOfTimeScoreMaybeNumber <
 instance toSceneCofreeFunctionOfTimeScoreNumber :: ToScene (Cofree Identity (Number -> Number /\ Number)) Unit
   where
   toScene = makeCofreeFunctionOfTimeScoreNumber
+
+makeCofreeFunctionOfTimeScoreInt :: Cofree Identity (Number -> Number /\ Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeCofreeFunctionOfTimeScoreInt = makeCofreeFunctionOfTimeScoreMaybeInt <<< (map <<< map <<< map) Just
+
+instance toSceneCofreeFunctionOfTimeScoreInt :: ToScene (Cofree Identity (Number -> Number /\ Int)) Unit
+  where
+  toScene = makeCofreeFunctionOfTimeScoreInt
 
 makeCofreeFunctionOfTimeScoreMaybeInt :: Cofree Identity (Number -> Number /\ Maybe Int) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeCofreeFunctionOfTimeScoreMaybeInt = makeCofreeFunctionOfTimeScoreMaybeNumber <<< (map <<< map <<< map <<< map) (midiToCps <<< toNumber)
