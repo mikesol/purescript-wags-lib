@@ -17,6 +17,19 @@ derive newtype instance ringDuration :: Ring Duration
 derive newtype instance semiringDuration :: Semiring Duration
 derive newtype instance showDuration :: Show Duration
 
+newtype Gap = Gap Number
+
+derive instance newtypeGap :: Newtype Gap _
+derive newtype instance boundedGap :: Bounded Gap
+derive newtype instance divisionringGap :: DivisionRing Gap
+derive newtype instance eqGap :: Eq Gap
+derive newtype instance commutativeRingGap :: CommutativeRing Gap
+derive newtype instance euclideanRingGap :: EuclideanRing Gap
+derive newtype instance ordGap :: Ord Gap
+derive newtype instance ringGap :: Ring Gap
+derive newtype instance semiringGap :: Semiring Gap
+derive newtype instance showGap :: Show Gap
+
 hemidemisemiquaver = Duration 0.0625 :: Duration
 demisemiquaver = Duration 0.125 :: Duration
 semiquaver = Duration 0.25 :: Duration

@@ -343,4 +343,8 @@ cDoubleFlat8 = Pitch (midiToCps' 106.0) :: Pitch
 aDoubleSharp7 = Pitch (midiToCps' 107.0) :: Pitch
 cFlat8 = Pitch (midiToCps' 107.0) :: Pitch
 
-middleC = c5 :: Pitch
+middleC = c4 :: Pitch
+
+
+transpose :: Pitch -> Pitch -> Pitch
+transpose = add

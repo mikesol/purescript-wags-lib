@@ -38,6 +38,8 @@
   , "unfoldable"
   , "unsafe-coerce"
   , "wags"
+  , "web-dom"
+  , "web-html"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs" ]
