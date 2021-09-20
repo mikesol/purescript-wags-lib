@@ -70,10 +70,10 @@ startsAfter :: forall note. Lens' (Sequenced note) Gap
 startsAfter = unto Sequenced <<< prop (Proxy :: _ "startsAfter")
 
 accelerando :: forall f i note. IntableIndex i => FunctorWithIndex i f => f (Sequenced note) -> f (Sequenced note)
-accelerando = mapWithIndex (over startsAfter <<< mul <<< coerce <<< div 1.0 <<< pow 0.2 <<< toNumber <<< indexToInt)
+accelerando = mapWithIndex (over startsAfter <<< mul <<< coerce <<< flip pow 0.6 <<< div 1.0 <<< add 1.0 <<< toNumber <<< indexToInt)
 
 rallentando :: forall f i note. IntableIndex i => FunctorWithIndex i f => f (Sequenced note) -> f (Sequenced note)
-rallentando = mapWithIndex (over startsAfter <<< mul <<< coerce <<< pow 0.35 <<< toNumber <<< indexToInt)
+rallentando = mapWithIndex (over startsAfter <<< mul <<< coerce <<< flip pow 0.35 <<< add 1.0 <<< toNumber <<< indexToInt)
 
 seq :: forall t f. Applicative f => Traversable t => t (f Note) -> t (f (Sequenced Note))
 seq = flip evalState (pure (Gap 0.0))
