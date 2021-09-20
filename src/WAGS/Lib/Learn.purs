@@ -420,7 +420,7 @@ makeCofreeFunctionOfTimeScoreMaybeNumber notes' = makeFullScene $ FullScene
   pwl dr = ((0.0 /\ 0.0) :| ((min (dr * 0.3) 0.1) /\ 0.6) : ((min (dr * 0.45) 0.3) /\ 0.2) : (dr /\ 0.0) : Nil)
 
   emitter :: AScoredBufferPool D4 ({ pitch :: Number, pw :: APFofT Number })
-  emitter = makeBufferPoolWithAnchor ((map <<< map) (filterMap (\{ offset, rest } -> rest # map \r -> { offset, rest: \st -> let pw = makePiecewise (map (over _1 (add st)) (pwl 1.0)) in const { pitch: r, pw } })) (makeScore { startsAt: 0.0, rest: (map <<< map) (uncurry { duration: _, rest: _ }) (identityToMoore (map (lcmap _.time) notes')) }))
+  emitter = makeBufferPoolWithAnchor ((map <<< map) (filterMap (\{ offset, rest } -> rest # map \r -> { duration: const $ const $ const Nothing, offset, rest: \st -> let pw = makePiecewise (map (over _1 (add st)) (pwl 1.0)) in { pitch: r, pw } })) (makeScore { startsAt: 0.0, rest: (map <<< map) (uncurry { duration: _, rest: _ }) (identityToMoore (map (lcmap _.time) notes')) }))
 
 instance toSceneCofreeFunctionOfTimeScoreMaybeNumber :: ToScene (Cofree Identity (Number -> Number /\ Maybe Number)) Unit
   where

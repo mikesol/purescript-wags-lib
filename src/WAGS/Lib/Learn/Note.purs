@@ -4,17 +4,21 @@ import Prelude
 
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Int (toNumber)
-import Data.Lens (Lens', _Just, lens, over)
-import Data.Maybe (Maybe(..), maybe)
-import Data.Profunctor.Choice (class Choice)
-import Data.Profunctor.Strong (class Strong)
+import Data.Lens (Lens', over)
+import Data.Lens.Iso.Newtype (unto)
+import Data.Lens.Record (prop)
+import Data.Maybe (Maybe, maybe)
+import Data.Newtype (class Newtype)
 import Math (pow)
 import Safe.Coerce (coerce)
-import WAGS.Lib.Learn.Duration (Duration(..))
+import Type.Proxy (Proxy(..))
+import WAGS.Lib.Learn.Duration (Duration, Gap(..))
 import WAGS.Lib.Learn.Pitch (Pitch)
 import WAGS.Lib.Learn.Volume (Volume)
 
-data Note = Note { volume :: Volume, duration :: Duration, pitch :: Pitch } | Rest { duration :: Duration }
+newtype Note = Note { startsAfter :: Gap, volume :: Volume, duration :: Duration, pitch :: Pitch }
+
+derive instance newtypeNote :: Newtype Note _
 
 class IntableIndex a where
   indexToInt :: a -> Int
@@ -25,43 +29,26 @@ instance intableIndexInt :: IntableIndex Int where
 instance intableIndexMaybeInt :: IntableIndex (Maybe Int) where
   indexToInt = maybe 0 (add 1)
 
-note :: Volume -> Duration -> Pitch -> Note
-note v d p = Note { volume: v, duration: d, pitch: p }
+note :: Gap -> Volume -> Duration -> Pitch -> Note
+note s v d p = Note { startsAfter: s, volume: v, duration: d, pitch: p }
 
-volume :: forall p b. Strong p => Choice p => p Volume b -> p Note Note
-volume =
-  lens
-    ( case _ of
-        Note { volume: v } -> Just v
-        Rest _ -> Nothing
-    )
-    const <<< _Just
+volume :: Lens' Note Volume
+volume = unto Note <<< prop (Proxy :: _ "volume")
+
+pitch :: Lens' Note Pitch
+pitch = unto Note <<< prop (Proxy :: _ "pitch")
 
 duration :: Lens' Note Duration
-duration = lens
-  ( case _ of
-      Note { duration: d } -> d
-      Rest { duration: d } -> d
-  )
-  ( case _ of
-      Note i -> Note <<< i { duration = _ }
-      Rest i -> Rest <<< i { duration = _ }
-  )
+duration = unto Note <<< prop (Proxy :: _ "duration")
 
-pitch :: forall p b. Strong p => Choice p => p Pitch b -> p Note Note
-pitch =
-  lens
-    ( case _ of
-        Note { pitch: p } -> Just p
-        Rest _ -> Nothing
-    )
-    const <<< _Just
+startsAfter :: Lens' Note Gap
+startsAfter = unto Note <<< prop (Proxy :: _ "startsAfter")
 
 accelerando :: forall f i. IntableIndex i => FunctorWithIndex i f => f Note -> f Note
-accelerando = mapWithIndex (over duration <<< mul <<< coerce <<< div 1.0 <<< pow 0.2 <<< toNumber <<< indexToInt)
+accelerando = mapWithIndex (over startsAfter <<< mul <<< coerce <<< div 1.0 <<< pow 0.2 <<< toNumber <<< indexToInt)
 
 rallentando :: forall f i. IntableIndex i => FunctorWithIndex i f => f Note -> f Note
-rallentando = mapWithIndex (over duration <<< mul <<< coerce <<< pow 0.35 <<< toNumber <<< indexToInt)
+rallentando = mapWithIndex (over startsAfter <<< mul <<< coerce <<< pow 0.35 <<< toNumber <<< indexToInt)
 
 transpose :: Pitch -> Note -> Note
 transpose = over pitch <<< add
