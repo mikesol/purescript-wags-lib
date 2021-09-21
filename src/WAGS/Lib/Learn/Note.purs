@@ -108,7 +108,10 @@ instance seqFNoteOrRest :: (Traversable f, Applicative f) => Seq (NonEmpty Array
               s <- get
               put $ Rest $ unwrap $ view duration n
               pure $ Just $ Sequenced $ { startsAfter: s, note: n }
-          , rest: \n -> put n *> pure Nothing
+          , rest: \n -> do
+              s <- get
+              put $ (n + s)
+              pure $ Nothing
           }
       )
 
