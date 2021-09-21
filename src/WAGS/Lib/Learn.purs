@@ -48,7 +48,7 @@ import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, 
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeBufferPoolWithAnchor)
 import WAGS.Lib.Cofree (annihalateIdentity, hoistHoistCofree)
 import WAGS.Lib.Learn.Duration (Duration(..), Rest(..))
-import WAGS.Lib.Learn.Note (Note(..), NoteWithRest(..), Sequenced(..), noteFromDefaults, noteFromPitch, noteStreamToSequence, seq)
+import WAGS.Lib.Learn.Note (Note(..), NoteOrRest, Sequenced(..), noteFromDefaults_, noteFromPitch_, noteStreamToSequence, seq)
 import WAGS.Lib.Learn.Pitch (Pitch(..))
 import WAGS.Lib.Learn.Volume (Volume(..))
 import WAGS.Lib.Piecewise (APFofT, makePiecewise)
@@ -123,14 +123,14 @@ instance toSceneArrayNote :: ToScene (Array Note) Unit
   where
   toScene = makeArrayNote
 
-makeArrayNoteWithRest :: Array NoteWithRest -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeArrayNoteWithRest = A.uncons >>> case _ of
+makeArrayNoteOrRest :: Array NoteOrRest -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeArrayNoteOrRest = A.uncons >>> case _ of
   Nothing -> nothing
-  Just { head, tail } -> makeNonEmptyArrayNoteWithRest (head :| tail)
+  Just { head, tail } -> makeNonEmptyArrayNoteOrRest (head :| tail)
 
-instance toSceneArrayNoteWithRest :: ToScene (Array NoteWithRest) Unit
+instance toSceneArrayNoteOrRest :: ToScene (Array NoteOrRest) Unit
   where
-  toScene = makeArrayNoteWithRest
+  toScene = makeArrayNoteOrRest
 
 makeArraySequencedNote :: Array (Sequenced Note) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeArraySequencedNote = A.uncons >>> case _ of
@@ -142,7 +142,7 @@ instance toSceneArraySequencedNote :: ToScene (Array (Sequenced Note)) Unit
   toScene = makeArraySequencedNote
 
 makeNonEmptyArrayPitch :: NonEmpty Array Pitch -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeNonEmptyArrayPitch = makeNonEmptyArrayNote <<< map (noteFromDefaults <<< set (prop (Proxy :: _ "pitch")))
+makeNonEmptyArrayPitch = makeNonEmptyArrayNote <<< map (noteFromDefaults_ <<< set (prop (Proxy :: _ "pitch")))
 
 instance toSceneNonEmptyArrayPitch :: ToScene (NonEmpty Array Pitch) Unit
   where
@@ -155,17 +155,17 @@ instance toSceneNonEmptyArrayNote :: ToScene (NonEmpty Array Note) Unit
   where
   toScene = makeNonEmptyArrayNote
 
-makeNonEmptyArrayNoteWithRest :: NonEmpty Array NoteWithRest -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeNonEmptyArrayNoteWithRest = makeNonEmptyArraySequencedNote <<< map unwrap <<< seq <<< map Identity
+makeNonEmptyArrayNoteOrRest :: NonEmpty Array NoteOrRest -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeNonEmptyArrayNoteOrRest = makeArraySequencedNote <<< map unwrap <<< seq <<< map Identity
 
-instance toSceneNonEmptyArrayNoteWithRest :: ToScene (NonEmpty Array NoteWithRest) Unit
+instance toSceneNonEmptyArrayNoteOrRest :: ToScene (NonEmpty Array NoteOrRest) Unit
   where
-  toScene = makeNonEmptyArrayNoteWithRest
+  toScene = makeNonEmptyArrayNoteOrRest
 
 makeNonEmptyArraySequencedNote :: NonEmpty Array (Sequenced Note) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeNonEmptyArraySequencedNote (a :| b) = makeCofreeSequencedNote
   $ deadEnd
-  $ a :| b <> [ Sequenced { startsAfter: top, note: noteFromDefaults identity } ]
+  $ a :| b <> [ Sequenced { startsAfter: top, note: noteFromDefaults_ identity } ]
 
 instance toSceneNonEmptyArraySequencedNote :: ToScene (NonEmpty Array (Sequenced Note)) Unit
   where
@@ -193,7 +193,7 @@ instance toSceneCofreeSequencedNote :: ToScene (Cofree Identity (Sequenced Note)
   toScene = makeCofreeSequencedNote
 
 makeFunctionOfTimePitch :: (Number -> Pitch) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeFunctionOfTimePitch = makeFunctionOfTimeNote <<< map noteFromPitch
+makeFunctionOfTimePitch = makeFunctionOfTimeNote <<< map noteFromPitch_
 
 instance toSceneFunctionOfTimePitch :: ToScene (Number -> Pitch) Unit
   where
@@ -216,7 +216,7 @@ instance toSceneArrayFunctionOfTimePitch :: ToScene (Array (Number -> Pitch)) Un
   toScene = makeArrayFunctionOfTimePitch
 
 makeNonEmptyArrayFunctionOfTimePitch :: NonEmpty Array (Number -> Pitch) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeNonEmptyArrayFunctionOfTimePitch = makeNonEmptyArrayFunctionOfTimeNote <<< (map <<< map) (noteFromDefaults <<< set (prop (Proxy :: _ "pitch")))
+makeNonEmptyArrayFunctionOfTimePitch = makeNonEmptyArrayFunctionOfTimeNote <<< (map <<< map) (noteFromDefaults_ <<< set (prop (Proxy :: _ "pitch")))
 
 instance toSceneNonEmptyArrayFunctionOfTimePitch :: ToScene (NonEmpty Array (Number -> Pitch)) Unit
   where
@@ -233,7 +233,7 @@ makeNonEmptyArrayFunctionOfTimeSequencedNote :: NonEmpty Array (Number -> Sequen
 makeNonEmptyArrayFunctionOfTimeSequencedNote (a :| b) = makeFunctionCofreeFunctionOfTimeSequencedNote
   $ annihalateIdentity
   $ deadEnd
-  $ a :| b <> [ const $ Sequenced { startsAfter: top, note: noteFromDefaults identity } ]
+  $ a :| b <> [ const $ Sequenced { startsAfter: top, note: noteFromDefaults_ identity } ]
 
 instance toSceneNonEmptyArrayFunctionOfTimeSequencedNote :: ToScene (NonEmpty Array (Number -> Sequenced Note)) Unit
   where
@@ -243,25 +243,18 @@ noSine :: CTOR.Gain AudioParameter /\ (CTOR.SinOsc APOnOff AudioParameter /\ {})
 noSine = gain 0.0 (sinOsc 0.1)
 
 makeCofreeFunctionOfTimePitch :: Cofree Identity (Number -> Pitch) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeCofreeFunctionOfTimePitch = makeCofreeFunctionOfTimeNote <<< (map <<< map) (noteFromDefaults <<< set (prop (Proxy :: _ "pitch")))
+makeCofreeFunctionOfTimePitch = makeCofreeFunctionOfTimeNote <<< (map <<< map) (noteFromDefaults_ <<< set (prop (Proxy :: _ "pitch")))
 
 instance toSceneCofreeFunctionOfTimePitch :: ToScene (Cofree Identity (Number -> Pitch)) Unit
   where
   toScene = makeCofreeFunctionOfTimePitch
 
 makeCofreeFunctionOfTimeNote :: Cofree Identity (Number -> Note) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeCofreeFunctionOfTimeNote = makeCofreeFunctionOfTimeNoteWithRest <<< annihalateIdentity <<< (map <<< map) (JustNote <<< { note: _ })
+makeCofreeFunctionOfTimeNote = makeFunctionCofreeFunctionOfTimeSequencedNote <<< map (noteStreamToSequence (Rest 0.0)) <<< annihalateIdentity
 
 instance toSceneCofreeFunctionOfTimeNote :: ToScene (Cofree Identity (Number -> Note)) Unit
   where
   toScene = makeCofreeFunctionOfTimeNote
-
-makeCofreeFunctionOfTimeNoteWithRest :: (Number -> Cofree ((->) Number) NoteWithRest) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeCofreeFunctionOfTimeNoteWithRest = makeFunctionCofreeFunctionOfTimeSequencedNote <<< map (noteStreamToSequence (Rest 0.0))
-
-instance toSceneCofreeFunctionOfTimeNoteWithRest :: ToScene (Number -> Cofree ((->) Number) NoteWithRest) Unit
-  where
-  toScene = makeCofreeFunctionOfTimeNoteWithRest
 
 makeFunctionCofreeFunctionOfTimeSequencedNote :: (Number -> Cofree ((->) Number) (Sequenced Note)) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeFunctionCofreeFunctionOfTimeSequencedNote notes' = makeFullScene $ FullScene

@@ -6,19 +6,22 @@ import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, deferCofree)
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Control.Monad.State (evalState, get, put)
+import Data.Array.NonEmpty (fromNonEmpty, toArray)
+import Data.Compactable (compact)
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Int (toNumber)
-import Data.Lens (Lens', lens, over, view)
+import Data.Lens (Lens', over, view)
 import Data.Lens.Iso.Newtype (unto)
 import Data.Lens.Record (prop)
 import Data.List (List(..))
 import Data.List as L
-import Data.Maybe (Maybe, maybe)
+import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (class Newtype, unwrap)
 import Data.NonEmpty (NonEmpty, (:|))
-import Data.Traversable (class Traversable, traverse)
+import Data.Traversable (class Traversable, sequence, traverse)
 import Data.Tuple.Nested ((/\))
+import Data.Variant (Variant, inj, match)
 import Math (pow)
 import Safe.Coerce (coerce)
 import Type.Proxy (Proxy(..))
@@ -31,51 +34,15 @@ newtype Note = Note Note'
 
 derive instance newtypeNote :: Newtype Note _
 
-data NoteWithRest
-  = Before { durationBefore :: Rest, note :: Note }
-  | After { durationAfter :: Rest, note :: Note }
-  | BeforeAndAfter { durationBefore :: Rest, durationAfter :: Rest, note :: Note }
-  | JustNote { note :: Note }
+newtype NoteOrRest = NoteOrRest (Variant (note :: Note, rest :: Rest))
 
-just :: Note -> NoteWithRest
-just = JustNote <<< { note: _ }
+derive instance newtypeNoteOrRest :: Newtype NoteOrRest _
 
-class Then_ a b | a -> b where
-  then_ :: a -> b -> NoteWithRest
+nt :: Note -> NoteOrRest
+nt = NoteOrRest <<< inj (Proxy :: _ "note")
 
-instance then_NoteRest :: Then_ Note Rest where
-  then_ n r = After { durationAfter: r, note: n }
-
-instance then_RestNote :: Then_ Rest Note where
-  then_ r n = Before { durationBefore: r, note: n }
-
-restBefore :: NoteWithRest -> Rest
-restBefore = case _ of
-  Before { durationBefore } -> durationBefore
-  BeforeAndAfter { durationBefore } -> durationBefore
-  _ -> Rest 0.0
-
-restAfter :: NoteWithRest -> Rest
-restAfter = case _ of
-  After { durationAfter } -> durationAfter
-  BeforeAndAfter { durationAfter } -> durationAfter
-  _ -> Rest 0.0
-
-toNote :: Lens' NoteWithRest Note
-toNote = lens
-  ( case _ of
-      Before { note: n } -> n
-      After { note: n } -> n
-      BeforeAndAfter { note: n } -> n
-      JustNote { note: n } -> n
-
-  )
-  ( case _ of
-      Before b -> \n -> Before $ b { note = n }
-      After a -> \n -> After $ a { note = n }
-      BeforeAndAfter ba -> \n -> BeforeAndAfter $ ba { note = n }
-      JustNote jn -> \n -> JustNote $ jn { note = n }
-  )
+rs :: Rest -> NoteOrRest
+rs = NoteOrRest <<< inj (Proxy :: _ "rest")
 
 newtype Sequenced note = Sequenced { startsAfter :: Rest, note :: note }
 
@@ -91,13 +58,22 @@ instance intableIndexInt :: IntableIndex Int where
 instance intableIndexMaybeInt :: IntableIndex (Maybe Int) where
   indexToInt = maybe 0 (add 1)
 
-note :: Volume -> Duration -> Pitch -> Note
-note v d p = Note { volume: v, duration: d, pitch: p }
+note_ :: Volume -> Duration -> Pitch -> Note
+note_ v d p = Note { volume: v, duration: d, pitch: p }
 
-noteFromDefaults :: (Note' -> Note') -> Note
-noteFromDefaults = Note <<< (#) { volume: mezzoForte, duration: crochet, pitch: middleC }
+noteFromDefaults_ :: (Note' -> Note') -> Note
+noteFromDefaults_ = Note <<< (#) { volume: mezzoForte, duration: crochet, pitch: middleC }
 
-noteFromPitch :: Pitch -> Note
+noteFromPitch_ :: Pitch -> Note
+noteFromPitch_ p = noteFromDefaults_ (_ { pitch = p })
+
+note :: Volume -> Duration -> Pitch -> NoteOrRest
+note v d p = nt $ Note { volume: v, duration: d, pitch: p }
+
+noteFromDefaults :: (Note' -> Note') -> NoteOrRest
+noteFromDefaults = nt <<< Note <<< (#) { volume: mezzoForte, duration: crochet, pitch: middleC }
+
+noteFromPitch :: Pitch -> NoteOrRest
 noteFromPitch p = noteFromDefaults (_ { pitch = p })
 
 sNote :: Rest -> Volume -> Duration -> Pitch -> Sequenced Note
@@ -121,23 +97,32 @@ accelerando = mapWithIndex (over startsAfter <<< mul <<< coerce <<< flip pow 0.6
 rallentando :: forall f i note. IntableIndex i => FunctorWithIndex i f => f (Sequenced note) -> f (Sequenced note)
 rallentando = mapWithIndex (over startsAfter <<< mul <<< coerce <<< flip pow 0.35 <<< add 1.0 <<< toNumber <<< indexToInt)
 
-class Seq a b | a -> b where
-  seq :: forall t. Traversable t => t a -> t b
+class Seq (t :: Type -> Type) a (u :: Type -> Type) b | t a -> u b where
+  seq :: t a -> u b
 
-instance seqFNoteWithRest :: Applicative f => Seq (f NoteWithRest) (f (Sequenced Note)) where
+instance seqFNoteOrRest :: (Traversable f, Applicative f) => Seq (NonEmpty Array) (f NoteOrRest) Array (f (Sequenced Note)) where
+  seq = compact <<< toArray <<< fromNonEmpty <<< map sequence <<< flip evalState (Rest 0.0)
+    <<< traverse
+      ( traverse \(NoteOrRest v) -> v # match
+          { note: \n -> do
+              s <- get
+              put $ Rest $ unwrap $ view duration n
+              pure $ Just $ Sequenced $ { startsAfter: s, note: n }
+          , rest: \n -> put n *> pure Nothing
+          }
+      )
+
+instance seqNoteOrRest :: Seq (NonEmpty Array) NoteOrRest Array (Sequenced Note) where
+  seq = map unwrap <<< seq <<< map Identity
+
+instance seqFNote :: (Traversable t, Applicative f) => Seq t (f Note) t (f (Sequenced Note)) where
   seq = flip evalState (pure (Rest 0.0))
     <<< traverse \n -> do
       s <- get
-      put $ map (\nwr -> restBefore nwr + restAfter nwr + (Rest $ unwrap $ view duration $ view toNote nwr)) n
-      pure $ (Sequenced <$> ({ startsAfter: _, note: _ } <$> s <*> (view toNote <$> n)))
+      put $ map (Rest <<< unwrap <<< view duration) n
+      pure $ (Sequenced <$> ({ startsAfter: _, note: _ } <$> s <*> n))
 
-instance seqFNote :: Applicative f => Seq (f Note) (f (Sequenced Note)) where
-  seq = seq <<< (map <<< map) (JustNote <<< { note: _ })
-
-instance seqNoteWithRest :: Seq NoteWithRest (Sequenced Note) where
-  seq = map unwrap <<< seq <<< map Identity
-
-instance seqNote :: Seq Note (Sequenced Note) where
+instance seqNote :: Traversable t => Seq t Note t (Sequenced Note) where
   seq = map unwrap <<< seq <<< map Identity
 
 repeatL :: NonEmpty List (Sequenced Note) -> Cofree Identity (Sequenced Note)
@@ -162,14 +147,13 @@ noteStreamToSequence
   :: forall f
    . Functor f
   => Rest
-  -> Cofree f NoteWithRest
+  -> Cofree f Note
   -> Cofree f (Sequenced Note)
 noteStreamToSequence x cf =
   let
-    nwr = extract cf
-    nt = view toNote nwr
+    nte = extract cf
   in
     deferCofree \_ ->
-      Sequenced { startsAfter: x + restBefore nwr, note: nt }
-        /\ (map (noteStreamToSequence (Rest (coerce $ view duration nt) + restAfter nwr)) (unwrapCofree cf))
+      Sequenced { startsAfter: x, note: nte }
+        /\ (map (noteStreamToSequence (Rest (coerce $ view duration nte))) (unwrapCofree cf))
 

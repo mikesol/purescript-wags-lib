@@ -37,6 +37,7 @@
   , "typelevel"
   , "unfoldable"
   , "unsafe-coerce"
+  , "variant"
   , "wags"
   , "web-dom"
   , "web-html"

@@ -3,9 +3,11 @@ module WAGS.Lib.Learn.Tempo where
 import Prelude
 
 import Data.Lens as Lens
+import Data.Newtype (unwrap)
 import Data.Newtype as NT
+import Data.Variant (match)
 import WAGS.Lib.Learn.Duration (Duration(..), Rest(..))
-import WAGS.Lib.Learn.Note (Note, NoteWithRest(..), duration)
+import WAGS.Lib.Learn.Note (Note, NoteOrRest, duration, nt, rs)
 
 class Tempo a where
   tempo :: Number -> a -> a
@@ -22,13 +24,12 @@ instance tempoRest :: Tempo Rest where
 instance tempoNote :: Tempo Note where
   tempo = Lens.over duration <<< tempo
 
-instance tempoNoteWithRest :: Tempo NoteWithRest where
-  tempo n = case _ of
-    Before { durationBefore: dB, note: nt } -> Before { durationBefore: tempo n dB, note: tempo n nt }
-    After { durationAfter: dA, note: nt } -> After { durationAfter: tempo n dA, note: tempo n nt }
-    BeforeAndAfter { durationBefore: dB, durationAfter: dA, note: nt } ->
-      BeforeAndAfter { durationBefore: tempo n dB, durationAfter: tempo n dA, note: tempo n nt }
-    JustNote { note: nt } -> JustNote { note: tempo n nt }
+instance tempoNoteWithRest :: Tempo NoteOrRest where
+  tempo val =
+    match
+      { note: nt <<< tempo val
+      , rest: rs <<< tempo val
+      } <<< unwrap
 
 instance tempoFNumber :: Functor f => Tempo (f Number) where
   tempo = map <<< mul
