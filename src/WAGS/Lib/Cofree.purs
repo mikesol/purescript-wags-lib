@@ -3,7 +3,7 @@ module WAGS.Lib.Cofree where
 import Prelude hiding (Ordering(..))
 
 import Control.Comonad (class Comonad, extract)
-import Control.Comonad.Cofree (Cofree, deferCofree, (:<))
+import Control.Comonad.Cofree (Cofree, deferCofree, hoistCofree, (:<))
 import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
 import Control.Monad.State (class MonadState, get, put, runState)
 import Data.Identity (Identity(..))
@@ -174,6 +174,9 @@ distributeCofreeM f = runState
   <<< sequence
   <<< map sequence
   <<< map (map (distributeInternal f))
+
+hoistHoistCofree :: forall f g a. Functor f => (f ~> g) -> f (Cofree f a) -> g (Cofree g a)
+hoistHoistCofree f = f <<< map (hoistCofree f)
 
 annihalateIdentity :: forall f a. Functor f => Cofree Identity (f a) -> f (Cofree f a)
 annihalateIdentity cf = map (\x -> deferCofree \_ -> x /\ annihalateIdentity (unwrap $ unwrapCofree cf)) (extract cf)
