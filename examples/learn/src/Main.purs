@@ -222,7 +222,7 @@ stories = Object.fromFoldable
                             , nj e5
                             , nmj b5
                             , nj a5
-                            , n d5 `then_` crochetRest
+                            , nmj d5
                             ]
                         )
           )
