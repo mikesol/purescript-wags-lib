@@ -46,7 +46,7 @@ import WAGS.Graph.AudioUnit as CTOR
 import WAGS.Graph.Parameter (AudioParameter_, AudioParameter, ff)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeBufferPoolWithAnchor)
-import WAGS.Lib.Cofree (identityToMoore)
+import WAGS.Lib.Cofree (annihalateIdentity)
 import WAGS.Lib.Learn.Duration (Duration(..), Gap(..))
 import WAGS.Lib.Learn.Note (Note(..), Sequenced(..), noteFromDefaults, noteStreamToSequence, seq)
 import WAGS.Lib.Learn.Pitch (Pitch(..))
@@ -244,7 +244,7 @@ makeCofreeFunctionOfTimeSequencedNote notes' = makeFullScene $ FullScene
   emitter = makeBufferPoolWithAnchor
     ( (map <<< map <<< map)
         (\{ offset, rest: note@(Note { duration: Duration d, volume: Volume v }) } -> { duration: const $ const $ const (Just d), offset, rest: \st -> let pw = makePiecewise (map (over _1 (add st)) (pwl d v)) in { note, pw } })
-        (makeScore { startsAt: 0.0, rest: (map <<< map) (\(Sequenced { startsAfter: Gap s, note }) -> { startsAfter: s, rest: note }) (identityToMoore (map (lcmap _.time) notes')) })
+        (makeScore { startsAt: 0.0, rest: (map <<< map) (\(Sequenced { startsAfter: Gap s, note }) -> { startsAfter: s, rest: note }) (annihalateIdentity (map (lcmap _.time) notes')) })
     )
 
 instance toSceneCofreeFunctionOfTimeSequencedNote :: ToScene (Cofree Identity (Number -> Sequenced Note)) Unit

@@ -175,8 +175,8 @@ distributeCofreeM f = runState
   <<< map sequence
   <<< map (map (distributeInternal f))
 
-identityToMoore :: forall a b. Cofree Identity (a -> b) -> a -> Cofree ((->) a) b
-identityToMoore cf a = extract cf a :< identityToMoore (unwrap $ unwrapCofree cf)
+annihalateIdentity :: forall f a. Functor f => Cofree Identity (f a) -> f (Cofree f a)
+annihalateIdentity cf = map (\x -> deferCofree \_ -> x /\ annihalateIdentity (unwrap $ unwrapCofree cf)) (extract cf)
 
 trivialMoore :: forall a. a -> Cofree ((->) a) a
 trivialMoore a = a :< trivialMoore
