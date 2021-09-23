@@ -150,7 +150,7 @@ let additions =
           , "simple-json"
           ]
         , repo = "https://github.com/mikesol/purescript-wags.git"
-        , version = "v0.4.8"
+        , version = "v0.4.9"
         }
       , free =
         { dependencies =
@@ -196,7 +196,7 @@ let additions =
           , "now"
           ]
         , repo = "https://github.com/mikesol/purescript-event.git"
-        , version = "v1.4.1"
+        , version = "v1.4.2"
         }
       , behaviors =
         { dependencies =
