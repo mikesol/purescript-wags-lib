@@ -199,7 +199,17 @@ asScore :: NonEmptyList (NonEmptyList TidalNote_) -> CfRest { sample :: Sample, 
 asScore l = go 0.0 0.0 flattened
   where
   ll = NEL.length l
-  flattened = join $ mapWithIndex (\i -> map (\(TidalNote { sample, duration, startsAt, cycleLength }) -> TidalNote { sample, duration, startsAt: startsAt + cycleLength * toNumber i, cycleLength: cycleLength * toNumber ll })) l
+  flattened = join $ mapWithIndex
+    ( \i -> map
+        ( \(TidalNote { sample, duration, startsAt, cycleLength }) -> TidalNote
+            { sample
+            , duration
+            , startsAt: startsAt + cycleLength * toNumber i
+            , cycleLength: cycleLength * toNumber ll
+            }
+        )
+    )
+    l
   go currentCount prevCycleEnded (NonEmptyList (TidalNote a :| b)) =
     let
       st = prevCycleEnded + a.startsAt
