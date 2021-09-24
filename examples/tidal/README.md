@@ -1,6 +1,6 @@
-# Simple
+# Tidal
 
-Middle C.
+Tidal cycles-esque.
 
 ## Howto
 

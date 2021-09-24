@@ -22,12 +22,12 @@ type Note = Note' Unit
 type CfScore' rest = Cofree ((->) { time :: Number, headroomInSeconds :: Number }) (Note' rest)
 type CfScore = CfScore' Unit
 
-type AnScore' rest = MakeScore (CfScore' rest)
-type AnScore = MakeScore (CfScore' Unit)
+type AScore' rest = MakeScore (CfScore' rest)
+type AScore = MakeScore (CfScore' Unit)
 
-type CfRest rest = (Cofree ((->) { time :: Number, headroomInSeconds :: Number }) { startsAfter :: Number, rest :: rest })
+type CfNoteStream rest = (Cofree ((->) { time :: Number, headroomInSeconds :: Number }) { startsAfter :: Number, rest :: rest })
 
-makeOffsets :: forall rest. { time :: Number, headroomInSeconds :: Number, playhead :: Number, rest :: MakeScore (CfRest rest) } -> { offsets :: Array { offset :: Number, rest :: rest }, playhead :: Number, rest :: MakeScore (CfRest rest) }
+makeOffsets :: forall rest. { time :: Number, headroomInSeconds :: Number, playhead :: Number, rest :: MakeScore (CfNoteStream rest) } -> { offsets :: Array { offset :: Number, rest :: rest }, playhead :: Number, rest :: MakeScore (CfNoteStream rest) }
 makeOffsets { time, headroomInSeconds, playhead, rest }
   | x <- rest { time, headroomInSeconds }
   , r <- extract x
@@ -36,8 +36,8 @@ makeOffsets { time, headroomInSeconds, playhead, rest }
       (makeOffsets { time, headroomInSeconds, playhead: playhead + r.startsAfter, rest: unwrapCofree x })
   | otherwise = { offsets: [], playhead, rest }
 
-makeScore :: forall rest. { startsAt :: Number, rest :: MakeScore (CfRest rest) } -> AnScore' rest
-makeScore { startsAt, rest: r } = go r startsAt
+makeScore :: forall rest. { startsAt :: Number, noteStream :: MakeScore (CfNoteStream rest) } -> AScore' rest
+makeScore { startsAt, noteStream } = go noteStream startsAt
 
   where
   go rest playhead { time, headroomInSeconds } =

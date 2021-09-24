@@ -21,7 +21,7 @@ import WAGS.Graph.Parameter (ff)
 import WAGS.Lib.Blip (makeBlip)
 import WAGS.Lib.Cofree (ana, combineComonadCofreeChooseB)
 import WAGS.Lib.Emitter (fEmitter, makeEmitter')
-import WAGS.Lib.Score (MakeScore, CfRest, makeScore)
+import WAGS.Lib.Score (MakeScore, CfNoteStream, makeScore)
 
 -- | rest is of the form startTime rest
 -- | duration is of the form startTime -> starting -> time -> Maybe duration
@@ -273,18 +273,18 @@ makeScoredBufferPool
   :: forall n rest
    . Pos n
   => { startsAt :: Number
-     , rest ::
+     , noteStream ::
          MakeScore
-           ( CfRest
+           ( CfNoteStream
                { rest :: Number -> rest
                , duration :: Number -> Boolean -> Number -> Maybe Number
                }
            )
      }
   -> AScoredBufferPool n rest
-makeScoredBufferPool { startsAt, rest: rest' } = makeBufferPoolWithAnchor $ (map <<< map <<< map)
+makeScoredBufferPool { startsAt, noteStream } = makeBufferPoolWithAnchor $ (map <<< map <<< map)
   (\{ offset, rest: { rest, duration } } -> { offset, rest, duration })
-  (makeScore { startsAt, rest: rest' })
+  (makeScore { startsAt, noteStream })
 
 makeHotBufferPoolWithRest
   :: forall n rest
