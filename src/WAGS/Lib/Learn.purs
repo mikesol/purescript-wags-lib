@@ -493,11 +493,13 @@ instance toSceneFullScene ::
   where
   toScene = makeFullScene
 
+data WagsState = WagsPlaying | WagsStopped | WagsLoading
+
 type State
   =
   { unsubscribe :: Effect Unit
   , audioCtx :: Maybe AudioContext
-  , playing :: Boolean
+  , wagsState :: WagsState
   }
 
 data Action
@@ -522,13 +524,14 @@ initialState :: forall input. input -> State
 initialState _ =
   { unsubscribe: pure unit
   , audioCtx: Nothing
-  , playing: false
+  , wagsState: WagsStopped
   }
 
 buttonCSS :: String -> String
 buttonCSS rgb = """align-items:flex-start;appearance:none;background-color:""" <> rgb <> """;background-image:none;border-bottom-color:rgb(229, 231, 235);border-bottom-left-radius:8px;border-bottom-right-radius:8px;border-bottom-style:solid;border-bottom-width:0px;border-image-outset:0;border-image-repeat:stretch;border-image-slice:100%;border-image-source:none;border-image-width:1;border-left-color:rgb(229, 231, 235);border-left-style:solid;border-left-width:0px;border-right-color:rgb(229, 231, 235);border-right-style:solid;border-right-width:0px;border-top-color:rgb(229, 231, 235);border-top-left-radius:8px;border-top-right-radius:8px;border-top-style:solid;border-top-width:0px;box-sizing:border-box;color:rgb(255, 255, 255);cursor:pointer;display:block;font-family:ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe:UI", Roboto, "Helvetica:Neue", Arial, "Noto:Sans", sans-serif, "Apple:Color:Emoji", "Segoe:UI:Emoji", "Segoe:UI:Symbol", "Noto:Color:Emoji";font-size:24px;font-stretch:100%;font-style:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-weight:400;height:56px;letter-spacing:normal;line-height:32px;margin-bottom:20px;margin-left:20px;margin-right:20px;margin-top:20px;padding-bottom:12px;padding-left:12px;padding-right:12px;padding-top:12px;tab-size:4;text-align:center;text-indent:0px;text-rendering:auto;text-shadow:none;text-size-adjust:100%;text-transform:none;width:172.5px;word-spacing:0px;writing-mode:horizontal-tb;-webkit-border-image:none;"""
 
 onCSS = buttonCSS "rgb(99, 102, 241)" :: String
+loadingCss = buttonCSS "rgb(154, 36, 23)" :: String
 offCSS = buttonCSS "rgb(236, 72, 153)" :: String
 
 containerCss = "display:-ms-flexbox;display:-webkit-flex;display:flex;-webkit-flex-direction:row;-ms-flex-direction:row;flex-direction:row;-webkit-flex-wrap:nowrap;-ms-flex-wrap:nowrap;flex-wrap:nowrap;-webkit-justify-content:center;-ms-flex-pack:center;justify-content:center;-webkit-align-content:stretch;-ms-flex-line-pack:stretch;align-content:stretch;-webkit-align-items:center;-ms-flex-align:center;align-items:center;" :: String
@@ -538,16 +541,20 @@ flex2Css = "-webkit-order: 0;-ms-flex-order: 0;order: 0;-webkit-flex: 0 1 auto;-
 flex3Css = "-webkit-order: 0;-ms-flex-order: 0;order: 0;-webkit-flex: 1 1 auto;-ms-flex: 1 1 auto;flex: 1 1 auto;-webkit-align-self: auto;-ms-flex-item-align: auto;align-self: auto;" :: String
 
 render :: forall m. State -> H.ComponentHTML Action () m
-render { playing } =
-  if playing then
+render { wagsState } =
+  case wagsState of
+     
+  WagsPlaying ->
     HH.button
       [ HE.onClick \_ -> StopAudio, HP.style offCSS ]
       [ HH.text "Stop audio" ]
 
-  else
+  WagsStopped ->
+  
     HH.button
       [ HE.onClick \_ -> StartAudio, HP.style onCSS ]
       [ HH.text "Start audio" ]
+  WagsLoading -> HH.div [ HP.style loadingCss ] [ HH.text  "Loading..." ]
 
 handleAction
   :: forall res analysers output m
@@ -558,14 +565,15 @@ handleAction
   -> H.HalogenM State Action () output m Unit
 handleAction aff = case _ of
   StartAudio -> do
+    H.modify_ _ { wagsState = WagsLoading }
     { audioCtx, event } <- H.liftAff aff
     unsubscribe <- H.liftEffect $ subscribe event (\(_ :: Run res analysers) -> pure unit)
-    H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx, playing = true }
+    H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx, wagsState = WagsPlaying }
   StopAudio -> do
     { unsubscribe, audioCtx } <- H.get
     H.liftEffect unsubscribe
     for_ audioCtx (H.liftEffect <<< close)
-    H.modify_ _ { unsubscribe = pure unit, audioCtx = Nothing, playing = false }
+    H.modify_ _ { unsubscribe = pure unit, audioCtx = Nothing, wagsState = WagsStopped }
 
 ---
 type ParentSlots = (audio :: forall q. H.Slot q Void Unit)
