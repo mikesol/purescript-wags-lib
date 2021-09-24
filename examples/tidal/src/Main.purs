@@ -144,11 +144,17 @@ cycleToSequence :: Cycle -> NonEmptyList (NonEmptyList TidalNote)
 cycleToSequence = go { currentSubdivision: 1.0, currentOffset: 0.0 }
   where
   go state (Branching nel) = join $ map (go state) nel
-  go state (Simultaneous nel) = map (sortBy (compare `on` (unwrap >>> _.startsAt))) $ flatMap $ map (go state) nel
+  go state (Simultaneous nel) = map (sortBy (compare `on` (unwrap >>> _.startsAt)))
+    $ flatMap
+    $ map (go state) nel
   go state (Sequential nel) = seq state nel
   go state (Internal nel) = seq state nel
   go state (SingleSample sample) =
-    pure $ pure $ TidalNote { duration: state.currentSubdivision, startsAt: state.currentOffset, sample }
+    pure $ pure $ TidalNote
+      { duration: state.currentSubdivision
+      , startsAt: state.currentOffset
+      , sample
+      }
   seq state nel =
     let
       currentSubdivision = state.currentSubdivision / (toNumber (NEL.length nel))
