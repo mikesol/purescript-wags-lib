@@ -9,6 +9,7 @@ in      conf
               , "behaviors"
               , "effect"
               , "event"
+              , "strings"
               , "string-parsers"
               ]
         }

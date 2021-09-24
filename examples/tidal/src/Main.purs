@@ -6,7 +6,8 @@ import Control.Alt ((<|>))
 import Control.Comonad (extract)
 import Control.Comonad.Cofree ((:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
-import Data.Either (hush)
+import Data.Array as A
+import Data.Either (Either(..), hush)
 import Data.Filterable (compact, filter, filterMap)
 import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
@@ -22,13 +23,16 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.NonEmpty ((:|))
 import Data.Show.Generic (genericShow)
+import Data.String.CodeUnits (fromCharArray)
+import Data.Traversable (traverse)
 import Data.Tuple (fst, snd, uncurry)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D16)
 import Effect (Effect)
 import Text.Parsing.StringParser (Parser, fail, runParser, try)
+import Text.Parsing.StringParser.CodePoints (satisfy)
 import Text.Parsing.StringParser.CodeUnits (skipSpaces, string, char)
-import Text.Parsing.StringParser.Combinators (between, many, sepBy1)
+import Text.Parsing.StringParser.Combinators (between, many, sepBy)
 import Type.Proxy (Proxy(..))
 import WAGS.Create.Optionals (speaker, gain, playBuf)
 import WAGS.Graph.AudioUnit (OnOff(..))
@@ -139,16 +143,17 @@ branchingcyclePInternal = Branching <$>
 
 simultaneouscyclePInternal :: Unit -> Parser Cycle
 simultaneouscyclePInternal _ = Simultaneous <$> do
-  skipSpaces
-  cy <- reducedP
-  _ <- comma
-  nel <- sepBy1 reducedP comma
-  skipSpaces
-  pure (pure cy <> nel)
+  sep <- sepBy ((fromCharArray <<< A.fromFoldable) <$> many (satisfy (not <<< eq ','))) (string ",")
+  case sep of
+    Nil -> fail "Lacks comma"
+    (_ : Nil) -> fail "Lacks comma"
+    (a : b : c) -> case traverse (runParser reducedP) (NonEmptyList (a :| b : c)) of
+      Left e -> fail $ show e
+      Right r -> pure r
   where
-  comma = skipSpaces *> char ',' *> skipSpaces
   reducedP = try branchingcyclePInternal
     <|> try sequentialcyclePInternal
+    <|> try internalcyclePInternal
     <|> try singleSampleP
     <|> fail "Could not parse cycle"
 
@@ -205,13 +210,12 @@ cycleToSequence (CycleLength cycleLength) = go { currentSubdivision: cycleLength
     $ map (go state) nel
   go state (Sequential nel) = seq state nel
   go state (Internal nel) = seq state nel
-  go state (SingleSample sample) =
-    pure $ pure $ TidalNote
-      { duration: state.currentSubdivision
-      , startsAt: state.currentOffset
-      , sample
-      , cycleLength
-      }
+  go state (SingleSample sample) = pure $ pure $ TidalNote
+    { duration: state.currentSubdivision
+    , startsAt: state.currentOffset
+    , sample
+    , cycleLength
+    }
   seq state nel =
     let
       currentSubdivision = state.currentSubdivision / (toNumber (NEL.length nel))
@@ -219,6 +223,7 @@ cycleToSequence (CycleLength cycleLength) = go { currentSubdivision: cycleLength
       flatMap $ mapWithIndex
         ( go
             <<< { currentSubdivision, currentOffset: _ }
+            <<< add state.currentOffset
             <<< mul currentSubdivision
             <<< toNumber
         )
@@ -252,35 +257,21 @@ asScore l = go 0.0 0.0 flattened
     let
       st = prevCycleEnded + a.startsAt
     in
-      { startsAfter: st - currentCount, rest: { sample: a.sample, duration: a.duration } } :<
+      { startsAfter: st - currentCount, rest: { sampleF: sampleToBuffers a.sample, duration: a.duration } } :<
         \_ -> uncurry (go st) case b of
           Nil -> (prevCycleEnded + a.cycleLength) /\ flattened
           (c : d) -> prevCycleEnded /\ NonEmptyList (c :| d)
-
-{-
-usingc
-  :: forall trigger world scene graph control
-   . Create scene () graph
-  => GraphIsRenderable graph
-  => Change scene graph
-  => ( AudioContext /\ Aff (Event {} /\ Behavior {})
-       -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
-     )
-  -> control
-  -> (SceneI { | trigger } { | world } EmptyAnalysers -> control -> { scene :: { | scene }, control :: control })
-  -> FullSceneBuilder trigger world Unit
-usingc triggerWorld control piece = FullSceneBuilder { triggerWorld, piece: loopUsingScene piece control }-}
 
 type NBuf
   = D16
 
 type RBuf
-  = { sample :: Sample, duration :: Number }
+  = { sampleF :: Instruments BrowserAudioBuffer -> BrowserAudioBuffer, duration :: Number }
 
 type Acc
   = { buffers :: AScoredBufferPool NBuf RBuf }
 
-acc :: CfNoteStream { sample :: Sample, duration :: Number } -> Acc
+acc :: CfNoteStream RBuf -> Acc
 acc cf =
   { buffers: makeScoredBufferPool
       { startsAt: 0.0
@@ -306,18 +297,19 @@ type Instruments a
   = { | Instruments' a }
 
 sampleToBuffers :: Sample -> Instruments BrowserAudioBuffer -> BrowserAudioBuffer
-sampleToBuffers Kick0 b = b.kick0
-sampleToBuffers Kick1 b = b.kick1
-sampleToBuffers SideStick0 b = b.sideStick0
-sampleToBuffers Snare0 b = b.snare0
-sampleToBuffers Clap0 b = b.clap0
-sampleToBuffers SnareRoll0 b = b.snareRoll0
-sampleToBuffers ClosedHH0 b = b.closedHH0
-sampleToBuffers Shaker0 b = b.shaker0
-sampleToBuffers OpenHH0 b = b.openHH0
-sampleToBuffers Tamb0 b = b.tamb0
-sampleToBuffers Crash0 b = b.crash0
-sampleToBuffers Ride0 b = b.ride0
+sampleToBuffers = case _ of
+  Kick0 -> _.kick0
+  Kick1 -> _.kick1
+  SideStick0 -> _.sideStick0
+  Snare0 -> _.snare0
+  Clap0 -> _.clap0
+  SnareRoll0 -> _.snareRoll0
+  ClosedHH0 -> _.closedHH0
+  Shaker0 -> _.shaker0
+  OpenHH0 -> _.openHH0
+  Tamb0 -> _.tamb0
+  Crash0 -> _.crash0
+  Ride0 -> _.ride0
 
 tidal :: Number -> String -> Effect Unit
 tidal dur =
@@ -345,10 +337,10 @@ tidal dur =
           in
             { control: { buffers: unwrapCofree actualized }
             , scene: speaker
-                ( gain (if time < 5.0 then time / 5.0 else 1.0)
+                ( gain 1.0
                     -- todo: use ffi to speed up
                     ( fromTemplate (Proxy :: _ "instruments") (extract actualized) \_ -> case _ of
-                        Just (Buffy { starting, startTime, rest: { sample, duration } }) ->
+                        Just (Buffy { starting, startTime, rest: { sampleF, duration } }) ->
                           gain (ff globalFF $ pure $ if time > startTime + duration then calcSlope (startTime + duration) 1.0 (startTime + duration + 0.5) 0.0 time else 1.0)
                             ( playBuf
                                 { onOff:
@@ -359,7 +351,7 @@ tidal dur =
                                         else
                                           pure On
                                 }
-                                (sampleToBuffers sample buffers)
+                                (sampleF buffers)
                             )
                         Nothing -> gain 0.0 (playBuf { onOff: Off } buffers.kick1)
                     )
@@ -378,4 +370,7 @@ tidal dur =
     <<< runParser cycleP
 
 main :: Effect Unit
-main = tidal 1.0 "[hh:0 <snare:0 kick:0>] clap:0"
+main = tidal 1.0 "[hh:0 <kick:0 snare:0>] clap:0"
+--main = tidal 2.0 "[hh hh hh] [clap roll clap <roll shaker>]"
+--main = tidal 1.0 "kick kick clap ~"
+--main = tidal 1.5 "clap [hh <ohh hh>] [roll <hh clap tamb>] , kick:0 kick:1"

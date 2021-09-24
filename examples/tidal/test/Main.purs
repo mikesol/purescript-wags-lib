@@ -35,7 +35,49 @@ main = do
           it "Works on branching cycles" do
             runParser cycleP
               "[hh:0 <snare:0 kick:0>] hh:0" `shouldEqual` Right (Sequential (NonEmptyList (Internal (NonEmptyList ((SingleSample $ Just ClosedHH0) :| (Branching (NonEmptyList ((SingleSample $ Just Snare0) :| (SingleSample $ Just Kick0) : Nil))) : Nil)) :| (SingleSample $ Just ClosedHH0) : Nil)))
+          it "Works on dual groups" do
+            runParser cycleP
+              "[hh hh] [clap <roll shaker>]" `shouldEqual` Right
+              ( Sequential
+                  ( NonEmptyList
+                      ( Internal
+                          ( NonEmptyList
+                              ( (SingleSample $ Just ClosedHH0)
+                                  :| (SingleSample $ Just ClosedHH0) : Nil
+                              )
+                          ) :|
+                          Internal
+                            ( NonEmptyList
+                                ( (SingleSample $ Just Clap0)
+                                    :| (Branching (NonEmptyList ((SingleSample $ Just SnareRoll0) :| (SingleSample $ Just Shaker0) : Nil))) : Nil
+                                )
+                            ) : Nil
+
+                      )
+                  )
+              )
           it "Works on simultaneous cycles" do
+            runParser cycleP
+              "clap clap  , kick:0 kick:1" `shouldEqual` Right
+              ( Simultaneous
+                  ( NonEmptyList
+                      ( Sequential
+                          ( NonEmptyList
+                              ( (SingleSample $ Just Clap0)
+                                  :| (SingleSample $ Just Clap0) : Nil
+                              )
+                          ) :|
+                          Sequential
+                            ( NonEmptyList
+                                ( (SingleSample $ Just Kick0)
+                                    :| (SingleSample $ Just Kick1) : Nil
+                                )
+                            ) : Nil
+
+                      )
+                  )
+              )
+          it "Works on simultaneous cycles 2" do
             runParser cycleP
               "[hh:0 <snare:0 kick:0>] , hh:0" `shouldEqual` Right (Simultaneous (NonEmptyList (Internal (NonEmptyList ((SingleSample $ Just ClosedHH0) :| (Branching (NonEmptyList ((SingleSample $ Just Snare0) :| (SingleSample $ Just Kick0) : Nil))) : Nil)) :| (SingleSample $ Just ClosedHH0) : Nil)))
           it "Works on branching cycles with internal cycle" do
@@ -50,6 +92,8 @@ main = do
             run "[hh:0 snare:0] hh:0" `shouldEqual` Right (pure (NonEmptyList (TidalNote { duration: 0.25, startsAt: 0.0, cycleLength: 1.0, sample: Just ClosedHH0 } :| TidalNote { duration: 0.25, startsAt: 0.25, cycleLength: 1.0, sample: Just Snare0 } : TidalNote { duration: 0.5, startsAt: 0.5, cycleLength: 1.0, sample: Just ClosedHH0 } : Nil)))
           it "Works on branching cycles" do
             run "[hh:0 <snare:0 kick:0>] hh:0" `shouldEqual` Right (NonEmptyList ((NonEmptyList (TidalNote { duration: 0.25, startsAt: 0.0, cycleLength: 1.0, sample: Just ClosedHH0 } :| TidalNote { duration: 0.25, startsAt: 0.25, cycleLength: 1.0, sample: Just Snare0 } : TidalNote { duration: 0.5, startsAt: 0.5, cycleLength: 1.0, sample: Just ClosedHH0 } : Nil)) :| (NonEmptyList (TidalNote { duration: 0.25, startsAt: 0.0, cycleLength: 1.0, sample: Just ClosedHH0 } :| TidalNote { duration: 0.25, startsAt: 0.25, cycleLength: 1.0, sample: Just Kick0 } : TidalNote { duration: 0.5, startsAt: 0.5, cycleLength: 1.0, sample: Just ClosedHH0 } : Nil)) : Nil))
+          it "Works on dual groups" do
+            run "[hh hh] [clap <roll shaker>]" `shouldEqual` Right (NonEmptyList ((NonEmptyList (TidalNote { duration: 0.25, startsAt: 0.0, cycleLength: 1.0, sample: Just ClosedHH0 } :| TidalNote { duration: 0.25, startsAt: 0.25, cycleLength: 1.0, sample: Just ClosedHH0 } : TidalNote { duration: 0.25, startsAt: 0.5, cycleLength: 1.0, sample: Just Clap0 } : TidalNote { duration: 0.25, startsAt: 0.75, cycleLength: 1.0, sample: Just SnareRoll0 } : Nil)) :| (NonEmptyList (TidalNote { duration: 0.25, startsAt: 0.0, cycleLength: 1.0, sample: Just ClosedHH0 } :| TidalNote { duration: 0.25, startsAt: 0.25, cycleLength: 1.0, sample: Just ClosedHH0 } : TidalNote { duration: 0.25, startsAt: 0.5, cycleLength: 1.0, sample: Just Clap0 } : TidalNote { duration: 0.25, startsAt: 0.75, cycleLength: 1.0, sample: Just Shaker0 } : Nil)) : Nil))
           it "Works on simultaneous cycles" do
             run "[hh:0 <snare:0 ~>] , snare:0" `shouldEqual` Right (NonEmptyList ((NonEmptyList (TidalNote { duration: 0.5, startsAt: 0.0, cycleLength: 1.0, sample: Just ClosedHH0 } :| TidalNote { duration: 1.0, startsAt: 0.0, cycleLength: 1.0, sample: Just Snare0 } : TidalNote { duration: 0.5, startsAt: 0.5, cycleLength: 1.0, sample: Just Snare0 } : Nil)) :| (NonEmptyList (TidalNote { duration: 0.5, startsAt: 0.0, cycleLength: 1.0, sample: Just ClosedHH0 } :| TidalNote { duration: 1.0, startsAt: 0.0, cycleLength: 1.0, sample: Just Snare0 } : TidalNote { duration: 0.5, startsAt: 0.5, cycleLength: 1.0, sample: Nothing } : Nil)) : Nil))
         describe "Test cycle to sequence without rests" do
