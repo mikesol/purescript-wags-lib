@@ -3,10 +3,16 @@ module Main where
 import Prelude hiding (between)
 
 import Control.Alt ((<|>))
+import Data.Function (on)
+import Data.FunctorWithIndex (mapWithIndex)
 import Data.Generic.Rep (class Generic)
+import Data.Int (toNumber)
 import Data.List (List(..), (:))
 import Data.List as L
+import Data.List.NonEmpty (sortBy)
+import Data.List.NonEmpty as NEL
 import Data.List.Types (NonEmptyList(..))
+import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.NonEmpty ((:|))
 import Data.Show.Generic (genericShow)
 import Data.Tuple (fst, snd)
@@ -17,6 +23,15 @@ import Text.Parsing.StringParser.CodeUnits (skipSpaces, string, char)
 import Text.Parsing.StringParser.Combinators (between, many, sepBy1)
 import WAGS.Lib.Learn (play)
 import WAGS.Lib.Learn.Pitch (middleC)
+
+newtype TidalNote = TidalNote { sample :: Sample, startsAt :: Number, duration :: Number }
+
+derive instance nwetypeTidalNote :: Newtype TidalNote _
+derive instance genericTidalNote :: Generic TidalNote _
+derive instance eqTidalNote :: Eq TidalNote
+derive instance ordTidalNote :: Ord TidalNote
+instance showTidalNote :: Show TidalNote where
+  show x = genericShow x
 
 data Sample = HiHat0 | Kick0 | Rest | Snare0
 
@@ -48,26 +63,26 @@ sampleP = go $ L.fromFoldable notes
   go (a : b) = (try (string (fst a)) $> snd a) <|> go b
   go Nil = fail "Could not find a note"
 
-internalCycleP :: Parser Cycle
-internalCycleP = Internal <$>
+internalcyclePInternal :: Parser Cycle
+internalcyclePInternal = Internal <$>
   between (skipSpaces *> char '[' *> skipSpaces) (skipSpaces *> char ']' *> skipSpaces) do
     pure unit -- breaks recursion
-    cyc <- cycleP unit
+    cyc <- cyclePInternal unit
     case cyc of
       Sequential l -> pure l
       x -> pure (pure x)
 
-branchingCycleP :: Parser Cycle
-branchingCycleP = Branching <$>
+branchingcyclePInternal :: Parser Cycle
+branchingcyclePInternal = Branching <$>
   between (skipSpaces *> char '<' *> skipSpaces) (skipSpaces *> char '>' *> skipSpaces) do
     pure unit -- breaks recursion
-    cyc <- cycleP unit
+    cyc <- cyclePInternal unit
     case cyc of
       Sequential l -> pure l
       x -> pure (pure x)
 
-simultaneousCycleP :: Unit -> Parser Cycle
-simultaneousCycleP _ = Simultaneous <$> do
+simultaneouscyclePInternal :: Unit -> Parser Cycle
+simultaneouscyclePInternal _ = Simultaneous <$> do
   skipSpaces
   cy <- reducedP
   _ <- comma
@@ -76,8 +91,8 @@ simultaneousCycleP _ = Simultaneous <$> do
   pure (pure cy <> nel)
   where
   comma = skipSpaces *> char ',' *> skipSpaces
-  reducedP = try branchingCycleP
-    <|> try sequentialCycleP
+  reducedP = try branchingcyclePInternal
+    <|> try sequentialcyclePInternal
     <|> try singleSampleP
     <|> fail "Could not parse cycle"
 
@@ -86,12 +101,12 @@ joinSequential Nil = Nil
 joinSequential (Sequential (NonEmptyList (a :| b)) : c) = (a : joinSequential b) <> joinSequential c
 joinSequential (a : b) = a : joinSequential b
 
-sequentialCycleP :: Parser Cycle
-sequentialCycleP = Sequential <$> do
+sequentialcyclePInternal :: Parser Cycle
+sequentialcyclePInternal = Sequential <$> do
   skipSpaces
-  leadsWith <- try internalCycleP <|> singleSampleP
+  leadsWith <- try internalcyclePInternal <|> singleSampleP
   skipSpaces
-  rest <- joinSequential <$> many (cycleP unit)
+  rest <- joinSequential <$> many (cyclePInternal unit)
   pure (NonEmptyList (leadsWith :| rest))
 
 singleSampleP :: Parser Cycle
@@ -101,12 +116,50 @@ singleSampleP = SingleSample <$> do
   skipSpaces
   pure sample
 
-cycleP :: Unit -> Parser Cycle
-cycleP _ = try branchingCycleP
-  <|> try (simultaneousCycleP unit)
-  <|> try sequentialCycleP
+cyclePInternal :: Unit -> Parser Cycle
+cyclePInternal _ = try branchingcyclePInternal
+  <|> try (simultaneouscyclePInternal unit)
+  <|> try sequentialcyclePInternal
   <|> try singleSampleP
   <|> fail "Could not parse cycle"
+
+cycleP :: Parser Cycle
+cycleP = go <$> cyclePInternal unit
+  where
+  go (Branching (NonEmptyList (a :| Nil))) = go a
+  go (Simultaneous (NonEmptyList (a :| Nil))) = go a
+  go (Sequential (NonEmptyList (a :| Nil))) = go a
+  go (Internal (NonEmptyList (a :| Nil))) = go a
+  go (Branching nel) = Branching (map go nel)
+  go (Simultaneous nel) = Simultaneous (map go nel)
+  go (Sequential nel) = Sequential (map go nel)
+  go (Internal nel) = Internal (map go nel)
+  go (SingleSample sample) = SingleSample sample
+
+flatMap :: NonEmptyList (NonEmptyList (NonEmptyList TidalNote)) -> NonEmptyList (NonEmptyList TidalNote)
+flatMap (NonEmptyList (a :| Nil)) = a
+flatMap (NonEmptyList (a :| b : c)) = join $ a # map \a' -> flatMap (wrap (b :| c)) # map \b' -> a' <> b'
+
+cycleToSequence :: Cycle -> NonEmptyList (NonEmptyList TidalNote)
+cycleToSequence = go { currentSubdivision: 1.0, currentOffset: 0.0 }
+  where
+  go state (Branching nel) = join $ map (go state) nel
+  go state (Simultaneous nel) = map (sortBy (compare `on` (unwrap >>> _.startsAt))) $ flatMap $ map (go state) nel
+  go state (Sequential nel) = seq state nel
+  go state (Internal nel) = seq state nel
+  go state (SingleSample sample) =
+    pure $ pure $ TidalNote { duration: state.currentSubdivision, startsAt: state.currentOffset, sample }
+  seq state nel =
+    let
+      currentSubdivision = state.currentSubdivision / (toNumber (NEL.length nel))
+    in
+      flatMap $ mapWithIndex
+        ( go
+            <<< { currentSubdivision, currentOffset: _ }
+            <<< mul currentSubdivision
+            <<< toNumber
+        )
+        nel
 
 main :: Effect Unit
 main = play middleC

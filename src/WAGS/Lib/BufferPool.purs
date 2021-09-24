@@ -273,7 +273,7 @@ makeScoredBufferPool
   :: forall n rest
    . Pos n
   => { startsAt :: Number
-     , rest ::
+     , cf ::
          MakeScore
            ( CfRest
                { rest :: Number -> rest
@@ -282,9 +282,9 @@ makeScoredBufferPool
            )
      }
   -> AScoredBufferPool n rest
-makeScoredBufferPool { startsAt, rest: rest' } = makeBufferPoolWithAnchor $ (map <<< map <<< map)
+makeScoredBufferPool { startsAt, cf } = makeBufferPoolWithAnchor $ (map <<< map <<< map)
   (\{ offset, rest: { rest, duration } } -> { offset, rest, duration })
-  (makeScore { startsAt, rest: rest' })
+  (makeScore { startsAt, cf })
 
 makeHotBufferPoolWithRest
   :: forall n rest
