@@ -12,6 +12,7 @@ import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Generic.Rep (class Generic)
 import Data.Int (toNumber)
+import Data.Lens (_2, over, traversed)
 import Data.List (List(..), (:))
 import Data.List as L
 import Data.List.NonEmpty (sortBy)
@@ -34,11 +35,11 @@ import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (ff)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeScoredBufferPool)
 import WAGS.Lib.Learn (buffers, play, usingc)
-import WAGS.Lib.Learn.Pitch (middleC)
 import WAGS.Lib.Score (CfNoteStream)
 import WAGS.Math (calcSlope)
 import WAGS.Run (SceneI(..))
 import WAGS.Template (fromTemplate)
+import WAGS.WebAPI (BrowserAudioBuffer)
 
 newtype CycleLength = CycleLength Number
 
@@ -63,7 +64,7 @@ derive instance ordTidalNote :: Ord sample => Ord (TidalNote' sample)
 instance showTidalNote :: Show sample => Show (TidalNote' sample) where
   show x = genericShow x
 
-data Sample = HiHat0 | Kick0 | Snare0
+data Sample = Kick0 | Kick1 | SideStick0 | Snare0 | Clap0 | SnareRoll0 | ClosedHH0 | Shaker0 | OpenHH0 | Tamb0 | Crash0 | Ride0
 
 derive instance genericSample :: Generic Sample _
 derive instance eqSample :: Eq Sample
@@ -85,7 +86,32 @@ instance showCycle :: Show Cycle where
   show x = genericShow x
 
 notes :: Array (String /\ Maybe Sample)
-notes = [ "hh:0" /\ Just HiHat0, "kick:0" /\ Just Kick0, "snare:0" /\ Just Snare0, "~" /\ Nothing ]
+notes =
+  over (traversed <<< _2) Just
+    [ "kick:0" /\ Kick0
+    , "kick:1" /\ Kick1
+    , "kick" /\ Kick0
+    , "ss:0" /\ SideStick0
+    , "ss" /\ SideStick0
+    , "snare:0" /\ Snare0
+    , "snare" /\ Snare0
+    , "clap:0" /\ Clap0
+    , "clap" /\ Clap0
+    , "roll:0" /\ SnareRoll0
+    , "roll" /\ SnareRoll0
+    , "hh:0" /\ ClosedHH0
+    , "hh" /\ ClosedHH0
+    , "shaker:0" /\ Shaker0
+    , "shaker" /\ Shaker0
+    , "ohh:0" /\ OpenHH0
+    , "ohh" /\ OpenHH0
+    , "tamb:0" /\ Tamb0
+    , "tamb" /\ Tamb0
+    , "crash:0" /\ Crash0
+    , "crash" /\ Crash0
+    , "ride:0" /\ Ride0
+    , "ride" /\ Ride0
+    ] <> [ "~" /\ Nothing ]
 
 sampleP :: Parser (Maybe Sample)
 sampleP = go $ L.fromFoldable notes
@@ -270,23 +296,46 @@ acc cf =
 
 globalFF = 0.03 :: Number
 
+type Instruments'' (a :: Type) (r :: Row Type)
+  = (kick0 :: a, sideStick0 :: a, snare0 :: a, clap0 :: a, snareRoll0 :: a, kick1 :: a, closedHH0 :: a, shaker0 :: a, openHH0 :: a, tamb0 :: a, crash0 :: a, ride0 :: a | r)
+
+type Instruments' (a :: Type)
+  = Instruments'' a ()
+
+type Instruments a
+  = { | Instruments' a }
+
+sampleToBuffers :: Sample -> Instruments BrowserAudioBuffer -> BrowserAudioBuffer
+sampleToBuffers Kick0 b = b.kick0
+sampleToBuffers Kick1 b = b.kick1
+sampleToBuffers SideStick0 b = b.sideStick0
+sampleToBuffers Snare0 b = b.snare0
+sampleToBuffers Clap0 b = b.clap0
+sampleToBuffers SnareRoll0 b = b.snareRoll0
+sampleToBuffers ClosedHH0 b = b.closedHH0
+sampleToBuffers Shaker0 b = b.shaker0
+sampleToBuffers OpenHH0 b = b.openHH0
+sampleToBuffers Tamb0 b = b.tamb0
+sampleToBuffers Crash0 b = b.crash0
+sampleToBuffers Ride0 b = b.ride0
+
 tidal :: Number -> String -> Effect Unit
 tidal dur =
-  maybe (play middleC)
+  maybe (play "https://freesound.org/data/previews/350/350439_4557960-hq.mp3")
     ( \i -> play $ usingc
         ( buffers
-            { kick1: "https://freesound.org/data/previews/171/171104_2394245-hq.mp3"
-            , sideStick: "https://freesound.org/data/previews/209/209890_3797507-hq.mp3"
-            , snare: "https://freesound.org/data/previews/495/495777_10741529-hq.mp3"
-            , clap: "https://freesound.org/data/previews/183/183102_2394245-hq.mp3"
-            , snareRoll: "https://freesound.org/data/previews/50/50710_179538-hq.mp3"
-            , kick2: "https://freesound.org/data/previews/148/148634_2614600-hq.mp3"
-            , closedHH: "https://freesound.org/data/previews/269/269720_4965320-hq.mp3"
-            , shaker: "https://freesound.org/data/previews/432/432205_8738244-hq.mp3"
-            , openHH: "https://freesound.org/data/previews/416/416249_8218607-hq.mp3"
-            , tamb: "https://freesound.org/data/previews/207/207925_19852-hq.mp3"
-            , crash: "https://freesound.org/data/previews/528/528490_3797507-hq.mp3"
-            , ride: "https://freesound.org/data/previews/270/270138_1125482-hq.mp3"
+            { kick0: "https://freesound.org/data/previews/171/171104_2394245-hq.mp3"
+            , sideStick0: "https://freesound.org/data/previews/209/209890_3797507-hq.mp3"
+            , snare0: "https://freesound.org/data/previews/495/495777_10741529-hq.mp3"
+            , clap0: "https://freesound.org/data/previews/183/183102_2394245-hq.mp3"
+            , snareRoll0: "https://freesound.org/data/previews/50/50710_179538-hq.mp3"
+            , kick1: "https://freesound.org/data/previews/148/148634_2614600-hq.mp3"
+            , closedHH0: "https://freesound.org/data/previews/269/269720_4965320-hq.mp3"
+            , shaker0: "https://freesound.org/data/previews/432/432205_8738244-hq.mp3"
+            , openHH0: "https://freesound.org/data/previews/416/416249_8218607-hq.mp3"
+            , tamb0: "https://freesound.org/data/previews/207/207925_19852-hq.mp3"
+            , crash0: "https://freesound.org/data/previews/528/528490_3797507-hq.mp3"
+            , ride0: "https://freesound.org/data/previews/270/270138_1125482-hq.mp3"
             }
         )
         (acc i)
@@ -310,7 +359,7 @@ tidal dur =
                                         else
                                           pure On
                                 }
-                                buffers.kick1
+                                (sampleToBuffers sample buffers)
                             )
                         Nothing -> gain 0.0 (playBuf { onOff: Off } buffers.kick1)
                     )
@@ -329,4 +378,4 @@ tidal dur =
     <<< runParser cycleP
 
 main :: Effect Unit
-main = play middleC
+main = tidal 1.0 "[hh:0 <snare:0 kick:0>] clap:0"
