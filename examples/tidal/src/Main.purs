@@ -3,6 +3,7 @@ module Main where
 import Prelude hiding (between)
 
 import Control.Alt ((<|>))
+import Control.Comonad.Cofree ((:<))
 import Data.Filterable (filter, filterMap)
 import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
@@ -17,7 +18,7 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.NonEmpty ((:|))
 import Data.Show.Generic (genericShow)
-import Data.Tuple (fst, snd)
+import Data.Tuple (fst, snd, uncurry)
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect (Effect)
 import Text.Parsing.StringParser (Parser, fail, try)
@@ -25,8 +26,21 @@ import Text.Parsing.StringParser.CodeUnits (skipSpaces, string, char)
 import Text.Parsing.StringParser.Combinators (between, many, sepBy1)
 import WAGS.Lib.Learn (play)
 import WAGS.Lib.Learn.Pitch (middleC)
+import WAGS.Lib.Score (CfRest)
 
-newtype TidalNote' sample = TidalNote { sample :: sample, startsAt :: Number, duration :: Number }
+newtype CycleLength = CycleLength Number
+
+derive instance newtypeCycleLength :: Newtype CycleLength _
+derive instance eqCycleLength :: Eq CycleLength
+derive instance ordCycleLength :: Ord CycleLength
+
+newtype TidalNote' sample = TidalNote
+  { sample :: sample
+  , startsAt :: Number
+  , duration :: Number
+  , cycleLength :: Number
+  }
+
 type TidalNote = TidalNote' (Maybe Sample)
 type TidalNote_ = TidalNote' Sample
 
@@ -144,8 +158,8 @@ flatMap :: NonEmptyList (NonEmptyList (NonEmptyList TidalNote)) -> NonEmptyList 
 flatMap (NonEmptyList (a :| Nil)) = a
 flatMap (NonEmptyList (a :| b : c)) = join $ a # map \a' -> flatMap (wrap (b :| c)) # map \b' -> a' <> b'
 
-cycleToSequence :: Cycle -> NonEmptyList (NonEmptyList TidalNote)
-cycleToSequence = go { currentSubdivision: 1.0, currentOffset: 0.0 }
+cycleToSequence :: CycleLength -> Cycle -> NonEmptyList (NonEmptyList TidalNote)
+cycleToSequence (CycleLength cycleLength) = go { currentSubdivision: cycleLength, currentOffset: 0.0 }
   where
   go state (Branching nel) = join $ map (go state) nel
   go state (Simultaneous nel) = map (sortBy (compare `on` (unwrap >>> _.startsAt)))
@@ -158,6 +172,7 @@ cycleToSequence = go { currentSubdivision: 1.0, currentOffset: 0.0 }
       { duration: state.currentSubdivision
       , startsAt: state.currentOffset
       , sample
+      , cycleLength
       }
   seq state nel =
     let
@@ -176,9 +191,23 @@ unrest = filter (not <<< eq Nil) <<< NEL.toList <<< map go
   where
   go =
     filterMap
-      ( \(TidalNote { startsAt, duration, sample }) ->
-          TidalNote <<< { startsAt, duration, sample: _ } <$> sample
+      ( \(TidalNote { startsAt, duration, cycleLength, sample }) ->
+          TidalNote <<< { startsAt, duration, cycleLength, sample: _ } <$> sample
       ) <<< NEL.toList
+
+asScore :: NonEmptyList (NonEmptyList TidalNote_) -> CfRest { sample :: Sample, duration :: Number }
+asScore l = go 0.0 0.0 flattened
+  where
+  ll = NEL.length l
+  flattened = join $ mapWithIndex (\i -> map (\(TidalNote { sample, duration, startsAt, cycleLength }) -> TidalNote { sample, duration, startsAt: startsAt + cycleLength * toNumber i, cycleLength: cycleLength * toNumber ll })) l
+  go currentCount prevCycleEnded (NonEmptyList (TidalNote a :| b)) =
+    let
+      st = prevCycleEnded + a.startsAt
+    in
+      { startsAfter: st - currentCount, rest: { sample: a.sample, duration: a.duration } } :<
+        \_ -> uncurry (go st) case b of
+          Nil -> (prevCycleEnded + a.cycleLength) /\ flattened
+          (c : d) -> prevCycleEnded /\ NonEmptyList (c :| d)
 
 main :: Effect Unit
 main = play middleC
