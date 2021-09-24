@@ -3,6 +3,7 @@ module Main where
 import Prelude hiding (between)
 
 import Control.Alt ((<|>))
+import Data.Filterable (filter, filterMap)
 import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Generic.Rep (class Generic)
@@ -12,6 +13,7 @@ import Data.List as L
 import Data.List.NonEmpty (sortBy)
 import Data.List.NonEmpty as NEL
 import Data.List.Types (NonEmptyList(..))
+import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.NonEmpty ((:|))
 import Data.Show.Generic (genericShow)
@@ -24,16 +26,18 @@ import Text.Parsing.StringParser.Combinators (between, many, sepBy1)
 import WAGS.Lib.Learn (play)
 import WAGS.Lib.Learn.Pitch (middleC)
 
-newtype TidalNote = TidalNote { sample :: Sample, startsAt :: Number, duration :: Number }
+newtype TidalNote' sample = TidalNote { sample :: sample, startsAt :: Number, duration :: Number }
+type TidalNote = TidalNote' (Maybe Sample)
+type TidalNote_ = TidalNote' Sample
 
-derive instance nwetypeTidalNote :: Newtype TidalNote _
-derive instance genericTidalNote :: Generic TidalNote _
-derive instance eqTidalNote :: Eq TidalNote
-derive instance ordTidalNote :: Ord TidalNote
-instance showTidalNote :: Show TidalNote where
+derive instance nwetypeTidalNote :: Newtype (TidalNote' sample) _
+derive instance genericTidalNote :: Generic (TidalNote' sample) _
+derive instance eqTidalNote :: Eq sample => Eq (TidalNote' sample)
+derive instance ordTidalNote :: Ord sample => Ord (TidalNote' sample)
+instance showTidalNote :: Show sample => Show (TidalNote' sample) where
   show x = genericShow x
 
-data Sample = HiHat0 | Kick0 | Rest | Snare0
+data Sample = HiHat0 | Kick0 | Snare0
 
 derive instance genericSample :: Generic Sample _
 derive instance eqSample :: Eq Sample
@@ -46,7 +50,7 @@ data Cycle
   | Simultaneous (NonEmptyList Cycle)
   | Sequential (NonEmptyList Cycle)
   | Internal (NonEmptyList Cycle)
-  | SingleSample Sample
+  | SingleSample (Maybe Sample)
 
 derive instance genericCycle :: Generic Cycle _
 derive instance eqCycle :: Eq Cycle
@@ -54,10 +58,10 @@ derive instance ordCycle :: Ord Cycle
 instance showCycle :: Show Cycle where
   show x = genericShow x
 
-notes :: Array (String /\ Sample)
-notes = [ "hh:0" /\ HiHat0, "kick:0" /\ Kick0, "snare:0" /\ Snare0, "~" /\ Rest ]
+notes :: Array (String /\ Maybe Sample)
+notes = [ "hh:0" /\ Just HiHat0, "kick:0" /\ Just Kick0, "snare:0" /\ Just Snare0, "~" /\ Nothing ]
 
-sampleP :: Parser Sample
+sampleP :: Parser (Maybe Sample)
 sampleP = go $ L.fromFoldable notes
   where
   go (a : b) = (try (string (fst a)) $> snd a) <|> go b
@@ -166,6 +170,15 @@ cycleToSequence = go { currentSubdivision: 1.0, currentOffset: 0.0 }
             <<< toNumber
         )
         nel
+
+unrest :: NonEmptyList (NonEmptyList TidalNote) -> List (List TidalNote_)
+unrest = filter (not <<< eq Nil) <<< NEL.toList <<< map go
+  where
+  go =
+    filterMap
+      ( \(TidalNote { startsAt, duration, sample }) ->
+          TidalNote <<< { startsAt, duration, sample: _ } <$> sample
+      ) <<< NEL.toList
 
 main :: Effect Unit
 main = play middleC
