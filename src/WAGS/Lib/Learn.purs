@@ -284,7 +284,7 @@ makeFunctionCofreeFunctionOfTimeSequencedNote notes' = makeFullScene $ FullScene
   emitter = makeBufferPoolWithAnchor
     ( (map <<< map <<< map)
         (\{ offset, rest: note@(Note { duration: Duration d, volume: Volume v }) } -> { duration: const $ const $ const (Just d), offset, rest: \st -> let pw = makePiecewise (map (over _1 (add st)) (pwl d v)) in { note, pw } })
-        (makeScore { startsAt: 0.0, cf: (map <<< map) (\(Sequenced { startsAfter: Rest s, note }) -> { startsAfter: s, rest: note }) (hoistHoistCofree (lcmap _.time) notes') })
+        (makeScore { startsAt: 0.0, noteStream: (map <<< map) (\(Sequenced { startsAfter: Rest s, note }) -> { startsAfter: s, rest: note }) (hoistHoistCofree (lcmap _.time) notes') })
     )
 
 instance toSceneFunctionCofreeFunctionOfTimeSequencedNote :: ToScene (Number -> Cofree ((->) Number) (Sequenced Note)) Unit

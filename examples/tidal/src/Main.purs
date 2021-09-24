@@ -3,8 +3,11 @@ module Main where
 import Prelude hiding (between)
 
 import Control.Alt ((<|>))
+import Control.Comonad (extract)
 import Control.Comonad.Cofree ((:<))
-import Data.Filterable (filter, filterMap)
+import Control.Comonad.Cofree.Class (unwrapCofree)
+import Data.Either (hush)
+import Data.Filterable (compact, filter, filterMap)
 import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Generic.Rep (class Generic)
@@ -14,19 +17,28 @@ import Data.List as L
 import Data.List.NonEmpty (sortBy)
 import Data.List.NonEmpty as NEL
 import Data.List.Types (NonEmptyList(..))
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.NonEmpty ((:|))
 import Data.Show.Generic (genericShow)
 import Data.Tuple (fst, snd, uncurry)
 import Data.Tuple.Nested ((/\), type (/\))
+import Data.Typelevel.Num (D16)
 import Effect (Effect)
-import Text.Parsing.StringParser (Parser, fail, try)
+import Text.Parsing.StringParser (Parser, fail, runParser, try)
 import Text.Parsing.StringParser.CodeUnits (skipSpaces, string, char)
 import Text.Parsing.StringParser.Combinators (between, many, sepBy1)
-import WAGS.Lib.Learn (play)
+import Type.Proxy (Proxy(..))
+import WAGS.Create.Optionals (speaker, gain, playBuf)
+import WAGS.Graph.AudioUnit (OnOff(..))
+import WAGS.Graph.Parameter (ff)
+import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeScoredBufferPool)
+import WAGS.Lib.Learn (buffers, play, usingc)
 import WAGS.Lib.Learn.Pitch (middleC)
-import WAGS.Lib.Score (CfRest)
+import WAGS.Lib.Score (CfNoteStream)
+import WAGS.Math (calcSlope)
+import WAGS.Run (SceneI(..))
+import WAGS.Template (fromTemplate)
 
 newtype CycleLength = CycleLength Number
 
@@ -195,7 +207,7 @@ unrest = filter (not <<< eq Nil) <<< NEL.toList <<< map go
           TidalNote <<< { startsAt, duration, cycleLength, sample: _ } <$> sample
       ) <<< NEL.toList
 
-asScore :: NonEmptyList (NonEmptyList TidalNote_) -> CfRest { sample :: Sample, duration :: Number }
+asScore :: NonEmptyList (NonEmptyList TidalNote_) -> CfNoteStream RBuf
 asScore l = go 0.0 0.0 flattened
   where
   ll = NEL.length l
@@ -218,6 +230,103 @@ asScore l = go 0.0 0.0 flattened
         \_ -> uncurry (go st) case b of
           Nil -> (prevCycleEnded + a.cycleLength) /\ flattened
           (c : d) -> prevCycleEnded /\ NonEmptyList (c :| d)
+
+{-
+usingc
+  :: forall trigger world scene graph control
+   . Create scene () graph
+  => GraphIsRenderable graph
+  => Change scene graph
+  => ( AudioContext /\ Aff (Event {} /\ Behavior {})
+       -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
+     )
+  -> control
+  -> (SceneI { | trigger } { | world } EmptyAnalysers -> control -> { scene :: { | scene }, control :: control })
+  -> FullSceneBuilder trigger world Unit
+usingc triggerWorld control piece = FullSceneBuilder { triggerWorld, piece: loopUsingScene piece control }-}
+
+type NBuf
+  = D16
+
+type RBuf
+  = { sample :: Sample, duration :: Number }
+
+type Acc
+  = { buffers :: AScoredBufferPool NBuf RBuf }
+
+acc :: CfNoteStream { sample :: Sample, duration :: Number } -> Acc
+acc cf =
+  { buffers: makeScoredBufferPool
+      { startsAt: 0.0
+      , noteStream: \_ -> cf # map \{ startsAfter, rest } ->
+          { startsAfter
+          , rest:
+              { rest: const rest
+              , duration: const $ const $ const Just rest.duration
+              }
+          }
+      }
+  }
+
+globalFF = 0.03 :: Number
+
+tidal :: Number -> String -> Effect Unit
+tidal dur =
+  maybe (play middleC)
+    ( \i -> play $ usingc
+        ( buffers
+            { kick1: "https://freesound.org/data/previews/171/171104_2394245-hq.mp3"
+            , sideStick: "https://freesound.org/data/previews/209/209890_3797507-hq.mp3"
+            , snare: "https://freesound.org/data/previews/495/495777_10741529-hq.mp3"
+            , clap: "https://freesound.org/data/previews/183/183102_2394245-hq.mp3"
+            , snareRoll: "https://freesound.org/data/previews/50/50710_179538-hq.mp3"
+            , kick2: "https://freesound.org/data/previews/148/148634_2614600-hq.mp3"
+            , closedHH: "https://freesound.org/data/previews/269/269720_4965320-hq.mp3"
+            , shaker: "https://freesound.org/data/previews/432/432205_8738244-hq.mp3"
+            , openHH: "https://freesound.org/data/previews/416/416249_8218607-hq.mp3"
+            , tamb: "https://freesound.org/data/previews/207/207925_19852-hq.mp3"
+            , crash: "https://freesound.org/data/previews/528/528490_3797507-hq.mp3"
+            , ride: "https://freesound.org/data/previews/270/270138_1125482-hq.mp3"
+            }
+        )
+        (acc i)
+        \(SceneI { time, headroomInSeconds, world: { buffers } }) control ->
+          let
+            actualized = control.buffers { time, headroomInSeconds }
+          in
+            { control: { buffers: unwrapCofree actualized }
+            , scene: speaker
+                ( gain (if time < 5.0 then time / 5.0 else 1.0)
+                    -- todo: use ffi to speed up
+                    ( fromTemplate (Proxy :: _ "instruments") (extract actualized) \_ -> case _ of
+                        Just (Buffy { starting, startTime, rest: { sample, duration } }) ->
+                          gain (ff globalFF $ pure $ if time > startTime + duration then calcSlope (startTime + duration) 1.0 (startTime + duration + 0.5) 0.0 time else 1.0)
+                            ( playBuf
+                                { onOff:
+                                    ff globalFF
+                                      $
+                                        if starting then
+                                          ff (max 0.0 (startTime - time)) (pure OffOn)
+                                        else
+                                          pure On
+                                }
+                                buffers.kick1
+                            )
+                        Nothing -> gain 0.0 (playBuf { onOff: Off } buffers.kick1)
+                    )
+                )
+            }
+    )
+    <<< map asScore
+    <<< join
+    <<< map
+      ( NEL.fromList
+          <<< compact
+          <<< map NEL.fromList
+          <<< (unrest <<< cycleToSequence (wrap dur))
+      )
+    <<< hush
+    <<< runParser cycleP
 
 main :: Effect Unit
 main = play middleC
