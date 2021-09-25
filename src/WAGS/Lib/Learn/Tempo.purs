@@ -2,82 +2,69 @@ module WAGS.Lib.Learn.Tempo where
 
 import Prelude
 
-import Data.Lens as Lens
+import Data.Identity (Identity(..))
+import Data.Lens (over)
 import Data.Newtype (unwrap)
-import Data.Newtype as NT
-import Data.Variant (match)
+import Data.Variant (case_, on)
+import Type.Proxy (Proxy(..))
 import WAGS.Lib.Learn.Duration (Duration(..), Rest(..))
 import WAGS.Lib.Learn.Note (Note, NoteOrRest, duration, nt, rs)
 
 class Tempo a where
-  tempo :: Number -> a -> a
+  tempo :: Duration Identity -> a -> a
 
-instance tempoNumber :: Tempo Number where
-  tempo = mul
+instance tempoPitch :: Applicative f => Tempo (Duration f) where
+  tempo (Duration (Identity d))= mul (Duration (pure d))
 
-instance tempoDuration :: Tempo Duration where
-  tempo = NT.over Duration <<< mul
+instance tempoRest :: Applicative f => Tempo (Rest f) where
+  tempo (Duration (Identity d)) = mul (Rest (pure d))
 
-instance tempoRest :: Tempo Rest where
-  tempo = NT.over Rest <<< mul
+instance tempoNote :: Applicative f => Tempo (Note volumeF f pitchF) where
+  tempo = over duration <<< tempo
 
-instance tempoNote :: Tempo Note where
-  tempo = Lens.over duration <<< tempo
-
-instance tempoNoteWithRest :: Tempo NoteOrRest where
+instance tempoNoteWithRest :: Applicative f => Tempo (NoteOrRest volumeF f pitchF f) where
   tempo val =
-    match
-      { note: nt <<< tempo val
-      , rest: rs <<< tempo val
-      } <<< unwrap
-
-instance tempoFNumber :: Functor f => Tempo (f Number) where
-  tempo = map <<< mul
-
-instance tempoFDuration :: Functor f => Tempo (f Duration) where
-  tempo = map <<< (NT.over Duration <<< mul)
-
-instance tempoFRest :: Functor f => Tempo (f Rest) where
-  tempo = map <<< (NT.over Rest <<< mul)
-
-instance tempoFNote :: Functor f => Tempo (f Note) where
-  tempo = map <<< (Lens.over duration <<< tempo)
+    ( case_
+        # on (Proxy :: _ "note") (nt <<< tempo val)
+        # on (Proxy :: _ "rest") (rs <<< tempo val)
+    )
+      <<< unwrap
 
 larghissimo :: forall a. Tempo a => a -> a
-larghissimo = tempo $ 1.0 / 0.35
+larghissimo = tempo $ Duration $ pure $ 1.0 / 0.35
 
 grave :: forall a. Tempo a => a -> a
-grave = tempo $ 1.0 / 0.6
+grave = tempo $ Duration $ pure $ 1.0 / 0.6
 
 largo :: forall a. Tempo a => a -> a
-largo = tempo $ 1.0 / 0.8
+largo = tempo $ Duration $ pure $ 1.0 / 0.8
 
 lento :: forall a. Tempo a => a -> a
-lento = tempo $ 1.0 / 0.8
+lento = tempo $ Duration $ pure $ 1.0 / 0.8
 
 larghetto :: forall a. Tempo a => a -> a
-larghetto = tempo $ 1.0 / 1.0
+larghetto = tempo $ Duration $ pure $ 1.0 / 1.0
 
 adagio :: forall a. Tempo a => a -> a
-adagio = tempo $ 1.0 / 1.2
+adagio = tempo $ Duration $ pure $ 1.0 / 1.2
 
 andante :: forall a. Tempo a => a -> a
-andante = tempo $ 1.0 / 1.4
+andante = tempo $ Duration $ pure $ 1.0 / 1.4
 
 moderato :: forall a. Tempo a => a -> a
-moderato = tempo $ 1.0 / 1.8
+moderato = tempo $ Duration $ pure $ 1.0 / 1.8
 
 allegretto :: forall a. Tempo a => a -> a
-allegretto = tempo $ 1.0 / 1.8
+allegretto = tempo $ Duration $ pure $ 1.0 / 1.8
 
 allegro :: forall a. Tempo a => a -> a
-allegro = tempo $ 1.0 / 2.1
+allegro = tempo $ Duration $ pure $ 1.0 / 2.1
 
 allegroVivace :: forall a. Tempo a => a -> a
-allegroVivace = tempo $ 1.0 / 2.6
+allegroVivace = tempo $ Duration $ pure $ 1.0 / 2.6
 
 presto :: forall a. Tempo a => a -> a
-presto = tempo $ 1.0 / 3.0
+presto = tempo $ Duration $ pure $ 1.0 / 3.0
 
 prestissimo :: forall a. Tempo a => a -> a
-prestissimo = tempo $ 1.0 / 3.25
+prestissimo = tempo $ Duration $ pure $ 1.0 / 3.25

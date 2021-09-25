@@ -15,8 +15,8 @@ type Time = Number
 lfo :: { freq :: Number, amp :: Number, phase :: Number } -> Number -> Number
 lfo { freq, amp, phase } time = amp * sin (freq * (pi * time - phase))
 
-tremolo' :: { freq :: Number, amp :: Number, phase :: Number } -> Volume -> Volume
-tremolo' = over Volume <<< lfo
+tremolo' :: forall f. Functor f => { freq :: Number, amp :: Number, phase :: Number } -> Volume f -> Volume f
+tremolo' = over Volume <<< map <<< lfo
 
-vibrato' :: { freq :: Number, amp :: Number, phase :: Number } -> Pitch -> Pitch
-vibrato' = over Pitch <<< lfo
+vibrato' :: forall f. Functor f => { freq :: Number, amp :: Number, phase :: Number } -> Pitch f -> Pitch f
+vibrato' = over Pitch <<< map <<< lfo

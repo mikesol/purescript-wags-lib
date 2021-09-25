@@ -4,22 +4,24 @@ import Prelude
 
 import Data.Lens (over)
 import Data.Newtype (unwrap)
-import Data.Variant (match)
+import Data.Variant (case_, on)
+import Type.Proxy (Proxy(..))
 import WAGS.Lib.Learn.Note (Note, NoteOrRest, nt, rs, pitch)
 import WAGS.Lib.Learn.Pitch (Pitch)
 
-class Transpose n where
-  transpose :: Pitch -> n -> n
+class Transpose f n where
+  transpose :: Pitch f -> n -> n
 
-instance transposePitch :: Transpose Pitch where
+instance transposePitch :: Applicative f => Transpose f (Pitch f) where
   transpose = add
 
-instance transposeNote :: Transpose Note where
+instance transposeNote :: Applicative f => Transpose f (Note volumeF durationF f) where
   transpose = over pitch <<< transpose
 
-instance transposeNoteWithRest :: Transpose NoteOrRest where
+instance transposeNoteWithRest :: Applicative f => Transpose f (NoteOrRest volumeF durationF f restF) where
   transpose val =
-    match
-      { note: nt <<< transpose val
-      , rest: rs
-      } <<< unwrap
+    ( case_
+        # on (Proxy :: _ "note") (nt <<< transpose val)
+        # on (Proxy :: _ "rest") rs
+    )
+      <<< unwrap

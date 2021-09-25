@@ -3,7 +3,7 @@ module WAGS.Lib.Learn where
 import Prelude
 
 import Control.Comonad (extract)
-import Control.Comonad.Cofree (Cofree, (:<))
+import Control.Comonad.Cofree (Cofree, hoistCofree, (:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Control.Promise (toAffE)
 import Data.Array as A
@@ -15,7 +15,6 @@ import Data.List (List(..), (:))
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
 import Data.NonEmpty (NonEmpty, (:|))
-import Data.Profunctor (lcmap)
 import Data.Symbol (class IsSymbol)
 import Data.Tuple (snd)
 import Data.Tuple.Nested ((/\), type (/\))
@@ -46,7 +45,6 @@ import WAGS.Graph.AudioUnit as CTOR
 import WAGS.Graph.Parameter (AudioParameter_, AudioParameter, ff)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeBufferPoolWithAnchor)
-import WAGS.Lib.Cofree (annihalateIdentity, hoistHoistCofree)
 import WAGS.Lib.Learn.Duration (Duration(..), Rest(..))
 import WAGS.Lib.Learn.Note (Note(..), NoteOrRest, Sequenced(..), noteFromDefaults_, noteFromPitch_, noteStreamToSequence, seq)
 import WAGS.Lib.Learn.Pitch (Pitch(..))
@@ -62,6 +60,15 @@ import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 -- global fast forward to avoid clicks and pops
 gff :: AudioParameter_ ~> AudioParameter_
 gff = ff 0.03
+
+class FofT f where
+  toFofT :: f ~> (->) Number
+
+instance toFOfT'Identity :: FofT Identity where
+  toFofT (Identity a) = const a
+
+instance toFOfT'FofT :: FofT (Function Number) where
+  toFofT = identity
 
 class ToScene a res | a -> res where
   toScene :: a -> Aff { audioCtx :: AudioContext, event :: Event (Run res EmptyAnalysers) }
@@ -91,173 +98,216 @@ nothing = makeFullScene $ FullScene
   , piece: loopUsingScene (const $ const $ { control: unit, scene: speaker { c: constant 0.0 } }) unit
   }
 
-makePitch :: Pitch -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makePitch = makeFunctionOfTimePitch <<< const
+makePitch
+  :: forall pitchF
+   . FofT pitchF
+  => Pitch pitchF
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makePitch = makeNote <<< noteFromPitch_
 
-instance toScenePitch :: ToScene Pitch Unit
+instance toScenePitch :: FofT pitchF => ToScene (Pitch pitchF) Unit
   where
   toScene = makePitch
 
-makeNote :: Note -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeNote = makeFunctionOfTimeNote <<< const
+makeNote
+  :: forall pitchF durationF volumeF
+   . FofT pitchF
+  => FofT durationF
+  => FofT volumeF
+  => Note pitchF durationF volumeF
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeNote (Note n) = makeFunctionOfTimeLoop \time ->
+  let
+    duration = toFofT $ unwrap n.duration
+    volume = toFofT $ unwrap n.volume
+    pitch = toFofT $ unwrap n.pitch
+  in
+    speaker
+      { gain: gain (gff $ pure (if time < (duration time) then (volume time) else 0.0))
+          (sinOsc (gff $ pure $ (pitch time)))
+      }
 
-instance toSceneNote :: ToScene Note Unit
+instance toSceneNote ::
+  ( FofT volumeF
+  , FofT durationF
+  , FofT pitchF
+  ) =>
+  ToScene (Note volumeF durationF pitchF) Unit
   where
   toScene = makeNote
 
-makeArrayPitch :: Array Pitch -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeArrayPitch
+  :: forall pitchF
+   . FofT pitchF
+  => Array (Pitch pitchF)
+  -> Aff
+       { audioCtx :: AudioContext
+       , event :: Event (Run Unit EmptyAnalysers)
+       }
 makeArrayPitch = A.uncons >>> case _ of
   Nothing -> nothing
   Just { head, tail } -> makeNonEmptyArrayPitch (head :| tail)
 
-instance toSceneArrayPitch :: ToScene (Array Pitch) Unit
+instance toSceneArrayPitch :: FofT pitchF => ToScene (Array (Pitch pitchF)) Unit
   where
   toScene = makeArrayPitch
 
-makeArrayNote :: Array Note -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeArrayNote
+  :: forall pitchF volumeF
+   . FofT pitchF
+  => FofT volumeF
+  => Array (Note pitchF Identity volumeF)
+  -> Aff
+       { audioCtx :: AudioContext
+       , event :: Event (Run Unit EmptyAnalysers)
+       }
 makeArrayNote = A.uncons >>> case _ of
   Nothing -> nothing
   Just { head, tail } -> makeNonEmptyArrayNote (head :| tail)
 
-instance toSceneArrayNote :: ToScene (Array Note) Unit
+instance toSceneArrayNote ::
+  ( FofT pitchF
+  , FofT volumeF
+  ) =>
+  ToScene (Array (Note pitchF Identity volumeF)) Unit
   where
   toScene = makeArrayNote
 
-makeArrayNoteOrRest :: Array NoteOrRest -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeArrayNoteOrRest
+  :: forall pitchF volumeF
+   . FofT pitchF
+  => FofT volumeF
+  => Array (NoteOrRest pitchF Identity volumeF Identity)
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeArrayNoteOrRest = A.uncons >>> case _ of
   Nothing -> nothing
   Just { head, tail } -> makeNonEmptyArrayNoteOrRest (head :| tail)
 
-instance toSceneArrayNoteOrRest :: ToScene (Array NoteOrRest) Unit
+instance toSceneArrayNoteOrRest ::
+  ( FofT pitchF
+  , FofT volumeF
+  ) =>
+  ToScene (Array (NoteOrRest pitchF Identity volumeF Identity)) Unit
   where
   toScene = makeArrayNoteOrRest
 
-makeArraySequencedNote :: Array (Sequenced Note) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeArraySequencedNote
+  :: forall volumeF pitchF
+   . FofT volumeF
+  => FofT pitchF
+  => Array (Sequenced (Note volumeF Identity pitchF))
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeArraySequencedNote = A.uncons >>> case _ of
   Nothing -> nothing
   Just { head, tail } -> makeNonEmptyArraySequencedNote (head :| tail)
 
-instance toSceneArraySequencedNote :: ToScene (Array (Sequenced Note)) Unit
+instance toSceneArraySequencedNote ::
+  ( FofT pitchF
+  , FofT volumeF
+  ) =>
+  ToScene (Array (Sequenced (Note volumeF Identity pitchF))) Unit
   where
   toScene = makeArraySequencedNote
 
-makeNonEmptyArrayPitch :: NonEmpty Array Pitch -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeNonEmptyArrayPitch
+  :: forall pitchF
+   . FofT pitchF
+  => NonEmpty Array (Pitch pitchF)
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeNonEmptyArrayPitch = makeNonEmptyArrayNote <<< map (noteFromDefaults_ <<< set (prop (Proxy :: _ "pitch")))
 
-instance toSceneNonEmptyArrayPitch :: ToScene (NonEmpty Array Pitch) Unit
+instance toSceneNonEmptyArrayPitch :: FofT pitchF => ToScene (NonEmpty Array (Pitch pitchF)) Unit
   where
   toScene = makeNonEmptyArrayPitch
 
-makeNonEmptyArrayNote :: NonEmpty Array Note -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeNonEmptyArrayNote = makeNonEmptyArraySequencedNote <<< map unwrap <<< seq <<< map Identity
+makeNonEmptyArrayNote
+  :: forall volumeF pitchF
+   . FofT volumeF
+  => FofT pitchF
+  => NonEmpty Array (Note volumeF Identity pitchF)
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeNonEmptyArrayNote = makeNonEmptyArraySequencedNote <<< seq
 
-instance toSceneNonEmptyArrayNote :: ToScene (NonEmpty Array Note) Unit
+instance toSceneNonEmptyArrayNote ::
+  ( FofT pitchF
+  , FofT volumeF
+  ) =>
+  ToScene (NonEmpty Array (Note pitchF Identity volumeF)) Unit
   where
   toScene = makeNonEmptyArrayNote
 
-makeNonEmptyArrayNoteOrRest :: NonEmpty Array NoteOrRest -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeNonEmptyArrayNoteOrRest = makeArraySequencedNote <<< map unwrap <<< seq <<< map Identity
+makeNonEmptyArrayNoteOrRest
+  :: forall volumeF pitchF
+   . FofT volumeF
+  => FofT pitchF
+  => NonEmpty Array (NoteOrRest volumeF Identity pitchF Identity)
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeNonEmptyArrayNoteOrRest = makeArraySequencedNote <<< seq
 
-instance toSceneNonEmptyArrayNoteOrRest :: ToScene (NonEmpty Array NoteOrRest) Unit
+instance toSceneNonEmptyArrayNoteOrRest ::
+  ( FofT pitchF
+  , FofT volumeF
+  ) =>
+  ToScene (NonEmpty Array (NoteOrRest pitchF Identity volumeF Identity)) Unit
   where
   toScene = makeNonEmptyArrayNoteOrRest
 
-makeNonEmptyArraySequencedNote :: NonEmpty Array (Sequenced Note) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeNonEmptyArraySequencedNote (a :| b) = makeCofreeSequencedNote
+makeNonEmptyArraySequencedNote
+  :: forall volumeF pitchF
+   . FofT volumeF
+  => FofT pitchF
+  => NonEmpty Array (Sequenced (Note volumeF Identity pitchF))
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeNonEmptyArraySequencedNote (a@(Sequenced { note: n' }) :| b) = makeCofreeSequencedNote
   $ deadEnd
-  $ a :| b <> [ Sequenced { startsAfter: top, note: noteFromDefaults_ identity } ]
+  $ a :| b <> [ Sequenced { startsAfter: top, note: n' } ]
 
-instance toSceneNonEmptyArraySequencedNote :: ToScene (NonEmpty Array (Sequenced Note)) Unit
+instance toSceneNonEmptyArraySequencedNote ::
+  ( FofT volumeF
+  , FofT pitchF
+  ) =>
+  ToScene (NonEmpty Array (Sequenced (Note volumeF Identity pitchF))) Unit
   where
   toScene = makeNonEmptyArraySequencedNote
 
-makeCofreePitch :: Cofree Identity Pitch -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeCofreePitch = makeCofreeFunctionOfTimePitch <<< map const
+makeCofreePitch
+  :: forall pitchF
+   . FofT pitchF
+  => Cofree Identity (Pitch pitchF)
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeCofreePitch = makeCofreeNote <<< map (noteFromDefaults_ <<< set (prop (Proxy :: _ "pitch")))
 
-instance toSceneCofreePitch :: ToScene (Cofree Identity Pitch) Unit
+instance toSceneCofreePitch :: FofT pitchF => ToScene (Cofree Identity (Pitch pitchF)) Unit
   where
   toScene = makeCofreePitch
 
-makeCofreeNote :: Cofree Identity Note -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeCofreeNote = makeCofreeFunctionOfTimeNote <<< map const
+makeCofreeNote
+  :: forall volumeF pitchF
+   . FofT volumeF
+  => FofT pitchF
+  => Cofree Identity (Note volumeF Identity pitchF)
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeCofreeNote = makeCofreeSequencedNote <<< noteStreamToSequence (Rest $ Identity 0.0)
 
-instance toSceneCofreeNote :: ToScene (Cofree Identity Note) Unit
+instance toSceneCofreeNote ::
+  ( FofT volumeF
+  , FofT pitchF
+  ) =>
+  ToScene (Cofree Identity (Note volumeF Identity pitchF)) Unit
   where
   toScene = makeCofreeNote
-
-makeCofreeSequencedNote :: Cofree Identity (Sequenced Note) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeCofreeSequencedNote = makeFunctionCofreeFunctionOfTimeSequencedNote <<< annihalateIdentity <<< map const
-
-instance toSceneCofreeSequencedNote :: ToScene (Cofree Identity (Sequenced Note)) Unit
-  where
-  toScene = makeCofreeSequencedNote
-
-makeFunctionOfTimePitch :: (Number -> Pitch) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeFunctionOfTimePitch = makeFunctionOfTimeNote <<< map noteFromPitch_
-
-instance toSceneFunctionOfTimePitch :: ToScene (Number -> Pitch) Unit
-  where
-  toScene = makeFunctionOfTimePitch
-
-makeFunctionOfTimeNote :: (Number -> Note) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeFunctionOfTimeNote f = makeFunctionOfTimeLoop \time -> let Note n = f time in speaker { gain: gain (gff $ pure (if time < unwrap n.duration then unwrap n.volume else 0.0)) (sinOsc (gff $ pure $ unwrap $ n.pitch)) }
-
-instance toSceneFunctionOfTimeNote :: ToScene (Number -> Note) Unit
-  where
-  toScene = makeFunctionOfTimeNote
-
-makeArrayFunctionOfTimePitch :: Array (Number -> Pitch) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeArrayFunctionOfTimePitch = A.uncons >>> case _ of
-  Nothing -> nothing
-  Just { head, tail } -> makeNonEmptyArrayFunctionOfTimePitch (head :| tail)
-
-instance toSceneArrayFunctionOfTimePitch :: ToScene (Array (Number -> Pitch)) Unit
-  where
-  toScene = makeArrayFunctionOfTimePitch
-
-makeNonEmptyArrayFunctionOfTimePitch :: NonEmpty Array (Number -> Pitch) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeNonEmptyArrayFunctionOfTimePitch = makeNonEmptyArrayFunctionOfTimeNote <<< (map <<< map) (noteFromDefaults_ <<< set (prop (Proxy :: _ "pitch")))
-
-instance toSceneNonEmptyArrayFunctionOfTimePitch :: ToScene (NonEmpty Array (Number -> Pitch)) Unit
-  where
-  toScene = makeNonEmptyArrayFunctionOfTimePitch
-
-makeNonEmptyArrayFunctionOfTimeNote :: NonEmpty Array (Number -> Note) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeNonEmptyArrayFunctionOfTimeNote = makeNonEmptyArrayFunctionOfTimeSequencedNote <<< seq
-
-instance toSceneNonEmptyArrayFunctionOfTimeNote :: ToScene (NonEmpty Array (Number -> Note)) Unit
-  where
-  toScene = makeNonEmptyArrayFunctionOfTimeNote
-
-makeNonEmptyArrayFunctionOfTimeSequencedNote :: NonEmpty Array (Number -> Sequenced Note) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeNonEmptyArrayFunctionOfTimeSequencedNote (a :| b) = makeFunctionCofreeFunctionOfTimeSequencedNote
-  $ annihalateIdentity
-  $ deadEnd
-  $ a :| b <> [ const $ Sequenced { startsAfter: top, note: noteFromDefaults_ identity } ]
-
-instance toSceneNonEmptyArrayFunctionOfTimeSequencedNote :: ToScene (NonEmpty Array (Number -> Sequenced Note)) Unit
-  where
-  toScene = makeNonEmptyArrayFunctionOfTimeSequencedNote
 
 noSine :: CTOR.Gain AudioParameter /\ (CTOR.SinOsc APOnOff AudioParameter /\ {})
 noSine = gain 0.0 (sinOsc 0.1)
 
-makeCofreeFunctionOfTimePitch :: Cofree Identity (Number -> Pitch) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeCofreeFunctionOfTimePitch = makeCofreeFunctionOfTimeNote <<< (map <<< map) (noteFromDefaults_ <<< set (prop (Proxy :: _ "pitch")))
-
-instance toSceneCofreeFunctionOfTimePitch :: ToScene (Cofree Identity (Number -> Pitch)) Unit
-  where
-  toScene = makeCofreeFunctionOfTimePitch
-
-makeCofreeFunctionOfTimeNote :: Cofree Identity (Number -> Note) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeCofreeFunctionOfTimeNote = makeFunctionCofreeFunctionOfTimeSequencedNote <<< map (noteStreamToSequence (Rest 0.0)) <<< annihalateIdentity
-
-instance toSceneCofreeFunctionOfTimeNote :: ToScene (Cofree Identity (Number -> Note)) Unit
-  where
-  toScene = makeCofreeFunctionOfTimeNote
-
-makeFunctionCofreeFunctionOfTimeSequencedNote :: (Number -> Cofree ((->) Number) (Sequenced Note)) -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makeFunctionCofreeFunctionOfTimeSequencedNote notes' = makeFullScene $ FullScene
+makeCofreeSequencedNote
+  :: forall volumeF durationF pitchF
+   . FofT volumeF
+  => FofT durationF
+  => FofT pitchF
+  => Cofree Identity (Sequenced (Note volumeF durationF pitchF))
+  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
+makeCofreeSequencedNote notes' = makeFullScene $ FullScene
   { triggerWorld: defaultTriggerWorld
   , piece: loopUsingScene
       ( \(SceneI { time, headroomInSeconds: headroomInSeconds }) { oscSimple } ->
@@ -267,9 +317,9 @@ makeFunctionCofreeFunctionOfTimeSequencedNote notes' = makeFullScene $ FullScene
             { control: { oscSimple: unwrapCofree actualized }
             , scene: speaker
                 { piece: fromTemplate (Proxy :: _ "sinOsc") (extract actualized) \_ -> case _ of
-                    Just (Buffy { rest: { note: Note { pitch: Pitch pitch }, pw } }) -> gain
-                      (gff (pw { time, headroomInSeconds }))
-                      (sinOsc (gff $ pure $ pitch))
+                    Just (Buffy { rest: { note: Note { pitch: Pitch pitch, volume: Volume volume }, pw } }) -> gain
+                      ((gff (pw { time, headroomInSeconds })) * (pure (toFofT volume time)))
+                      (sinOsc (gff $ pure $ (toFofT pitch time)))
 
                     Nothing -> noSine
                 }
@@ -280,16 +330,22 @@ makeFunctionCofreeFunctionOfTimeSequencedNote notes' = makeFullScene $ FullScene
   where
   pwl dr v = ((0.0 /\ 0.0) :| ((min (dr * 0.3) 0.1) /\ v) : ((min (dr * 0.45) 0.3) /\ v * 0.3) : (dr /\ 0.0) : Nil)
 
-  emitter :: AScoredBufferPool Unit D4 ({ note :: Note, pw :: APFofT Number })
+  emitter :: AScoredBufferPool Unit D4 ({ note :: Note volumeF durationF pitchF, pw :: APFofT Number })
   emitter = makeBufferPoolWithAnchor
     ( (map <<< map <<< map)
-        (\{ offset, rest: note@(Note { duration: Duration d, volume: Volume v }) } -> { duration: const $ const $ const (Just d), offset, rest: \st -> let pw = makePiecewise (map (over _1 (add st)) (pwl d v)) in { note, pw } })
-        (makeScore { startsAt: 0.0, noteStream: (map <<< map) (\(Sequenced { startsAfter: Rest s, note }) -> { startsAfter: s, rest: note }) (hoistHoistCofree (lcmap _.time) notes') })
+        -- todo: unhard-code duration to pwl? possible, but would it be computatoinally expensive
+        (\{ offset, rest: note@(Note { duration: Duration d }) } -> { duration: \_ _ t -> (Just (toFofT d t)), offset, rest: \st -> let pw = makePiecewise (map (over _1 (add st)) (pwl 1.0 1.0)) in { note, pw } })
+        (makeScore { startsAt: 0.0, noteStream: \_ -> hoistCofree (\(Identity i) _ -> i) $ map (\(Sequenced { startsAfter: Rest (Identity s), note }) -> { startsAfter: s, rest: note }) notes' })
     )
 
-instance toSceneFunctionCofreeFunctionOfTimeSequencedNote :: ToScene (Number -> Cofree ((->) Number) (Sequenced Note)) Unit
+instance toSceneCofreeSequencedNote ::
+  ( FofT volumeF
+  , FofT durationF
+  , FofT pitchF
+  ) =>
+  ToScene (Cofree Identity (Sequenced (Note volumeF durationF pitchF))) Unit
   where
-  toScene = makeFunctionCofreeFunctionOfTimeSequencedNote
+  toScene = makeCofreeSequencedNote
 
 makeLoop
   :: forall scene graph
@@ -543,18 +599,17 @@ flex3Css = "-webkit-order: 0;-ms-flex-order: 0;order: 0;-webkit-flex: 1 1 auto;-
 render :: forall m. State -> H.ComponentHTML Action () m
 render { wagsState } =
   case wagsState of
-     
-  WagsPlaying ->
-    HH.button
-      [ HE.onClick \_ -> StopAudio, HP.style offCSS ]
-      [ HH.text "Stop audio" ]
 
-  WagsStopped ->
-  
-    HH.button
-      [ HE.onClick \_ -> StartAudio, HP.style onCSS ]
-      [ HH.text "Start audio" ]
-  WagsLoading -> HH.div [ HP.style loadingCss ] [ HH.text  "Loading..." ]
+    WagsPlaying ->
+      HH.button
+        [ HE.onClick \_ -> StopAudio, HP.style offCSS ]
+        [ HH.text "Stop audio" ]
+
+    WagsStopped ->
+      HH.button
+        [ HE.onClick \_ -> StartAudio, HP.style onCSS ]
+        [ HH.text "Start audio" ]
+    WagsLoading -> HH.div [ HP.style loadingCss ] [ HH.text "Loading..." ]
 
 handleAction
   :: forall res analysers output m

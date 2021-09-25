@@ -2,27 +2,35 @@ module WAGS.Lib.Learn.Volume where
 
 import Prelude
 
+import Data.Identity (Identity(..))
 import Data.Newtype (class Newtype)
 import Math (pow)
 
-newtype Volume = Volume Number
+newtype Volume f = Volume (f Number)
 
-derive instance newtypeVolume :: Newtype Volume _
-derive newtype instance boundedVolume :: Bounded Volume
-derive newtype instance divisionringVolume :: DivisionRing Volume
-derive newtype instance eqVolume :: Eq Volume
-derive newtype instance commutativeRingVolume :: CommutativeRing Volume
-derive newtype instance euclideanRingVolume :: EuclideanRing Volume
-derive newtype instance ordVolume :: Ord Volume
-derive newtype instance ringVolume :: Ring Volume
-derive newtype instance semiringVolume :: Semiring Volume
-derive newtype instance showVolume :: Show Volume
+derive instance newtypeVolume :: Newtype (Volume f) _
+derive newtype instance eqVolume :: Eq (f Number) => Eq (Volume f)
+derive newtype instance ordVolume :: Ord (f Number) => Ord (Volume f)
+derive newtype instance boundedVolume :: Bounded (f Number) => Bounded (Volume f)
+derive newtype instance showVolume :: Show (f Number) => Show (Volume f)
+instance commutativeRingVolume :: Applicative f => CommutativeRing (Volume f)
+instance euclideanRingVolume :: Applicative f => EuclideanRing (Volume f) where
+  degree _ = 1
+  div (Volume a) (Volume b) = Volume ((div <$> (a) <*> (b)))
+  mod (Volume a) (Volume b) = Volume ((mod <$> (a) <*> (b)))
+instance ringVolume :: Applicative f => Ring (Volume f) where
+  sub (Volume a) (Volume b) = Volume ((sub <$> (a) <*> (b)))
+instance semiringVolume :: Applicative f => Semiring (Volume f) where
+  zero = Volume (pure zero)
+  one = Volume (pure one)
+  add (Volume a) (Volume b) = Volume ((add <$> (a) <*> (b)))
+  mul (Volume a) (Volume b) = Volume ((mul <$> (a) <*> (b)))
 
-fortississimo = Volume $ 0.5 `pow` 0.0 :: Volume
-fortissimo = Volume $ 0.5 `pow` 0.5 :: Volume
-forte = Volume $ 0.5 `pow` 1.0 :: Volume
-mezzoForte = Volume $ 0.5 `pow` 1.5 :: Volume
-mezzoPiano = Volume $ 0.5 `pow` 2.0 :: Volume
-piano = Volume $ 0.5 `pow` 3.0 :: Volume
-pianissimo = Volume $ 0.5 `pow` 5.0 :: Volume
-pianississimo = Volume $ 0.5 `pow` 8.0 :: Volume
+fortississimo = Volume $ Identity $ 0.5 `pow` 0.0 :: Volume Identity
+fortissimo = Volume $ Identity $ 0.5 `pow` 0.5 :: Volume Identity
+forte = Volume $ Identity $ 0.5 `pow` 1.0 :: Volume Identity
+mezzoForte = Volume $ Identity $ 0.5 `pow` 1.5 :: Volume Identity
+mezzoPiano = Volume $ Identity $ 0.5 `pow` 2.0 :: Volume Identity
+piano = Volume $ Identity $ 0.5 `pow` 3.0 :: Volume Identity
+pianissimo = Volume $ Identity $ 0.5 `pow` 5.0 :: Volume Identity
+pianississimo = Volume $ Identity $ 0.5 `pow` 8.0 :: Volume Identity

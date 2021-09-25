@@ -23,8 +23,8 @@ import WAGS.Lib.Cofree (ana)
 import WAGS.Lib.Emitter (makeEmitter)
 import WAGS.Lib.Learn (buffers, component, using, usingc)
 import WAGS.Lib.Learn.Duration (crochet, crochetRest, dottedMinim, minim, semibreve)
-import WAGS.Lib.Learn.Note (note, noteFromPitch_, note_, repeat, rs, seq)
-import WAGS.Lib.Learn.Pitch (a4, a5, b4, b5, bFlat4, c4, c5, cSharp4, d4, d5, d6, e4, e5, fSharp4, fSharp5, fSharp6, g4, g5, gSharp4, gSharp5, majorThird, wholeTone)
+import WAGS.Lib.Learn.Note (accelerando, note, noteFromPitch_, note_, repeat, rs, seq)
+import WAGS.Lib.Learn.Pitch (a4, a5, b4, b5, bFlat4, bFlat4', c4, c4', c5, c5', cSharp4, d4, d4', d5, d6, e4, e4', e5, fSharp4, fSharp4', fSharp5, fSharp6, fot, g4, g5, gSharp4, gSharp4', gSharp5, majorThird, wholeTone)
 import WAGS.Lib.Learn.Tempo (allegro)
 import WAGS.Lib.Learn.Transpose (transpose)
 import WAGS.Lib.Learn.Volume (mezzoForte)
@@ -177,7 +177,26 @@ stories = Object.fromFoldable
                       ]
           )
       )
-  , Tuple "blue danube (with rests)" $ proxy
+  , Tuple "try ps page" $ proxy
+      ( parent "try ps page"
+          ( component
+              $ repeat
+              $ accelerando
+              $ seq
+              $ map noteFromPitch_
+              $ c4 :| [ d4, e4, fSharp4, gSharp4, bFlat4, c5, bFlat4, gSharp4, fSharp4, e4, d4, c4 ]
+          )
+      )
+  , Tuple "try ps page with applicatives" $ proxy
+      ( parent "try ps page with applicatives"
+          ( component
+              $ repeat
+              $ accelerando
+              $ seq
+              $ map noteFromPitch_
+              $ c4' :| [ d4', fot (\_ -> e4'), fSharp4', gSharp4', bFlat4', c5', bFlat4', gSharp4', fSharp4', e4', d4', c4' ]
+          )
+      )  , Tuple "blue danube (with rests)" $ proxy
       ( parent "blue danube (with rests)"
           ( component
               $ seq

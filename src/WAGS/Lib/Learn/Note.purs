@@ -19,7 +19,7 @@ import Data.List as L
 import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (class Newtype, unwrap)
 import Data.NonEmpty (NonEmpty, (:|))
-import Data.Traversable (class Traversable, sequence, traverse)
+import Data.Traversable (class Traversable, traverse)
 import Data.Tuple.Nested ((/\))
 import Data.Variant (Variant, inj, match)
 import Math (pow)
@@ -29,22 +29,34 @@ import WAGS.Lib.Learn.Duration (Duration(..), Rest(..), crochet)
 import WAGS.Lib.Learn.Pitch (Pitch, middleC)
 import WAGS.Lib.Learn.Volume (Volume, mezzoForte)
 
-type Note' = { volume :: Volume, duration :: Duration, pitch :: Pitch }
-newtype Note = Note Note'
+type Note' volumeF durationF pitchF =
+  { volume :: Volume volumeF
+  , duration :: Duration durationF
+  , pitch :: Pitch pitchF
+  }
 
-derive instance newtypeNote :: Newtype Note _
+newtype Note volumeF durationF pitchF = Note (Note' volumeF durationF pitchF)
 
-newtype NoteOrRest = NoteOrRest (Variant (note :: Note, rest :: Rest))
+derive instance newtypeNote :: Newtype (Note volumeF durationF pitchF) _
 
-derive instance newtypeNoteOrRest :: Newtype NoteOrRest _
+newtype NoteOrRest volumeF durationF pitchF restF = NoteOrRest
+  (Variant (note :: Note volumeF durationF pitchF, rest :: Rest restF))
 
-nt :: Note -> NoteOrRest
+derive instance newtypeNoteOrRest :: Newtype (NoteOrRest volumeF durationF pitchF restF) _
+
+nt
+  :: forall volumeF durationF pitchF restF
+   . Note volumeF durationF pitchF
+  -> NoteOrRest volumeF durationF pitchF restF
 nt = NoteOrRest <<< inj (Proxy :: _ "note")
 
-rs :: Rest -> NoteOrRest
+rs
+  :: forall volumeF durationF pitchF restF
+   . Rest restF
+  -> NoteOrRest volumeF durationF pitchF restF
 rs = NoteOrRest <<< inj (Proxy :: _ "rest")
 
-newtype Sequenced note = Sequenced { startsAfter :: Rest, note :: note }
+newtype Sequenced note = Sequenced { startsAfter :: Rest Identity, note :: note }
 
 derive instance newtypeSequence :: Newtype (Sequenced note) _
 derive instance functorSequenced :: Functor Sequenced
@@ -58,40 +70,67 @@ instance intableIndexInt :: IntableIndex Int where
 instance intableIndexMaybeInt :: IntableIndex (Maybe Int) where
   indexToInt = maybe 0 (add 1)
 
-note_ :: Volume -> Duration -> Pitch -> Note
+note_
+  :: forall volumeF durationF pitchF
+   . Volume volumeF
+  -> Duration durationF
+  -> Pitch pitchF
+  -> Note volumeF durationF pitchF
 note_ v d p = Note { volume: v, duration: d, pitch: p }
 
-noteFromDefaults_ :: (Note' -> Note') -> Note
+noteFromDefaults_
+  :: forall volumeF durationF pitchF
+   . (Note' Identity Identity Identity -> Note' volumeF durationF pitchF)
+  -> Note volumeF durationF pitchF
 noteFromDefaults_ = Note <<< (#) { volume: mezzoForte, duration: crochet, pitch: middleC }
 
-noteFromPitch_ :: Pitch -> Note
+noteFromPitch_ :: forall pitchF. Pitch pitchF -> Note Identity Identity pitchF
 noteFromPitch_ p = noteFromDefaults_ (_ { pitch = p })
 
-note :: Volume -> Duration -> Pitch -> NoteOrRest
+note
+  :: forall volumeF durationF pitchF restF
+   . Volume volumeF
+  -> Duration durationF
+  -> Pitch pitchF
+  -> NoteOrRest volumeF durationF pitchF restF
 note v d p = nt $ Note { volume: v, duration: d, pitch: p }
 
-noteFromDefaults :: (Note' -> Note') -> NoteOrRest
+noteFromDefaults
+  :: forall volumeF durationF pitchF restF
+   . (Note' Identity Identity Identity -> Note' volumeF durationF pitchF)
+  -> NoteOrRest volumeF durationF pitchF restF
 noteFromDefaults = nt <<< Note <<< (#) { volume: mezzoForte, duration: crochet, pitch: middleC }
 
-noteFromPitch :: Pitch -> NoteOrRest
+noteFromPitch :: forall pitchF restF. Pitch pitchF -> NoteOrRest Identity Identity pitchF restF
 noteFromPitch p = noteFromDefaults (_ { pitch = p })
 
-sNote :: Rest -> Volume -> Duration -> Pitch -> Sequenced Note
+sNote
+  :: forall volumeF pitchF
+   . Rest Identity
+  -> Volume volumeF
+  -> Duration Identity
+  -> Pitch pitchF
+  -> Sequenced (Note volumeF Identity pitchF)
 sNote s v d p = Sequenced { startsAfter: s, note: Note { volume: v, duration: d, pitch: p } }
 
-volume :: Lens' Note Volume
+volume :: forall volumeF durationF pitchF. Lens' (Note volumeF durationF pitchF) (Volume volumeF)
 volume = unto Note <<< prop (Proxy :: _ "volume")
 
-pitch :: Lens' Note Pitch
+pitch :: forall volumeF durationF pitchF. Lens' (Note volumeF durationF pitchF) (Pitch pitchF)
 pitch = unto Note <<< prop (Proxy :: _ "pitch")
 
-duration :: Lens' Note Duration
+duration :: forall volumeF durationF pitchF. Lens' (Note volumeF durationF pitchF) (Duration durationF)
 duration = unto Note <<< prop (Proxy :: _ "duration")
 
-startsAfter :: forall note. Lens' (Sequenced note) Rest
+startsAfter :: forall note. Lens' (Sequenced note) (Rest Identity)
 startsAfter = unto Sequenced <<< prop (Proxy :: _ "startsAfter")
 
-accelerando :: forall f i note. IntableIndex i => FunctorWithIndex i f => f (Sequenced note) -> f (Sequenced note)
+accelerando
+  :: forall f i note
+   . IntableIndex i
+  => FunctorWithIndex i f
+  => f (Sequenced note)
+  -> f (Sequenced note)
 accelerando = mapWithIndex (over startsAfter <<< mul <<< coerce <<< flip pow 0.6 <<< div 1.0 <<< add 1.0 <<< toNumber <<< indexToInt)
 
 rallentando :: forall f i note. IntableIndex i => FunctorWithIndex i f => f (Sequenced note) -> f (Sequenced note)
@@ -100,45 +139,52 @@ rallentando = mapWithIndex (over startsAfter <<< mul <<< coerce <<< flip pow 0.3
 class Seq (t :: Type -> Type) a (u :: Type -> Type) b | t a -> u b where
   seq :: t a -> u b
 
-instance seqFNoteOrRest :: (Traversable f, Applicative f) => Seq (NonEmpty Array) (f NoteOrRest) Array (f (Sequenced Note)) where
-  seq = compact <<< toArray <<< fromNonEmpty <<< map sequence <<< flip evalState (Rest 0.0)
-    <<< traverse
-      ( traverse \(NoteOrRest v) -> v # match
-          { note: \n -> do
-              s <- get
-              put $ Rest $ unwrap $ view duration n
-              pure $ Just $ Sequenced $ { startsAfter: s, note: n }
-          , rest: \n -> do
-              s <- get
-              put $ (n + s)
-              pure $ Nothing
-          }
-      )
+instance seqFNoteOrRest ::
+  Seq (NonEmpty Array)
+    (NoteOrRest volumeF Identity pitchF Identity)
+    Array
+    (Sequenced (Note volumeF Identity pitchF)) where
+  seq = compact <<< toArray <<< fromNonEmpty <<< flip evalState (Rest $ Identity 0.0)
+    <<< traverse \(NoteOrRest v) -> v # match
+      { note: \n -> do
+          s <- get
+          put $ Rest $ unwrap $ view duration n
+          pure $ Just $ Sequenced $ { startsAfter: s, note: n }
+      , rest: \n -> do
+          s <- get
+          put $ (n + s)
+          pure $ Nothing
+      }
 
-instance seqNoteOrRest :: Seq (NonEmpty Array) NoteOrRest Array (Sequenced Note) where
-  seq = map unwrap <<< seq <<< map Identity
-
-instance seqFNote :: (Traversable t, Applicative f) => Seq t (f Note) t (f (Sequenced Note)) where
-  seq = flip evalState (pure (Rest 0.0))
+instance seqFNote ::
+  Traversable t =>
+  Seq t (Note volumeF Identity pitchF) t (Sequenced (Note volumeF Identity pitchF)) where
+  seq = flip evalState (Rest $ Identity 0.0)
     <<< traverse \n -> do
       s <- get
-      put $ map (Rest <<< unwrap <<< view duration) n
-      pure $ (Sequenced <$> ({ startsAfter: _, note: _ } <$> s <*> n))
+      put $ (Rest <<< unwrap <<< view duration) n
+      pure $ (Sequenced ({ startsAfter: s, note: n }))
 
-instance seqNote :: Traversable t => Seq t Note t (Sequenced Note) where
-  seq = map unwrap <<< seq <<< map Identity
-
-repeatL :: NonEmpty List (Sequenced Note) -> Cofree Identity (Sequenced Note)
+repeatL
+  :: forall volumeF pitchF
+   . NonEmpty List (Sequenced (Note volumeF Identity pitchF))
+  -> Cofree Identity (Sequenced (Note volumeF Identity pitchF))
 repeatL l = go l
   where
-  modHead :: Note -> NonEmpty List (Sequenced Note) -> NonEmpty List (Sequenced Note)
+  modHead
+    :: Note volumeF Identity pitchF
+    -> NonEmpty List (Sequenced (Note volumeF Identity pitchF))
+    -> NonEmpty List (Sequenced (Note volumeF Identity pitchF))
   modHead (Note { duration: Duration rest }) ((Sequenced { note: n }) :| b) =
     Sequenced { startsAfter: Rest rest, note: n } :| b
   go (s@(Sequenced { note: n }) :| Nil) = deferCofree \_ -> s /\ Identity (go (modHead n l))
   go (s :| (Cons b c)) = deferCofree \_ -> s /\ Identity (go (b :| c))
 
 class Repeat f where
-  repeat :: NonEmpty f (Sequenced Note) -> Cofree Identity (Sequenced Note)
+  repeat
+    :: forall volumeF pitchF
+     . NonEmpty f (Sequenced (Note volumeF Identity pitchF))
+    -> Cofree Identity (Sequenced (Note volumeF Identity pitchF))
 
 instance repeatList :: Repeat List where
   repeat = repeatL
@@ -147,11 +193,11 @@ instance repeatArray :: Repeat Array where
   repeat (a :| b) = repeatL (a :| L.fromFoldable b)
 
 noteStreamToSequence
-  :: forall f
+  :: forall f volumeF pitchF
    . Functor f
-  => Rest
-  -> Cofree f Note
-  -> Cofree f (Sequenced Note)
+  => Rest Identity
+  -> Cofree f (Note volumeF Identity pitchF)
+  -> Cofree f (Sequenced (Note volumeF Identity pitchF))
 noteStreamToSequence x cf =
   let
     nte = extract cf
