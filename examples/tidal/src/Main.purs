@@ -269,7 +269,7 @@ type RBuf
   = { sampleF :: Instruments BrowserAudioBuffer -> BrowserAudioBuffer, duration :: Number }
 
 type Acc
-  = { buffers :: AScoredBufferPool NBuf RBuf }
+  = { buffers :: AScoredBufferPool Unit NBuf RBuf }
 
 acc :: CfNoteStream RBuf -> Acc
 acc cf =
@@ -333,7 +333,7 @@ tidal dur =
         (acc i)
         \(SceneI { time, headroomInSeconds, world: { buffers } }) control ->
           let
-            actualized = control.buffers { time, headroomInSeconds }
+            actualized = control.buffers { time, headroomInSeconds, input: unit }
           in
             { control: { buffers: unwrapCofree actualized }
             , scene: speaker

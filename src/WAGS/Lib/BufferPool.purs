@@ -21,7 +21,7 @@ import WAGS.Graph.Parameter (ff)
 import WAGS.Lib.Blip (makeBlip)
 import WAGS.Lib.Cofree (ana, combineComonadCofreeChooseB)
 import WAGS.Lib.Emitter (fEmitter, makeEmitter')
-import WAGS.Lib.Score (MakeScore, CfNoteStream, makeScore)
+import WAGS.Lib.Score (MakeScore', CfNoteStream', makeScore)
 
 -- | rest is of the form startTime rest
 -- | duration is of the form startTime -> starting -> time -> Maybe duration
@@ -47,6 +47,9 @@ type TimeHeadroomFreq
 type TimeHeadroom
   = { time :: Number, headroomInSeconds :: Number }
 
+type TimeHeadroomInput input
+  = { time :: Number, headroomInSeconds :: Number, input :: input }
+
 type MakeBufferPoolWithRest rest a
   = TimeOffsetsRestDuration rest -> a
 
@@ -56,8 +59,8 @@ type MakeBufferPool a
 type MakeHotBufferPool a
   = TimeHeadroomFreq -> a
 
-type MakeScoredBufferPool a
-  = TimeHeadroom -> a
+type MakeScoredBufferPool input a 
+  = TimeHeadroomInput input -> a
 
 type MakeSnappyBufferPool a
   = TimeHeadroomFreq -> a
@@ -92,7 +95,7 @@ type CfBufferPoolWithRest n = CfBufferPool' n Unit
 type CfBufferPool n = Cofree ((->) TimeOffsets) (BuffyVec' n Unit)
 type CfHotBufferPool n = CfHotBufferPool' n Unit
 type CfSnappyBufferPool n = CfSnappyBufferPool' n Unit
-type CfScoredBufferPool n r = Cofree ((->) TimeHeadroom) (BuffyVec' n r)
+type CfScoredBufferPool i n r = Cofree ((->) (TimeHeadroomInput i)) (BuffyVec' n r)
 
 type BuffyVec' (n :: Type) (r :: Type)
   = V.Vec n (Maybe (Buffy r))
@@ -117,8 +120,8 @@ type AHotBufferPool n
 type ASnappyBufferPool n
   = ASnappyBufferPool' n Unit
 
-type AScoredBufferPool n r
-  = MakeScoredBufferPool (CfScoredBufferPool n r)
+type AScoredBufferPool i n r
+  = MakeScoredBufferPool i (CfScoredBufferPool i n r)
 
 makeBufferPoolWithRest'
   :: forall n r
@@ -270,18 +273,20 @@ makeBufferPoolWithAnchor cf = combineComonadCofreeChooseB
   (makeBufferPoolWithRest)
 
 makeScoredBufferPool
-  :: forall n rest
+  :: forall n rest input
    . Pos n
   => { startsAt :: Number
      , noteStream ::
-         MakeScore
-           ( CfNoteStream
+         MakeScore'
+           ( CfNoteStream'
                { rest :: Number -> rest
                , duration :: Number -> Boolean -> Number -> Maybe Number
                }
+               input
            )
+           input
      }
-  -> AScoredBufferPool n rest
+  -> AScoredBufferPool input n rest
 makeScoredBufferPool { startsAt, noteStream } = makeBufferPoolWithAnchor $ (map <<< map <<< map)
   (\{ offset, rest: { rest, duration } } -> { offset, rest, duration })
   (makeScore { startsAt, noteStream })

@@ -262,7 +262,7 @@ makeFunctionCofreeFunctionOfTimeSequencedNote notes' = makeFullScene $ FullScene
   , piece: loopUsingScene
       ( \(SceneI { time, headroomInSeconds: headroomInSeconds }) { oscSimple } ->
           let
-            actualized = oscSimple { time, headroomInSeconds }
+            actualized = oscSimple { time, headroomInSeconds, input: unit }
           in
             { control: { oscSimple: unwrapCofree actualized }
             , scene: speaker
@@ -280,7 +280,7 @@ makeFunctionCofreeFunctionOfTimeSequencedNote notes' = makeFullScene $ FullScene
   where
   pwl dr v = ((0.0 /\ 0.0) :| ((min (dr * 0.3) 0.1) /\ v) : ((min (dr * 0.45) 0.3) /\ v * 0.3) : (dr /\ 0.0) : Nil)
 
-  emitter :: AScoredBufferPool D4 ({ note :: Note, pw :: APFofT Number })
+  emitter :: AScoredBufferPool Unit D4 ({ note :: Note, pw :: APFofT Number })
   emitter = makeBufferPoolWithAnchor
     ( (map <<< map <<< map)
         (\{ offset, rest: note@(Note { duration: Duration d, volume: Volume v }) } -> { duration: const $ const $ const (Just d), offset, rest: \st -> let pw = makePiecewise (map (over _1 (add st)) (pwl d v)) in { note, pw } })
