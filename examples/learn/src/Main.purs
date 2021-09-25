@@ -5,6 +5,7 @@ import Prelude
 import Control.Comonad (extract)
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Data.Array as A
+import Data.Function (on)
 import Data.Maybe (Maybe(..))
 import Data.NonEmpty ((:|))
 import Data.Tuple (Tuple(..))
@@ -24,7 +25,7 @@ import WAGS.Lib.Emitter (makeEmitter)
 import WAGS.Lib.Learn (buffers, component, using, usingc)
 import WAGS.Lib.Learn.Duration (crochet, crochetRest, dottedMinim, minim, semibreve)
 import WAGS.Lib.Learn.Note (accelerando, note, noteFromPitch_, note_, repeat, rs, seq)
-import WAGS.Lib.Learn.Pitch (a4, a5, b4, b5, bFlat4, bFlat4', c4, c4', c5, c5', cSharp4, d4, d4', d5, d6, e4, e4', e5, fSharp4, fSharp4', fSharp5, fSharp6, fot, g4, g5, gSharp4, gSharp4', gSharp5, majorThird, wholeTone)
+import WAGS.Lib.Learn.Pitch (a4, a5, at, b4, b5, bFlat4, c4, c5, cSharp4, d4, d5, d6, e4, e5, fSharp4, fSharp5, fSharp6, fot2, fuse, g4, g5, gSharp4, gSharp5, majorThird, wholeTone)
 import WAGS.Lib.Learn.Tempo (allegro)
 import WAGS.Lib.Learn.Transpose (transpose)
 import WAGS.Lib.Learn.Volume (mezzoForte)
@@ -63,13 +64,16 @@ stories = Object.fromFoldable
   , Tuple "buffer" $ proxy (parent "Play a buffer" (component "https://freesound.org/data/previews/24/24623_130612-hq.mp3"))
   , Tuple "cofree" $ proxy
       ( parent "Cofree comonad full of notes"
-          ( component $ map _.note $ ana
-              ( \{ note, rising } ->
-                  if note >= c5 then { note: bFlat4, rising: false }
-                  else if note <= c4 then { note: d4, rising: true }
-                  else { note: (if rising then add else sub) note wholeTone, rising }
+          ( component $ map fuse $ (map <<< map) _.note $ ana
+              ( \nr time ->
+                  let
+                    { note, rising } = nr time
+                  in
+                    if on (>=) (at time) note c5 then { note: bFlat4, rising: false }
+                    else if on (<=) (at time) note c4 then { note: d4, rising: true }
+                    else { note: (if rising then add else sub) note wholeTone, rising }
               )
-              { note: c4, rising: true }
+              (const { note: c4, rising: true })
           )
       )
   , Tuple "loop buffer"
@@ -194,9 +198,10 @@ stories = Object.fromFoldable
               $ accelerando
               $ seq
               $ map noteFromPitch_
-              $ c4' :| [ d4', fot (\_ -> e4'), fSharp4', gSharp4', bFlat4', c5', bFlat4', gSharp4', fSharp4', e4', d4', c4' ]
+              $ c4 :| [ d4, fot2 ((+) <<< lfo { amp: 20.0, freq: 16.0, phase: 0.0 }) e4, fSharp4, gSharp4, bFlat4, c5, bFlat4, gSharp4, fSharp4, e4, d4, c4 ]
           )
-      )  , Tuple "blue danube (with rests)" $ proxy
+      )
+  , Tuple "blue danube (with rests)" $ proxy
       ( parent "blue danube (with rests)"
           ( component
               $ seq

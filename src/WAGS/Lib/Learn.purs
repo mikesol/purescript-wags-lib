@@ -46,6 +46,7 @@ import WAGS.Graph.Parameter (AudioParameter_, AudioParameter, ff)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeBufferPoolWithAnchor)
 import WAGS.Lib.Learn.Duration (Duration(..), Rest(..))
+import WAGS.Lib.Learn.FofT (class FofT, toFofT)
 import WAGS.Lib.Learn.Note (Note(..), NoteOrRest, Sequenced(..), noteFromDefaults_, noteFromPitch_, noteStreamToSequence, seq)
 import WAGS.Lib.Learn.Pitch (Pitch(..))
 import WAGS.Lib.Learn.Volume (Volume(..))
@@ -60,15 +61,6 @@ import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 -- global fast forward to avoid clicks and pops
 gff :: AudioParameter_ ~> AudioParameter_
 gff = ff 0.03
-
-class FofT f where
-  toFofT :: f ~> (->) Number
-
-instance toFOfT'Identity :: FofT Identity where
-  toFofT (Identity a) = const a
-
-instance toFOfT'FofT :: FofT (Function Number) where
-  toFofT = identity
 
 class ToScene a res | a -> res where
   toScene :: a -> Aff { audioCtx :: AudioContext, event :: Event (Run res EmptyAnalysers) }

@@ -80,7 +80,7 @@ note_ v d p = Note { volume: v, duration: d, pitch: p }
 
 noteFromDefaults_
   :: forall volumeF durationF pitchF
-   . (Note' Identity Identity Identity -> Note' volumeF durationF pitchF)
+   . (Note' Identity Identity ((->) Number) -> Note' volumeF durationF pitchF)
   -> Note volumeF durationF pitchF
 noteFromDefaults_ = Note <<< (#) { volume: mezzoForte, duration: crochet, pitch: middleC }
 
@@ -97,7 +97,7 @@ note v d p = nt $ Note { volume: v, duration: d, pitch: p }
 
 noteFromDefaults
   :: forall volumeF durationF pitchF restF
-   . (Note' Identity Identity Identity -> Note' volumeF durationF pitchF)
+   . (Note' Identity Identity ((->) Number) -> Note' volumeF durationF pitchF)
   -> NoteOrRest volumeF durationF pitchF restF
 noteFromDefaults = nt <<< Note <<< (#) { volume: mezzoForte, duration: crochet, pitch: middleC }
 
