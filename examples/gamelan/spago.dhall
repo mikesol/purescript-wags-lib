@@ -15,6 +15,7 @@ in      conf
               , "event"
               , "foreign-object"
               , "indexed-monad"
+              , "debug"
               , "parallel"
               , "typelevel-prelude"
               ]
