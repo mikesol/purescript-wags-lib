@@ -24,7 +24,7 @@ import Halogen.HTML.Events as HE
 import Math (cos, pi, sin)
 import WAGS.Change (ichange)
 import WAGS.Control.Functions.Graph (iloop, (@!>))
-import WAGS.Control.Indexed (IxFrame)
+import WAGS.Control.Indexed (IxWAG)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (TGain, TPlayBuf, TSinOsc, TSpeaker)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
@@ -67,7 +67,7 @@ type Acc
 
 type World = { bell :: BrowserAudioBuffer }
 
-createFrame :: IxFrame (SceneI Unit World ()) RunAudio RunEngine Frame0 Unit () SceneType Acc
+createFrame :: SceneI Unit World () -> IxWAG RunAudio RunEngine Frame0 Unit () SceneType Acc
 createFrame = \(SceneI { time, world: { bell } }) ->
   ( ipatch { microphone: empty }
       :*>

@@ -48,7 +48,7 @@ import Type.Row (type (+))
 import WAGS.Change (change)
 import WAGS.Control.Functions (start)
 import WAGS.Control.Functions.Graph ((@|>), loop)
-import WAGS.Control.Types (Frame0, Scene, WAG, Frame)
+import WAGS.Control.Types (Frame0, Scene, WAG)
 import WAGS.Graph.AudioUnit (OnOff(..), TGain, TPlayBuf, TSpeaker)
 import WAGS.Interpret (class AudioInterpret, bufferDuration, close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.Lag (CfLag, makeLag)
@@ -352,21 +352,21 @@ runScene
    . AudioInterpret audio engine
   => RunWag Env (Acc audio engine) audio engine Res Graph Unit
   -> WAG audio engine proof Res Graph (Acc audio engine)
-  -> Frame Env audio engine proof Res Graph (Acc audio engine)
+  -> Env -> WAG audio engine proof Res Graph (Acc audio engine)
 runScene = runWag
 
 loopScene
   :: forall audio engine proof
    . AudioInterpret audio engine
   => WAG audio engine proof Res Graph (Acc audio engine)
-  -> Frame Env audio engine proof Res Graph (Acc audio engine)
+  -> Env -> WAG audio engine proof Res Graph (Acc audio engine)
 loopScene = runScene <<< extract <<< _.playingNow <<< unwrap <<< extract <*> identity
 
 firstFrame
   :: forall audio engine
    . AudioInterpret audio engine
   => Acc audio engine
-  -> Frame Env audio engine Frame0 Res Graph (Acc audio engine)
+  -> Env -> WAG audio engine Frame0 Res Graph (Acc audio engine)
 firstFrame acc env@(SceneI { world: { buffer } }) =
   start
     # patch { microphone: empty }
