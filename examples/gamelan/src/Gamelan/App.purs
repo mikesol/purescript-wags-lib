@@ -45,9 +45,10 @@ import WAGS.Create.Optionals (gain, playBuf, speaker)
 import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (ff)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
-import WAGS.Lib.BufferPool (Buffy(..))
+import WAGS.Lib.BufferPool (Buffy(..), makeBufferPool)
 import WAGS.Lib.Cofree (heads, tails)
-import WAGS.Lib.Rate (ARate, CfRate, MakeRate, Rate, timeIs)
+import WAGS.Lib.Latch (makeLatchAP)
+import WAGS.Lib.Rate (ARate, CfRate, MakeRate, Rate, makeRate, timeIs)
 import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
 import WAGS.Math (calcSlope)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), Run, run)
@@ -168,7 +169,10 @@ type Acc
     )
 
 acc :: { | Acc }
-acc = mempty
+acc = {
+  rate: makeRate { prevTime: 0.0, startsAt: 0.0 },
+  keyBufs: V.fill (const $ {latch: makeLatchAP, buffers: makeBufferPool })
+}
 
 scene :: forall trigger analyserCbs. SceneI trigger World analyserCbs -> { | Acc } -> _
 scene e a =
