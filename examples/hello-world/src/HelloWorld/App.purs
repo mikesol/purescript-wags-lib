@@ -23,7 +23,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Math (cos, pi, sin)
 import WAGS.Change (ichange)
-import WAGS.Control.Functions.Validated (iloop, (@!>))
+import WAGS.Control.Functions.Graph (iloop, (@!>))
 import WAGS.Control.Indexed (IxFrame)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (TGain, TPlayBuf, TSinOsc, TSpeaker)
