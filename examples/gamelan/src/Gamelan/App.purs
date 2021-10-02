@@ -49,6 +49,10 @@ import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, 
 import WAGS.Lib.BufferPool (Buffy(..), BuffyVec)
 import WAGS.Lib.Cofree (heads, tails)
 import WAGS.Lib.Rate (ARate, CfRate, Rate, timeIs)
+import WAGS.Lib.BufferPool (Buffy(..), makeBufferPool)
+import WAGS.Lib.Cofree (heads, tails)
+import WAGS.Lib.Latch (makeLatchAP)
+import WAGS.Lib.Rate (ARate, CfRate, MakeRate, Rate, makeRate, timeIs)
 import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
 import WAGS.Math (calcSlope)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), Run, run)
@@ -119,6 +123,13 @@ keyBufsActualize e@(SceneI e'@{ time }) { keyBufs, rate } =
 
   newE = timeIs (unwrap $ extract rate') e
 
+type SubgraphWorld =
+  ( time :: Number
+  , ntp :: Number
+  , chg :: Number
+  , bufz :: V.Vec NKeys BrowserAudioBuffer
+  )
+
 keyBufGraph
   :: forall trigger analyserCbs r
    . SceneI trigger World analyserCbs
@@ -131,27 +142,44 @@ keyBufGraph (SceneI { world }) { keyBufs, rate } =
   let
     vec = V.zipWithE (\browserBuf { buffers } -> { buffers, browserBuf }) world.buffers keyBufs
 
-    internal0 :: SubSceneSig "singleton" () { ipt :: { buffers :: BuffyVec NBuf, browserBuf :: BrowserAudioBuffer }, time :: Number }
-    internal0 = unit # SG.loopUsingScene \{ time, ipt } _ ->
+    internal0 :: SubSceneSig "singleton" ()
+      { ipt ::
+          { buffers :: BuffyVec NBuf
+          , browserBuf :: BrowserAudioBuffer
+          }
+      | SubgraphWorld
+      }
+    internal0 = unit # SG.loopUsingScene \{ time, ipt, ntp, chg, bufz } _ ->
       { control: unit
       , scene:
           { singleton:
-              subgraph ipt.buffers (const $ const internal1) (const $ { time, browserBuf: ipt.browserBuf, buf: _ }) {}
+              subgraph ipt.buffers (const $ const internal1)
+                ( const $
+                    { time
+                    , ntp
+                    , chg
+                    , bufz
+                    , browserBuf: ipt.browserBuf
+                    , buf: _
+                    }
+                )
+                {}
           }
       }
 
-    internal1 :: SubSceneSig "singleton" () { time :: Number, buf :: Maybe (Buffy Unit), browserBuf :: BrowserAudioBuffer }
-    internal1 = unit # SG.loopUsingScene \{ time, buf, browserBuf } _ ->
+    internal1 :: SubSceneSig "singleton" ()
+      { buf :: Maybe (Buffy Unit)
+      , browserBuf :: BrowserAudioBuffer
+      | SubgraphWorld
+      }
+    internal1 = unit # SG.loopUsingScene \{ time, buf, browserBuf, chg, ntp, bufz } _ ->
       { control: unit
       , scene:
           { singleton: case buf of
               Just (Buffy { starting, startTime }) ->
                 let
                   pos = max 0.0 (startTime - time)
-                  _____________________ = spy "buffy" time
-
                   nk = toNumber $ toInt' (Proxy :: _ NKeys)
-
                   endT = startTime + (nk / nps)
                 in
                   gain (ff (globalFF + pos) (pure (max 0.0 $ calcSlope startTime 1.0 endT 0.0 time)))
@@ -165,16 +193,25 @@ keyBufGraph (SceneI { world }) { keyBufs, rate } =
                                   pure On
                         , playbackRate: 1.0
                         }
-                        if xpos < world.ntropi then
+                        if xpos < ntp then
                           browserBuf
                         else
-                          fromMaybe browserBuf (A.index (Vec.toArray world.buffers) (floor $ world.change * nk))
+                          fromMaybe browserBuf (A.index (Vec.toArray bufz) (floor $ chg * nk))
                     )
-              Nothing -> let ___________ = spy "bad" true in gain 0.0 (playBuf { onOff: Off } browserBuf)
+              Nothing -> gain 0.0 (playBuf { onOff: Off } browserBuf)
           }
       }
   in
-    { keyBufs: subgraph vec (const $ const internal0) (const $ { time: time', ipt: _ }) {}
+    { keyBufs: subgraph vec (const $ const internal0)
+        ( const $
+            { time: time'
+            , ntp: world.ntropi
+            , bufz: world.buffers
+            , chg: world.change
+            , ipt: _
+            }
+        )
+        {}
     }
   where
   xpos = maybe 0.0 (\{ x } -> toNumber x / 1000.0) world.mickey
@@ -188,7 +225,10 @@ keyBufGraph (SceneI { world }) { keyBufs, rate } =
 type Acc = (| KeyBufs + ())
 
 acc :: { | Acc }
-acc = mempty
+acc =
+  { rate: makeRate { prevTime: 0.0, startsAt: 0.0 }
+  , keyBufs: V.fill (const $ { latch: makeLatchAP, buffers: makeBufferPool })
+  }
 
 scene :: forall trigger analyserCbs. SceneI trigger World analyserCbs -> { | Acc } -> _
 scene e a =

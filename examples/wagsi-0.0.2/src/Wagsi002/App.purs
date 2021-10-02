@@ -36,19 +36,20 @@ import Record.Builder as Record
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 import WAGS.Change (ichange)
-import WAGS.Control.Functions.Validated (iloop, startUsingWithHint)
+import WAGS.Control.Functions.Graph (iloop, startUsingWithHint)
+import WAGS.Control.Functions.Subgraph as SG
 import WAGS.Control.Types (Frame0, Scene)
-import WAGS.Create.Optionals (gain, loopBuf, playBuf, speaker)
+import WAGS.Create.Optionals (gain, loopBuf, playBuf, speaker, subgraph)
 import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (AudioParameter_(..), ff)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
-import WAGS.Lib.BufferPool (ABufferPool, Buffy(..), BuffyVec, CfBufferPool, MakeBufferPool)
+import WAGS.Lib.BufferPool (ABufferPool, Buffy(..), BuffyVec, CfBufferPool, MakeBufferPool, makeBufferPool)
 import WAGS.Lib.Cofree (heads, tails)
-import WAGS.Lib.Latch (ALatchAP, CfLatchAP, MakeLatchAP, LatchAP)
+import WAGS.Lib.Latch (ALatchAP, CfLatchAP, LatchAP, MakeLatchAP, makeLatchAP)
 import WAGS.Lib.Piecewise (makeLoopingTerracedR)
 import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), Run, run)
-import WAGS.Template (fromTemplate)
+import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
 globalFF = 0.03 :: Number
@@ -106,27 +107,37 @@ graph0
      | r
      }
   -> _
-graph0 (SceneI { time, world }) { room0KickBuf: { buffers } } =
-  { room0Kick:
-      fromTemplate (Proxy :: _ "room0KickBuffs") buffers \_ -> case _ of
-        Just (Buffy { starting, startTime }) ->
-          gain 1.0
-            ( playBuf
-                { onOff:
-                    ff globalFF
-                      $
-                        if starting then
-                          ff (max 0.0 (startTime - time)) (pure OffOn)
-                        else if time - startTime > 1.0 then
-                          pure Off
-                        else
-                          pure On
-                , playbackRate: 1.0
-                }
-                world.kick1
-            )
-        Nothing -> gain 0.0 (playBuf { onOff: Off } world.kick1)
-  }
+graph0 (SceneI { time: time', world }) { room0KickBuf: { buffers } } =
+  let
+    internal0 :: SubSceneSig "singleton" ()
+      { buf :: Maybe (Buffy Unit)
+      , time :: Number
+      }
+    internal0 = unit # SG.loopUsingScene \{ time, buf } _ ->
+      { control: unit
+      , scene:
+          { singleton: case buf of
+              Just (Buffy { starting, startTime }) ->
+                gain 1.0
+                  ( playBuf
+                      { onOff:
+                          ff globalFF
+                            $
+                              if starting then
+                                ff (max 0.0 (startTime - time)) (pure OffOn)
+                              else if time - startTime > 1.0 then
+                                pure Off
+                              else
+                                pure On
+                      , playbackRate: 1.0
+                      }
+                      world.kick1
+                  )
+              Nothing -> gain 0.0 (playBuf { onOff: Off } world.kick1)
+          }
+      }
+  in
+    { room0Kick: subgraph buffers (const $ const internal0) (const $ { time: time', buf: _ }) {} }
 
 --- room1
 type Acc1 r
@@ -170,27 +181,37 @@ actualizer1 e@(SceneI e'@{ time, headroomInSeconds }) a =
   room1ClapLatch = a.room1ClapLatch fromPW
 
 graph1 :: forall trigger aCb r. SceneI trigger World aCb -> { room1ClapLatch :: (LatchAP (First (Maybe Boolean))), room1ClapBuffers :: BuffyVec NBuf | r } -> _
-graph1 (SceneI { time, world }) { room1ClapBuffers } =
-  { room1Clap:
-      fromTemplate (Proxy :: _ "room1ClapBuffs") room1ClapBuffers \_ -> case _ of
-        Just (Buffy { starting, startTime }) ->
-          gain 1.0
-            ( playBuf
-                { onOff:
-                    ff globalFF
-                      $
-                        if starting then
-                          ff (max 0.0 (startTime - time)) (pure OffOn)
-                        else if time - startTime > 1.0 then
-                          pure Off
-                        else
-                          pure On
-                , playbackRate: 1.2 + sin (pi * time * 0.7) * 0.5
-                }
-                world.clap
-            )
-        Nothing -> gain 0.0 (playBuf { onOff: Off } world.clap)
-  }
+graph1 (SceneI { time: time', world }) { room1ClapBuffers } =
+  let
+    internal0 :: SubSceneSig "singleton" ()
+      { buf :: Maybe (Buffy Unit)
+      , time :: Number
+      }
+    internal0 = unit # SG.loopUsingScene \{ time, buf } _ ->
+      { control: unit
+      , scene:
+          { singleton: case buf of
+              Just (Buffy { starting, startTime }) ->
+                gain 1.0
+                  ( playBuf
+                      { onOff:
+                          ff globalFF
+                            $
+                              if starting then
+                                ff (max 0.0 (startTime - time)) (pure OffOn)
+                              else if time - startTime > 1.0 then
+                                pure Off
+                              else
+                                pure On
+                      , playbackRate: 1.2 + sin (pi * time * 0.7) * 0.5
+                      }
+                      world.clap
+                  )
+              Nothing -> gain 0.0 (playBuf { onOff: Off } world.clap)
+          }
+      }
+  in
+    { room1Clap: subgraph room1ClapBuffers (const $ const internal0) (const $ { time: time', buf: _ }) {} }
 
 -- room2
 type Acc2 r
@@ -237,27 +258,37 @@ actualizer2 e@(SceneI e'@{ time, headroomInSeconds }) a =
   room2HiHatLatch = a.room2HiHatLatch fromPW
 
 graph2 :: forall trigger aCb r. SceneI trigger World aCb -> { room2HiHatLatch :: (LatchAP (First (Maybe Boolean))), room2HiHatBuffers :: BuffyVec NBuf | r } -> _
-graph2 (SceneI { time, world }) { room2HiHatBuffers } =
-  { room2HiHat:
-      fromTemplate (Proxy :: _ "room2HiHatBuffs") room2HiHatBuffers \_ -> case _ of
-        Just (Buffy { starting, startTime }) ->
-          gain (sin (time * pi * 0.5) * 0.2 + 0.2) -- (if time - startTime < 0.3 then 0.6 else 0.1)
-            ( playBuf
-                { onOff:
-                    ff globalFF
-                      $
-                        if starting then
-                          ff (max 0.0 (startTime - time)) (pure OffOn)
-                        else if time - startTime > 1.0 then
-                          pure Off
-                        else
-                          pure On
-                , playbackRate: 1.0
-                }
-                world.openHH
-            )
-        Nothing -> gain 0.0 (playBuf { onOff: Off } world.openHH)
-  }
+graph2 (SceneI { time: time', world }) { room2HiHatBuffers } =
+  let
+    internal0 :: SubSceneSig "singleton" ()
+      { buf :: Maybe (Buffy Unit)
+      , time :: Number
+      }
+    internal0 = unit # SG.loopUsingScene \{ time, buf } _ ->
+      { control: unit
+      , scene:
+          { singleton: case buf of
+              Just (Buffy { starting, startTime }) ->
+                gain (sin (time * pi * 0.5) * 0.2 + 0.2) -- (if time - startTime < 0.3 then 0.6 else 0.1)
+                  ( playBuf
+                      { onOff:
+                          ff globalFF
+                            $
+                              if starting then
+                                ff (max 0.0 (startTime - time)) (pure OffOn)
+                              else if time - startTime > 1.0 then
+                                pure Off
+                              else
+                                pure On
+                      , playbackRate: 1.0
+                      }
+                      world.openHH
+                  )
+              Nothing -> gain 0.0 (playBuf { onOff: Off } world.openHH)
+          }
+      }
+  in
+    { room2HiHat: subgraph room2HiHatBuffers (const $ const internal0) (const $ { time: time', buf: _ }) {} }
 
 -- room3
 actualizer3
@@ -308,7 +339,13 @@ type Acc
   )
 
 acc :: { | Acc }
-acc = mempty
+acc =
+  { room0KickBuf: { latch: makeLatchAP, buffers: makeBufferPool }
+  , room1ClapBuffers: makeBufferPool
+  , room1ClapLatch: makeLatchAP
+  , room2HiHatBuffers: makeBufferPool
+  , room2HiHatLatch: makeLatchAP
+  }
 
 scene :: forall trigger aCb. SceneI trigger World aCb -> { | Acc } -> _
 scene e a =
