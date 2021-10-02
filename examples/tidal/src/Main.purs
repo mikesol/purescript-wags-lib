@@ -34,7 +34,8 @@ import Text.Parsing.StringParser.CodePoints (satisfy)
 import Text.Parsing.StringParser.CodeUnits (skipSpaces, string, char)
 import Text.Parsing.StringParser.Combinators (between, many, sepBy)
 import Type.Proxy (Proxy(..))
-import WAGS.Create.Optionals (speaker, gain, playBuf)
+import WAGS.Control.Functions.Subgraph as SG
+import WAGS.Create.Optionals (gain, playBuf, speaker, subgraph)
 import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (ff)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeScoredBufferPool)
@@ -42,7 +43,7 @@ import WAGS.Lib.Learn (buffers, play, usingc)
 import WAGS.Lib.Score (CfNoteStream)
 import WAGS.Math (calcSlope)
 import WAGS.Run (SceneI(..))
-import WAGS.Template (fromTemplate)
+import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (BrowserAudioBuffer)
 
 newtype CycleLength = CycleLength Number
@@ -331,31 +332,49 @@ tidal dur =
             }
         )
         (acc i)
-        \(SceneI { time, headroomInSeconds, world: { buffers } }) control ->
+        \(SceneI { time: time', headroomInSeconds, world: { buffers } }) control ->
           let
-            actualized = control.buffers { time, headroomInSeconds, input: unit }
+            actualized = control.buffers { time: time', headroomInSeconds, input: unit }
+
+            internal0 :: SubSceneSig "singleton" ()
+              { buf :: Maybe (Buffy RBuf)
+              , time :: Number
+              }
+            internal0 = unit # SG.loopUsingScene \{ time, buf } _ ->
+              { control: unit
+              , scene:
+                  { singleton: case buf of
+                      Just (Buffy { starting, startTime, rest: { sampleF, duration } }) ->
+                        gain
+                          ( ff globalFF $ pure $
+                              if time > startTime + duration then calcSlope (startTime + duration) 1.0 (startTime + duration + 0.5) 0.0 time else 1.0
+                          )
+                          ( playBuf
+                              { onOff:
+                                  ff globalFF
+                                    $
+                                      if starting then
+                                        ff (max 0.0 (startTime - time)) (pure OffOn)
+                                      else
+                                        pure On
+                              }
+                              (sampleF buffers)
+                          )
+                      Nothing -> gain 0.0 (playBuf { onOff: Off } buffers.kick1)
+                  }
+              }
           in
             { control: { buffers: unwrapCofree actualized }
             , scene: speaker
-                ( gain 1.0
-                    -- todo: use ffi to speed up
-                    ( fromTemplate (Proxy :: _ "instruments") (extract actualized) \_ -> case _ of
-                        Just (Buffy { starting, startTime, rest: { sampleF, duration } }) ->
-                          gain (ff globalFF $ pure $ if time > startTime + duration then calcSlope (startTime + duration) 1.0 (startTime + duration + 0.5) 0.0 time else 1.0)
-                            ( playBuf
-                                { onOff:
-                                    ff globalFF
-                                      $
-                                        if starting then
-                                          ff (max 0.0 (startTime - time)) (pure OffOn)
-                                        else
-                                          pure On
-                                }
-                                (sampleF buffers)
-                            )
-                        Nothing -> gain 0.0 (playBuf { onOff: Off } buffers.kick1)
-                    )
-                )
+                { gn: gain 1.0
+                    { sg: subgraph
+                        (extract actualized)
+                        (const $ const internal0)
+                        (const $ { time: time', buf: _ })
+                        {}
+                    }
+
+                }
             }
     )
     <<< map asScore

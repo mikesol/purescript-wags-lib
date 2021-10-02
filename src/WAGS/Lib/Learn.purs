@@ -36,14 +36,15 @@ import Prim.RowList as RL
 import Record as Record
 import Type.Proxy (Proxy(..))
 import WAGS.Change (class Change)
-import WAGS.Control.Functions.Validated (loopUsingScene)
-import WAGS.Control.Types (Frame0, Scene)
+import WAGS.Control.Functions.Graph (loopUsingScene)
+import WAGS.Control.Functions.Subgraph as SG
+import WAGS.Control.Types (Frame0, Scene, SubScene)
 import WAGS.Create (class Create)
-import WAGS.Create.Optionals (constant, gain, sinOsc, playBuf, speaker)
+import WAGS.Create.Optionals (constant, gain, playBuf, sinOsc, speaker, subgraph)
 import WAGS.Graph.AudioUnit (APOnOff)
 import WAGS.Graph.AudioUnit as CTOR
 import WAGS.Graph.Parameter (AudioParameter_, AudioParameter, ff)
-import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
+import WAGS.Interpret (class AudioInterpret, close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeBufferPoolWithAnchor)
 import WAGS.Lib.Learn.Duration (Duration(..), Rest(..))
 import WAGS.Lib.Learn.FofT (class FofT, toFofT)
@@ -54,7 +55,6 @@ import WAGS.Lib.Piecewise (APFofT, makePiecewise)
 import WAGS.Lib.Score (makeScore)
 import WAGS.Lib.Stream (deadEnd)
 import WAGS.Run (Run, RunAudio, RunEngine, SceneI(..), run)
-import WAGS.Template (fromTemplate)
 import WAGS.Validation (class GraphIsRenderable)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
@@ -292,6 +292,23 @@ instance toSceneCofreeNote ::
 noSine :: CTOR.Gain AudioParameter /\ (CTOR.SinOsc APOnOff AudioParameter /\ {})
 noSine = gain 0.0 (sinOsc 0.1)
 
+{-
+subgraph
+  :: forall n inputs info terminus env r
+   . Pos n
+  => V.Vec n info
+  -> ( forall audio engine
+        . AudioInterpret audio engine
+       => Int
+       -> info
+       -> SubScene terminus inputs env audio engine Frame0 Unit
+     )
+  -> (Int -> info -> env)
+  -> r
+  -> (CTOR.Subgraph inputs (V.Vec n info) (AsSubgraph terminus inputs info env) (Int -> info -> env)) /\ r
+subgraph vec sg ev = Tuple (CTOR.Subgraph vec (AsSubgraph sg) ev)
+-}
+
 makeCofreeSequencedNote
   :: forall volumeF durationF pitchF
    . FofT volumeF
@@ -302,18 +319,29 @@ makeCofreeSequencedNote
 makeCofreeSequencedNote notes' = makeFullScene $ FullScene
   { triggerWorld: defaultTriggerWorld
   , piece: loopUsingScene
-      ( \(SceneI { time, headroomInSeconds: headroomInSeconds }) { oscSimple } ->
+      ( \(SceneI { time: time', headroomInSeconds: headroomInSeconds }) { oscSimple } ->
           let
-            actualized = oscSimple { time, headroomInSeconds, input: unit }
+            actualized = oscSimple { time: time', headroomInSeconds, input: unit }
+
+            internal
+              :: forall audio engine
+               . AudioInterpret audio engine
+              => SubScene "singleton" () { time :: Number, buf :: Maybe (Buffy ({ note :: Note volumeF durationF pitchF, pw :: APFofT Number })) } audio engine Frame0 Unit
+            internal = unit # SG.loopUsingScene \{ time, buf } _ ->
+              { control: unit
+              , scene:
+                  { singleton: case buf of
+                      Just (Buffy { rest: { note: Note { pitch: Pitch pitch, volume: Volume volume }, pw } }) -> gain
+                        ((gff (pw { time, headroomInSeconds })) * (pure (toFofT volume time)))
+                        (sinOsc (gff $ pure $ (toFofT pitch time)))
+
+                      Nothing -> noSine
+                  }
+              }
           in
             { control: { oscSimple: unwrapCofree actualized }
             , scene: speaker
-                { piece: fromTemplate (Proxy :: _ "sinOsc") (extract actualized) \_ -> case _ of
-                    Just (Buffy { rest: { note: Note { pitch: Pitch pitch, volume: Volume volume }, pw } }) -> gain
-                      ((gff (pw { time, headroomInSeconds })) * (pure (toFofT volume time)))
-                      (sinOsc (gff $ pure $ (toFofT pitch time)))
-
-                    Nothing -> noSine
+                { piece: subgraph (extract actualized) (const $ const internal) (const $ { time: time', buf: _ }) {}
                 }
             }
       )

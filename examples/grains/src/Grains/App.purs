@@ -22,15 +22,16 @@ import Halogen.HTML.Events as HE
 import Math (pow)
 import Type.Proxy (Proxy(..))
 import WAGS.Change (ichange)
-import WAGS.Control.Functions (iloop, startUsingWithHint)
+import WAGS.Control.Functions.Graph (iloop, startUsingWithHint)
+import WAGS.Control.Functions.Subgraph as SG
 import WAGS.Control.Types (Frame0, Scene)
-import WAGS.Create.Optionals (gain, playBuf, speaker, pan)
+import WAGS.Create.Optionals (gain, pan, playBuf, speaker, subgraph)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
-import WAGS.Lib.BufferPool (AHotBufferPool, BuffyVec, bOnOff)
+import WAGS.Lib.BufferPool (AHotBufferPool, Buffy, BuffyVec, bOnOff, makeHotBufferPool)
 import WAGS.Lib.Cofree (tails)
 import WAGS.Lib.Record (applyRecord, unwrapRecord)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), Run, run)
-import WAGS.Template (fromTemplate)
+import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
 ntropi :: Behavior Number
@@ -43,7 +44,7 @@ type Acc
   = { hbp :: AHotBufferPool D20 }
 
 acc :: Acc
-acc = { hbp: mempty }
+acc = { hbp: makeHotBufferPool { startsAt: 0.0 } }
 
 type World
   = { entropy :: Number, buffers :: { bells :: BrowserAudioBuffer } }
@@ -61,22 +62,31 @@ piece =
           ichange (scene time bells entropy (extract actualized.hbp)) $> tails actualized
     )
   where
-  scene (time :: Number) (bells :: BrowserAudioBuffer) (entropy :: Number) (v :: BuffyVec D20) =
-    speaker
-      { mainBus:
-          fromTemplate (Proxy :: _ "myPool") v \i gor ->
-            gain 0.5
-              { myPlayer:
-                  pan (entropy * 2.0 - 1.0)
-                    { panny:
-                        playBuf
-                          { onOff: bOnOff time gor
-                          , playbackRate: (1.0 + (toNumber (i + 1) * 0.1 + entropy))
-                          }
-                          bells
-                    }
-              }
-      }
+  internal0 :: SubSceneSig "singleton" ()
+    { gor :: Maybe (Buffy Unit)
+    , bells :: BrowserAudioBuffer
+    , time :: Number
+    , entropy :: Number
+    , i :: Int
+    }
+  internal0 = unit # SG.loopUsingScene \{ i, time, bells, entropy, gor } _ ->
+    { control: unit
+    , scene:
+        { singleton: gain 0.5
+            { myPlayer:
+                pan (entropy * 2.0 - 1.0)
+                  { panny:
+                      playBuf
+                        { onOff: bOnOff time gor
+                        , playbackRate: (1.0 + (toNumber (i + 1) * 0.1 + entropy))
+                        }
+                        bells
+                  }
+            }
+        }
+    }
+  scene (time' :: Number) (bells :: BrowserAudioBuffer) (entropy :: Number) (v :: BuffyVec D20) =
+    speaker { mainBus: subgraph v (const $ const internal0) (\i -> { i, time: time', bells, entropy, gor: _ }) {} }
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =
@@ -86,9 +96,10 @@ easingAlgorithm =
     fOf 20
 
 type State
-  = { unsubscribe :: Effect Unit
-    , audioCtx :: Maybe AudioContext
-    }
+  =
+  { unsubscribe :: Effect Unit
+  , audioCtx :: Maybe AudioContext
+  }
 
 data Action
   = StartAudio
@@ -132,7 +143,7 @@ handleAction = case _ of
             audioCtx
             "https://freesound.org/data/previews/339/339822_5121236-lq.mp3"
     let
-      ffiAudio = (defaultFFIAudio audioCtx unitCache) 
+      ffiAudio = (defaultFFIAudio audioCtx unitCache)
     unsubscribe <-
       H.liftEffect
         $ subscribe

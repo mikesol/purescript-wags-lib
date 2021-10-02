@@ -20,6 +20,7 @@ import Data.Typelevel.Num (D2, D7, toInt')
 import Data.Vec ((+>))
 import Data.Vec as V
 import Data.Vec as Vec
+import Debug (spy)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
@@ -33,18 +34,23 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Record as R
 import Record.Builder as Record
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 import WAGS.Change (ichange)
 import WAGS.Control.Functions (imodifyRes)
-import WAGS.Control.Functions.Validated (iloop, startUsingWithHint)
+import WAGS.Control.Functions.Graph (iloop, startUsingWithHint)
+import WAGS.Control.Functions.Subgraph as SG
 import WAGS.Control.Types (Frame0, Scene)
-import WAGS.Create.Optionals (gain, playBuf, speaker)
+import WAGS.Create.Optionals (gain, playBuf, speaker, subgraph)
 import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (ff)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
+import WAGS.Lib.BufferPool (Buffy(..), makeBufferPool)
+import WAGS.Lib.Cofree (heads, tails)
+import WAGS.Lib.BufferPool (Buffy(..), BuffyVec)
+import WAGS.Lib.Cofree (heads, tails)
+import WAGS.Lib.Rate (ARate, CfRate, Rate, timeIs)
 import WAGS.Lib.BufferPool (Buffy(..), makeBufferPool)
 import WAGS.Lib.Cofree (heads, tails)
 import WAGS.Lib.Latch (makeLatchAP)
@@ -52,7 +58,7 @@ import WAGS.Lib.Rate (ARate, CfRate, MakeRate, Rate, makeRate, timeIs)
 import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
 import WAGS.Math (calcSlope)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), Run, run)
-import WAGS.Template (fromTemplate)
+import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
 ntropi :: Behavior Number
@@ -73,23 +79,25 @@ type RBuf
   = Unit -- no extra info needed
 
 type World
-  = { ntropi :: Number
-    , mickey :: Maybe { x :: Int, y :: Int }
-    , change :: Number
-    , buffers :: V.Vec NKeys BrowserAudioBuffer
-    }
+  =
+  { ntropi :: Number
+  , mickey :: Maybe { x :: Int, y :: Int }
+  , change :: Number
+  , buffers :: V.Vec NKeys BrowserAudioBuffer
+  }
 
 type KeyBufs r
-  = ( keyBufs :: V.Vec NKeys (SimpleBuffer NBuf)
-    , rate :: ARate
-    | r
-    )
+  =
+  ( keyBufs :: V.Vec NKeys (SimpleBuffer NBuf)
+  , rate :: ARate
+  | r
+  )
 
 nps = 3.0 :: Number
 
-buffersActualized ::
-  forall trigger world analyserCbs.
-  V.Vec NKeys (SceneI trigger world analyserCbs -> SimpleBuffer NBuf -> SimpleBufferCf NBuf)
+buffersActualized
+  :: forall trigger world analyserCbs
+   . V.Vec NKeys (SceneI trigger world analyserCbs -> SimpleBuffer NBuf -> SimpleBufferCf NBuf)
 buffersActualized =
   V.fill \i' ->
     let
@@ -99,14 +107,14 @@ buffersActualized =
         (NEA.singleton (i / nps))
         ((toNumber $ toInt' (Proxy :: _ NKeys)) / nps)
 
-keyBufsActualize ::
-  forall trigger analyserCbs r.
-  SceneI trigger World analyserCbs ->
-  { | KeyBufs r } ->
-  { keyBufs :: V.Vec NKeys (SimpleBufferCf NBuf)
-  , rate :: CfRate
-  }
-keyBufsActualize e@(SceneI e'@ { time }) { keyBufs, rate } =
+keyBufsActualize
+  :: forall trigger analyserCbs r
+   . SceneI trigger World analyserCbs
+  -> { | KeyBufs r }
+  -> { keyBufs :: V.Vec NKeys (SimpleBufferCf NBuf)
+     , rate :: CfRate
+     }
+keyBufsActualize e@(SceneI e'@{ time }) { keyBufs, rate } =
   { keyBufs: V.zipWithE (\f x -> f newE x) buffersActualized keyBufs
   , rate: rate'
   }
@@ -117,62 +125,112 @@ keyBufsActualize e@(SceneI e'@ { time }) { keyBufs, rate } =
 
   newE = timeIs (unwrap $ extract rate') e
 
-keyBufGraph ::
-  forall trigger analyserCbs r.
-  SceneI trigger World analyserCbs ->
-  { keyBufs :: V.Vec NKeys (SimpleBufferHead NBuf)
-  , rate :: Rate
-  | r
-  } ->
-  _
+type SubgraphWorld =
+  ( time :: Number
+  , ntp :: Number
+  , chg :: Number
+  , bufz :: V.Vec NKeys BrowserAudioBuffer
+  )
+
+keyBufGraph
+  :: forall trigger analyserCbs r
+   . SceneI trigger World analyserCbs
+  -> { keyBufs :: V.Vec NKeys (SimpleBufferHead NBuf)
+     , rate :: Rate
+     | r
+     }
+  -> _
 keyBufGraph (SceneI { world }) { keyBufs, rate } =
-  { keyBufs:
-      fromTemplate (Proxy :: _ "instruments") (V.zipWithE (R.insert (Proxy :: _ "browserBuf")) world.buffers keyBufs) \i { buffers, browserBuf } ->
-        fromTemplate (Proxy :: _ "buffers") buffers \_ -> case _ of
-          Just (Buffy { starting, startTime }) ->
-            let
-              pos = max 0.0 (startTime - time)
+  let
+    vec = V.zipWithE (\browserBuf { buffers } -> { buffers, browserBuf }) world.buffers keyBufs
 
-              nk = toNumber $ toInt' (Proxy :: _ NKeys)
-
-              endT = startTime + (nk / nps)
-            in
-              gain (ff (globalFF + pos) (pure (max 0.0 $ calcSlope startTime 1.0 endT 0.0 time)))
-                ( playBuf
-                    { onOff:
-                        ff globalFF
-                          $ if starting then
-                              ff pos (pure OffOn)
-                            else
-                              pure On
-                    , playbackRate: 1.0
+    internal0 :: SubSceneSig "singleton" ()
+      { ipt ::
+          { buffers :: BuffyVec NBuf
+          , browserBuf :: BrowserAudioBuffer
+          }
+      | SubgraphWorld
+      }
+    internal0 = unit # SG.loopUsingScene \{ time, ipt, ntp, chg, bufz } _ ->
+      { control: unit
+      , scene:
+          { singleton:
+              subgraph ipt.buffers (const $ const internal1)
+                ( const $
+                    { time
+                    , ntp
+                    , chg
+                    , bufz
+                    , browserBuf: ipt.browserBuf
+                    , buf: _
                     }
-                    if xpos < world.ntropi then
-                      browserBuf
-                    else
-                      fromMaybe browserBuf (A.index (Vec.toArray world.buffers) (floor $ world.change * nk))
                 )
-          Nothing -> gain 0.0 (playBuf { onOff: Off } browserBuf) 
-  }
+                {}
+          }
+      }
+
+    internal1 :: SubSceneSig "singleton" ()
+      { buf :: Maybe (Buffy Unit)
+      , browserBuf :: BrowserAudioBuffer
+      | SubgraphWorld
+      }
+    internal1 = unit # SG.loopUsingScene \{ time, buf, browserBuf, chg, ntp, bufz } _ ->
+      { control: unit
+      , scene:
+          { singleton: case buf of
+              Just (Buffy { starting, startTime }) ->
+                let
+                  pos = max 0.0 (startTime - time)
+                  nk = toNumber $ toInt' (Proxy :: _ NKeys)
+                  endT = startTime + (nk / nps)
+                in
+                  gain (ff (globalFF + pos) (pure (max 0.0 $ calcSlope startTime 1.0 endT 0.0 time)))
+                    ( playBuf
+                        { onOff:
+                            ff globalFF
+                              $
+                                if starting then
+                                  ff pos (pure OffOn)
+                                else
+                                  pure On
+                        , playbackRate: 1.0
+                        }
+                        if xpos < ntp then
+                          browserBuf
+                        else
+                          fromMaybe browserBuf (A.index (Vec.toArray bufz) (floor $ chg * nk))
+                    )
+              Nothing -> gain 0.0 (playBuf { onOff: Off } browserBuf)
+          }
+      }
+  in
+    { keyBufs: subgraph vec (const $ const internal0)
+        ( const $
+            { time: time'
+            , ntp: world.ntropi
+            , bufz: world.buffers
+            , chg: world.change
+            , ipt: _
+            }
+        )
+        {}
+    }
   where
   xpos = maybe 0.0 (\{ x } -> toNumber x / 1000.0) world.mickey
 
-  time = unwrap rate
+  time' = unwrap rate
 
 ---
 -- change this to make sound
 -- for example, you can try:
 -- a /@\ speaker { unit0: gain (cos (pi * e.time) * -0.02 + 0.02) { osc0: sinOsc 440.0 } }
-type Acc
-  = (
-    | KeyBufs + ()
-    )
+type Acc = (| KeyBufs + ())
 
 acc :: { | Acc }
-acc = {
-  rate: makeRate { prevTime: 0.0, startsAt: 0.0 },
-  keyBufs: V.fill (const $ {latch: makeLatchAP, buffers: makeBufferPool })
-}
+acc =
+  { rate: makeRate { prevTime: 0.0, startsAt: 0.0 }
+  , keyBufs: V.fill (const $ { latch: makeLatchAP, buffers: makeBufferPool })
+  }
 
 scene :: forall trigger analyserCbs. SceneI trigger World analyserCbs -> { | Acc } -> _
 scene e a =
@@ -182,8 +240,7 @@ scene e a =
     --------------------------------------------
     actualized =
       Record.build
-        ( Record.union (keyBufsActualize e a)
-        )
+        (Record.union (keyBufsActualize e a))
         actualizer
 
     headz = heads actualized
@@ -234,9 +291,10 @@ easingAlgorithm =
     fOf 20
 
 type State
-  = { unsubscribe :: Effect Unit
-    , audioCtx :: Maybe AudioContext
-    }
+  =
+  { unsubscribe :: Effect Unit
+  , audioCtx :: Maybe AudioContext
+  }
 
 data Action
   = StartAudio
@@ -256,7 +314,7 @@ initialState _ =
   , audioCtx: Nothing
   }
 
-classes :: forall r p. Array String -> HP.IProp ( class :: String | r ) p
+classes :: forall r p. Array String -> HP.IProp (class :: String | r) p
 classes = HP.classes <<< map H.ClassName
 
 render :: forall m. State -> H.ComponentHTML Action () m
@@ -274,7 +332,7 @@ render _ =
                     [ classes [ "text-2xl", "m-5", "bg-indigo-500", "p-3", "rounded-lg", "text-white", "hover:bg-indigo-400" ], HE.onClick \_ -> StartAudio ]
                     [ HH.text "Start audio" ]
                 , HH.button
-                    [ classes [ "text-2xl", "m-5", "bg-pink-500", "p-3", "rounded-lg", "text-white", "hover:bg-pink-400" ] , HE.onClick \_ -> StopAudio ]
+                    [ classes [ "text-2xl", "m-5", "bg-pink-500", "p-3", "rounded-lg", "text-white", "hover:bg-pink-400" ], HE.onClick \_ -> StopAudio ]
                     [ HH.text "Stop audio" ]
                 ]
             , HH.div [ classes [ "flex-grow" ] ] []
@@ -290,23 +348,24 @@ handleAction = case _ of
     audioCtx <- H.liftEffect context
     unitCache <- H.liftEffect makeUnitCache
     let
-      sounds' = "https://freesound.org/data/previews/24/24620_130612-hq.mp3" +>
-         "https://freesound.org/data/previews/24/24622_130612-hq.mp3" +>
-         "https://freesound.org/data/previews/24/24623_130612-hq.mp3" +>
-         "https://freesound.org/data/previews/24/24624_130612-hq.mp3" +>
-         "https://freesound.org/data/previews/24/24625_130612-hq.mp3" +>
-         "https://freesound.org/data/previews/24/24626_130612-hq.mp3" +>
-         "https://freesound.org/data/previews/24/24627_130612-hq.mp3"+> V.empty
-        
+      sounds' = "https://freesound.org/data/previews/24/24620_130612-hq.mp3"
+        +> "https://freesound.org/data/previews/24/24622_130612-hq.mp3"
+        +> "https://freesound.org/data/previews/24/24623_130612-hq.mp3"
+        +> "https://freesound.org/data/previews/24/24624_130612-hq.mp3"
+        +> "https://freesound.org/data/previews/24/24625_130612-hq.mp3"
+        +> "https://freesound.org/data/previews/24/24626_130612-hq.mp3"
+        +> "https://freesound.org/data/previews/24/24627_130612-hq.mp3"
+        +> V.empty
+
     sounds <- H.liftAff $ sequential $ traverse (parallel <<< toAffE <<< decodeAudioDataFromUri audioCtx) sounds'
     let
-      ffiAudio = defaultFFIAudio audioCtx unitCache 
+      ffiAudio = defaultFFIAudio audioCtx unitCache
     mouse' <- H.liftEffect getMouse
     unsubscribe <-
       H.liftEffect
         $ subscribe
             ( run (pure unit)
-                ( { ntropi: _, mickey: _, change: _, buffers:  sounds }
+                ( { ntropi: _, mickey: _, change: _, buffers: sounds }
                     <$> ntropi
                     <*> position mouse'
                     <*> ntropi

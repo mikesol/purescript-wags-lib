@@ -15,7 +15,7 @@ import Run.State (State(..))
 import Type.Proxy (Proxy(..))
 import WAGS.Change (class Change, change)
 import WAGS.Control.Functions (modifyRes)
-import WAGS.Control.Types (WAG, Frame)
+import WAGS.Control.Types (WAG)
 import WAGS.Interpret (class AudioInterpret)
 
 data ShortCircuit = ShortCircuit
@@ -88,7 +88,7 @@ runWag
    . AudioInterpret audio engine
   => RunWag env control audio engine res graph Unit
   -> WAG audio engine proof res graph control
-  -> Frame env audio engine proof res graph control
+  -> env -> WAG audio engine proof res graph control
 runWag monad' wag' env' = res.wag $> res.control
   where
   res = tailRec go { wag: wag' $> unit, control: extract wag', monad: monad' }

@@ -65,13 +65,10 @@ stories = Object.fromFoldable
   , Tuple "cofree" $ proxy
       ( parent "Cofree comonad full of notes"
           ( component $ map fuse $ (map <<< map) _.note $ ana
-              ( \nr time ->
-                  let
-                    { note, rising } = nr time
-                  in
-                    if on (>=) (at time) note c5 then { note: bFlat4, rising: false }
-                    else if on (<=) (at time) note c4 then { note: d4, rising: true }
-                    else { note: (if rising then add else sub) note wholeTone, rising }
+              ( (<*>) \time { note, rising } ->
+                  if on (>=) (at time) note c5 then { note: bFlat4, rising: false }
+                  else if on (<=) (at time) note c4 then { note: d4, rising: true }
+                  else { note: (if rising then add else sub) note wholeTone, rising }
               )
               (const { note: c4, rising: true })
           )
