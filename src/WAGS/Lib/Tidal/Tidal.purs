@@ -7,6 +7,7 @@ module WAGS.Lib.Tidal.Tidal
   , plainly
   , s
   , rend
+  , rend_
   , rendNit
   , c2s
   , s2f
@@ -749,6 +750,9 @@ rend cyn dur = asScore false
   $ unrest
   $ cycleToSequence dur
   $ cyn
+
+rend_ :: Cycle (Maybe (Note Unit)) -> CycleDuration -> (NextCycle Unit)
+rend_ = rend
 
 rendNit :: forall event. NonEmptyList (NonEmptyList (NoteInTime (Maybe (Note event)))) -> NextCycle event
 rendNit = asScore false <<< s2f

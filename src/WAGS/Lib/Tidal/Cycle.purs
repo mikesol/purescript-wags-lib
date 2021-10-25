@@ -135,6 +135,12 @@ noteFromSample' weight sample = SingleNote
 noteFromSample :: forall event. Sample -> Cycle (Maybe (Note event))
 noteFromSample = noteFromSample' 1.0
 
+noteFromSample'_ :: Number -> Sample -> Cycle (Maybe (Note Unit))
+noteFromSample'_ = noteFromSample'
+
+noteFromSample_ :: Sample -> Cycle (Maybe (Note Unit))
+noteFromSample_ = noteFromSample
+
 intentionalSilenceForInternalUseOnly_ :: forall event. Cycle (Maybe (Note event))
 intentionalSilenceForInternalUseOnly_ = noteFromSample S.intentionalSilenceForInternalUseOnly__Sample
 
