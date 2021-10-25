@@ -10,6 +10,7 @@ import Test.Emitter (testEmitter)
 import Test.Impulse (testImpulse)
 import Test.Lag (testLag)
 import Test.Latch (testLatch)
+import Test.Tidal (testTidal)
 import Test.Piecewise (testPiecewise)
 import Test.Rate (testRate)
 import Test.Record (testRecord)
@@ -32,6 +33,7 @@ main = do
         testEmitter
         testScore
         testBlip
+        testTidal
         testPiecewise
         testTrigger
         testLatch
