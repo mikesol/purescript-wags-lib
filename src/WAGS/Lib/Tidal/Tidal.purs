@@ -21,6 +21,9 @@ module WAGS.Lib.Tidal.Tidal
   , b
   , i
   , x
+  , b'
+  , i'
+  , x'
   , b_
   , i_
   , x_
@@ -323,20 +326,29 @@ mapmap = map <<< map
 b :: forall event. Cycle (Maybe (Note event)) -> Array (Cycle (Maybe (Note event))) -> Cycle (Maybe (Note event))
 b bx by = Branching { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (bx :| L.fromFoldable by) }
 
-b_ :: forall event. Cycle (Maybe (Note event)) -> Cycle (Maybe (Note event))
-b_ bx = b bx []
+b' :: forall event. Cycle (Maybe (Note event)) -> Cycle (Maybe (Note event))
+b' bx = b bx []
+
+b_ :: Cycle (Maybe (Note Unit)) -> Array (Cycle (Maybe (Note Unit))) -> Cycle (Maybe (Note Unit))
+b_ = b
 
 i :: forall event. Cycle (Maybe (Note event)) -> Array (Cycle (Maybe (Note event))) -> Cycle (Maybe (Note event))
 i sx sy = Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (sx :| L.fromFoldable sy) }
 
-i_ :: forall event. Cycle (Maybe (Note event)) -> Cycle (Maybe (Note event))
-i_ sx = i sx []
+i' :: forall event. Cycle (Maybe (Note event)) -> Cycle (Maybe (Note event))
+i' sx = i sx []
+
+i_ :: Cycle (Maybe (Note Unit)) -> Array (Cycle (Maybe (Note Unit))) -> Cycle (Maybe (Note Unit))
+i_ = i
 
 x :: forall event. Cycle (Maybe (Note event)) -> Array (Cycle (Maybe (Note event))) -> Cycle (Maybe (Note event))
 x xx xy = Simultaneous { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (xx :| L.fromFoldable xy) }
 
-x_ :: forall event. Cycle (Maybe (Note event)) -> Cycle (Maybe (Note event))
-x_ sx = x sx []
+x' :: forall event. Cycle (Maybe (Note event)) -> Cycle (Maybe (Note event))
+x' sx = x sx []
+
+x_ :: Cycle (Maybe (Note Unit)) -> Array (Cycle (Maybe (Note Unit))) -> Cycle (Maybe (Note Unit))
+x_ = x
 
 sampleName :: Parser String
 sampleName = map (fromCharArray <<< A.fromFoldable <<< NEL.toList) (many1 $ oneOf [ 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', '~' ])
@@ -478,7 +490,7 @@ cycleP = go <$> cyclePInternal unit
 
 flatMap :: forall event. NonEmptyList (NonEmptyList (NonEmptyList (NoteInTime (Maybe (Note event))))) -> NonEmptyList (NonEmptyList (NoteInTime (Maybe (Note event))))
 flatMap (NonEmptyList (aa :| Nil)) = aa
-flatMap (NonEmptyList (aa :| bb : cc)) = join $ aa # map \a' -> flatMap (wrap (bb :| cc)) # map \b' -> a' <> b'
+flatMap (NonEmptyList (aa :| bb : cc)) = join $ aa # map \a' -> flatMap (wrap (bb :| cc)) # map \bbb -> a' <> bbb
 
 getWeight :: forall a. Cycle a -> Number
 getWeight (Branching { env: { weight } }) = weight
