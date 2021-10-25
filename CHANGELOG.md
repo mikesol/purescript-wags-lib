@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.35] - 2021-10-25
+
+- removes volume dip based on duration in tidal.
+
 ## [0.0.34] - 2021-10-25
 
 - adds tidal-esque syntax to project. This allows `wagsi` to depend on `wags-lib` and allows for the `trypurescript` instance with `wags-lib` to use mini-notation and the tidal-like engine.
