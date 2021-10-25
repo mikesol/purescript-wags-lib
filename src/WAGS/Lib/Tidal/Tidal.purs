@@ -27,6 +27,7 @@ module WAGS.Lib.Tidal.Tidal
   , b_
   , i_
   , x_
+  , u
   ---
   , onTagsCWithIndex
   , onTagsCWithIndex'
@@ -349,6 +350,9 @@ x' sx = x sx []
 
 x_ :: Cycle (Maybe (Note Unit)) -> Array (Cycle (Maybe (Note Unit))) -> Cycle (Maybe (Note Unit))
 x_ = x
+
+u :: Cycle (Maybe (Note Unit)) -> Cycle (Maybe (Note Unit))
+u = identity
 
 sampleName :: Parser String
 sampleName = map (fromCharArray <<< A.fromFoldable <<< NEL.toList) (many1 $ oneOf [ 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', '~' ])
