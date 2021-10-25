@@ -19,8 +19,6 @@ jobs:
         run: npx spago install
       - name: Spago build
         run: npx spago build
-      - name: Spago build
-        run: npx spago -x test.dhall test
       - name: Webpack build
         run: npm run build
       - name: deploy to netlify
