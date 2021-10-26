@@ -2,6 +2,12 @@ module WAGS.Lib.Learn where
 
 import Prelude
 
+import CSS (rgba)
+import CSS as CSS
+import CSS.Common as CSSC
+import CSS.Cursor as CSSCur
+import CSS.Flexbox as CSSF
+import CSS.TextAlign as CSST
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, hoistCofree, (:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
@@ -28,6 +34,7 @@ import FRP.Event (Event, subscribe)
 import Halogen as H
 import Halogen.Aff (awaitBody, runHalogenAff)
 import Halogen.HTML as HH
+import Halogen.HTML.CSS as HCSS
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
@@ -596,6 +603,20 @@ component i =
     , eval: H.mkEval $ H.defaultEval { handleAction = handleAction (toScene i), finalize = Just StopAudio }
     }
 
+minicomponent
+  :: forall toScene res query input output m
+   . MonadEffect m
+  => MonadAff m
+  => ToScene toScene res
+  => toScene
+  -> H.Component query input output m
+minicomponent i =
+  H.mkComponent
+    { initialState
+    , render: miniRender
+    , eval: H.mkEval $ H.defaultEval { handleAction = handleAction (toScene i), finalize = Just StopAudio }
+    }
+
 initialState :: forall input. input -> State
 initialState _ =
   { unsubscribe: pure unit
@@ -630,6 +651,50 @@ render { wagsState } =
         [ HE.onClick \_ -> StartAudio, HP.style onCSS ]
         [ HH.text "Start audio" ]
     WagsLoading -> HH.div [ HP.style loadingCss ] [ HH.text "Loading..." ]
+
+bStyle :: ∀ i r. HP.IProp (style ∷ String | r) i
+bStyle = HCSS.style do
+  CSS.display CSS.inlineBlock
+  CSS.padding (0.25 # CSS.em) (1.0 # CSS.em) (0.25 # CSS.em) (1.0 # CSS.em)
+  CSS.border CSS.solid (0.1 # CSS.em) CSS.black
+  CSS.margin (0.0 # CSS.em) (0.3 # CSS.em) (0.3 # CSS.em) (0.0 # CSS.em)
+  CSS.borderRadius (0.12 # CSS.em) (0.12 # CSS.em) (0.12 # CSS.em) (0.12 # CSS.em)
+  CSS.boxSizing CSS.borderBox
+  CSS.textDecoration CSS.noneTextDecoration
+  CSS.fontFamily [ "Roboto" ] (CSS.sansSerif :| [])
+  CSS.fontWeight (CSS.weight 300.0)
+  CSS.color CSS.black
+  CSS.cursor CSSCur.pointer
+  CSS.backgroundColor (rgba 0 0 0 0.0)
+  CSST.textAlign CSST.center
+  CSSF.flex 0.0 1.0 CSSC.auto
+
+-- transition: all 0.2s;
+
+miniRender :: forall m. State -> H.ComponentHTML Action () m
+miniRender { wagsState } = HH.div
+  [ HCSS.style do
+      CSS.display CSS.flex
+      CSS.flexDirection CSS.row
+      CSS.justifyContent CSS.spaceBetween
+  ]
+  [ case wagsState of
+      WagsPlaying ->
+        HH.button
+          [ HE.onClick \_ -> StopAudio, bStyle ]
+          [ HH.text "Stop audio" ]
+      WagsStopped ->
+        HH.button
+          [ HE.onClick \_ -> StartAudio, bStyle ]
+          [ HH.text "Start audio" ]
+      WagsLoading -> HH.button [ bStyle ] [ HH.text "Loading..." ]
+  , HH.p
+      [ HCSS.style do
+          CSS.fontFamily [ "Roboto" ] (CSS.sansSerif :| [])
+          CSS.fontWeight (CSS.weight 300.0)
+      ]
+      [ HH.text "made with ❤️ using ", HH.a [ HP.href "https://github.com/mikesol/purescript-wags" ] [ HH.text "wags" ] ]
+  ]
 
 handleAction
   :: forall res analysers output m
@@ -687,5 +752,12 @@ play
   => toScene
   -> Effect Unit
 play toScene = runHalogenAff do
-  body <- awaitBody
-  runUI (parent (component toScene)) unit body
+  awaitBody >>= runUI (parent (component toScene)) unit
+
+miniplay
+  :: forall toScene res
+   . ToScene toScene res
+  => toScene
+  -> Effect Unit
+miniplay toScene = runHalogenAff do
+  awaitBody >>= runUI (minicomponent toScene) unit

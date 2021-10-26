@@ -8,7 +8,7 @@ import Data.Profunctor (lcmap)
 import Effect (Effect)
 import Math ((%))
 import WAGS.Create.Optionals (highpass, pan)
-import WAGS.Lib.Learn (play)
+import WAGS.Lib.Learn (miniplay)
 import WAGS.Lib.Tidal (AFuture, tdl)
 import WAGS.Lib.Tidal.FX (fx, goodbye, hello)
 import WAGS.Lib.Tidal.Tidal (lnr, lnv, lvt, make, onTag, parse_, s)
@@ -53,4 +53,4 @@ wag =
     }
 
 main :: Effect Unit
-main = play $ tdl $ wag
+main = miniplay $ tdl $ wag
