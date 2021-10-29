@@ -10,6 +10,7 @@
   , "effect"
   , "either"
   , "event"
+  , "exceptions"
   , "filterable"
   , "foldable-traversable"
   , "foreign-object"

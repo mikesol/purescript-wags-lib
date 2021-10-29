@@ -13,6 +13,7 @@ import Control.Comonad.Cofree (Cofree, hoistCofree, (:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Control.Promise (toAffE)
 import Data.Array as A
+import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Identity (Identity(..))
 import Data.Lens (_1, over, set)
@@ -26,9 +27,10 @@ import Data.Tuple (snd)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D4)
 import Effect (Effect)
-import Effect.Aff (Aff)
+import Effect.Aff (Aff, joinFiber, launchAff, launchAff_, makeAff, try)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect, liftEffect)
+import Effect.Exception (Error)
 import FRP.Behavior (Behavior)
 import FRP.Event (Event, subscribe)
 import Halogen as H
@@ -602,6 +604,43 @@ component i =
     , render
     , eval: H.mkEval $ H.defaultEval { handleAction = handleAction (toScene i), finalize = Just StopAudio }
     }
+
+type AffCb a = (Error -> Effect Unit) -> (a -> Effect Unit) -> Effect Unit
+
+acb2Aff :: AffCb ~> Aff
+acb2Aff acb = makeAff \f -> do
+  acb (f <<< Left) (f <<< Right)
+  mempty
+
+type Player =
+  AffCb Unit
+  -> AffCb Unit
+  -> (Error -> Effect Unit)
+  -> Effect (Effect Unit)
+
+player
+  :: forall toScene res
+   . ToScene toScene res
+  => toScene
+  -> Player
+player i loadingCb loadedCb errorCb = do
+  x <- try do
+    fib <- launchAff do
+      acb2Aff loadingCb
+      { audioCtx, event } <- aff
+      acb2Aff loadedCb
+      unsubscribe <- liftEffect $ subscribe event (\(_ :: Run res ()) -> pure unit)
+      pure { audioCtx, unsubscribe }
+    pure $ launchAff_ do
+      { audioCtx, unsubscribe } <- joinFiber fib
+      liftEffect do
+        close audioCtx
+        unsubscribe
+  case x of
+    Left e -> errorCb e *> pure (pure unit)
+    Right r -> pure r
+  where
+  aff = toScene i
 
 minicomponent
   :: forall toScene res query input output m
