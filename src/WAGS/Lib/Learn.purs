@@ -53,7 +53,7 @@ import WAGS.Create.Optionals (constant, gain, playBuf, sinOsc, speaker, subgraph
 import WAGS.Graph.AudioUnit (APOnOff)
 import WAGS.Graph.AudioUnit as CTOR
 import WAGS.Graph.Parameter (AudioParameter_, AudioParameter, ff)
-import WAGS.Interpret (class AudioInterpret, close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
+import WAGS.Interpret (class AudioInterpret, close, context, constant0Hack, contextState, contextResume, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeBufferPoolWithAnchor)
 import WAGS.Lib.Learn.Duration (Duration(..), Rest(..))
 import WAGS.Lib.Learn.FofT (class FofT, toFofT)
@@ -567,6 +567,11 @@ makeFullScene
   -> Aff { audioCtx :: AudioContext, event :: Event (Run res EmptyAnalysers) }
 makeFullScene (FullScene { triggerWorld, piece }) = do
   audioCtx <- liftEffect context
+  waStatus <- liftEffect $ contextState audioCtx
+  -- void the constant 0 hack
+  -- this will result in a very slight performance decrease but makes iOS and Mac more sure
+  _ <- liftEffect $ constant0Hack audioCtx
+  when (waStatus /= "running") (toAffE $ contextResume audioCtx)
   unitCache <- liftEffect makeUnitCache
   trigger /\ world <- triggerWorld audioCtx
   pure { audioCtx, event: run trigger world { easingAlgorithm } (defaultFFIAudio audioCtx unitCache) piece }
