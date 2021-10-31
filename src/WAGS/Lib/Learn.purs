@@ -57,7 +57,7 @@ import WAGS.Interpret (class AudioInterpret, close, context, constant0Hack, cont
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeBufferPoolWithAnchor)
 import WAGS.Lib.Learn.Duration (Duration(..), Rest(..))
 import WAGS.Lib.Learn.FofT (class FofT, toFofT)
-import WAGS.Lib.Learn.Note (Note(..), NoteOrRest, Sequenced(..), noteFromDefaults_, noteFromPitch_, noteStreamToSequence, seq)
+import WAGS.Lib.Learn.Note (Note(..), NoteOrRest, Sequenced(..), noteFromDefaults_, noteStreamToSequence, seq)
 import WAGS.Lib.Learn.Pitch (Pitch(..))
 import WAGS.Lib.Learn.Volume (Volume(..))
 import WAGS.Lib.Piecewise (APFofT, makePiecewise)
@@ -104,7 +104,7 @@ makePitch
    . FofT pitchF
   => Pitch pitchF
   -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
-makePitch = makeNote <<< noteFromPitch_
+makePitch = makeNote <<< (\p -> noteFromDefaults_ (_ { duration = Duration $ Identity 1000.0, pitch = p }))
 
 instance toScenePitch :: FofT pitchF => ToScene (Pitch pitchF) Unit
   where
