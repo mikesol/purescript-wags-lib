@@ -107,7 +107,27 @@ in  upstream
 let upstream =
       https://github.com/purescript/package-sets/releases/download/psc-0.14.4-20210919/packages.dhall sha256:03516fdd4f6d1bd6c9eb5e63cf3af3037bc079459117ab93eb85b6eb46e258a7
 
-let overrides = {=}
+let overrides =
+      { arraybuffer =
+        { dependencies =
+          [ "arraybuffer-types"
+          , "arrays"
+          , "effect"
+          , "float32"
+          , "functions"
+          , "gen"
+          , "maybe"
+          , "nullable"
+          , "prelude"
+          , "tailrec"
+          , "uint"
+          , "unfoldable"
+          ]
+        , repo =
+            "https://github.com/purescript-contrib/purescript-arraybuffer.git"
+        , version = "v12.0.0"
+        }
+      }
 
 let additions =
       { wags =
@@ -150,7 +170,7 @@ let additions =
           , "simple-json"
           ]
         , repo = "https://github.com/mikesol/purescript-wags.git"
-        , version = "v0.5.8"
+        , version = "v0.5.9"
         }
       , free =
         { dependencies =

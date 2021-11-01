@@ -572,7 +572,7 @@ handleAction = case _ of
     -- in case we want several, we use a traversable
     -- to be able to grab them all later
     let sound' = Identity Sector.sample
-    sound <- H.liftAff $ sequential $ traverse (parallel <<< toAffE <<< decodeAudioDataFromUri audioCtx) sound'
+    sound <- H.liftAff $ sequential $ traverse (parallel <<< decodeAudioDataFromUri audioCtx) sound'
     let
       ffiAudio = defaultFFIAudio audioCtx unitCache
       acc = Acc

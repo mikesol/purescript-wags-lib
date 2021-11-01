@@ -7,7 +7,6 @@ import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
 import Control.Parallel (parallel, sequential)
 import Control.Plus (empty)
-import Control.Promise (toAffE)
 import Data.Array as A
 import Data.Array.NonEmpty as NEA
 import Data.Int (floor, toNumber)
@@ -357,7 +356,7 @@ handleAction = case _ of
         +> "https://freesound.org/data/previews/24/24627_130612-hq.mp3"
         +> V.empty
 
-    sounds <- H.liftAff $ sequential $ traverse (parallel <<< toAffE <<< decodeAudioDataFromUri audioCtx) sounds'
+    sounds <- H.liftAff $ sequential $ traverse (parallel <<< decodeAudioDataFromUri audioCtx) sounds'
     let
       ffiAudio = defaultFFIAudio audioCtx unitCache
     mouse' <- H.liftEffect getMouse

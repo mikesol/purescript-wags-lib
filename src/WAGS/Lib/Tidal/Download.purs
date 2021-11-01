@@ -2,8 +2,7 @@ module WAGS.Lib.Tidal.Download where
 
 import Prelude
 
-import Control.Promise (Promise, toAffE)
-import Data.Array as A
+import Data.Array as A 
 import Data.Either (Either(..), either)
 import Data.Int (toNumber)
 import Data.Map (Map)
@@ -31,9 +30,6 @@ import WAGS.Lib.Tidal.Types (BufferUrl(..), ForwardBackwards, Sample, SampleCach
 
 data ArrayBuffer
 
-foreign import decodeAudioBufferFromArrayBuffer :: AudioContext -> ArrayBuffer -> Effect (Promise BrowserAudioBuffer)
-foreign import fetchArrayBufferFromUri :: String -> Effect (Promise ArrayBuffer)
-
 class Sounds (rl :: RowList Type) (r :: Row Type) where
   sounds' :: forall proxy. proxy rl -> { | r } -> Map Sample BufferUrl
 
@@ -52,7 +48,7 @@ sounds = sounds' (Proxy :: _ rl)
 
 mapped :: AudioContext -> BufferUrl -> Aff { url :: BufferUrl, buffer :: ForwardBackwards }
 mapped audioCtx url@(BufferUrl bf) = backoff do
-  forward <- toAffE $ decodeAudioDataFromUri audioCtx bf
+  forward <- decodeAudioDataFromUri audioCtx bf
   backwards <- liftEffect $ reverseAudioBuffer audioCtx forward
   pure { url, buffer: { forward, backwards } }
 
@@ -98,7 +94,7 @@ downloadSilence (ac /\ aff) = ac /\ do
   b' <- b
   pure (trigger /\ (Record.insert (Proxy :: _ "silence") b' <$> world))
   where
-  b = backoff $ toAffE $ decodeAudioDataFromUri ac "https://freesound.org/data/previews/459/459659_4766646-lq.mp3"
+  b = backoff $ decodeAudioDataFromUri ac "https://freesound.org/data/previews/459/459659_4766646-lq.mp3"
 
 initialBuffers
   :: forall trigger world

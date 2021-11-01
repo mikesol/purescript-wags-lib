@@ -8,10 +8,10 @@ import CSS.Common as CSSC
 import CSS.Cursor as CSSCur
 import CSS.Flexbox as CSSF
 import CSS.TextAlign as CSST
+import Control.Promise (toAffE)
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, hoistCofree, (:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
-import Control.Promise (toAffE)
 import Data.Array as A
 import Data.Either (Either(..))
 import Data.Foldable (for_)
@@ -450,7 +450,7 @@ instance toSceneFunctionOfTimeAndControlLoop ::
 makeString :: String -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit EmptyAnalysers) }
 makeString url = makeFullScene $ FullScene
   { triggerWorld: \audioCtx -> do
-      buffer <- toAffE $ decodeAudioDataFromUri audioCtx url
+      buffer <- decodeAudioDataFromUri audioCtx url
       pure (pure {} /\ pure { buffer })
   , piece: loopUsingScene
       ( \(SceneI { world: { buffer } }) ->
@@ -480,7 +480,7 @@ instance matchBuffersRLCons ::
   ) =>
   MatchBuffersRL (RL.Cons key String x) (RL.Cons key BrowserAudioBuffer y) buffersS buffers where
   getBuffersRL audioCtx _ _ a = do
-    buffer <- toAffE $ decodeAudioDataFromUri audioCtx (Record.get (Proxy :: _ key) a)
+    buffer <- decodeAudioDataFromUri audioCtx (Record.get (Proxy :: _ key) a)
     rest <- getBuffersRL audioCtx (Proxy :: _ x) (Proxy :: _ y) (Record.delete (Proxy :: _ key) a)
     pure $ Record.insert (Proxy :: _ key) buffer rest
 

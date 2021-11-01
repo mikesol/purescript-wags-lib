@@ -33,27 +33,3 @@ exports.reverseAudioBuffer = function (context) {
 		};
 	};
 };
-exports.decodeAudioBufferFromArrayBuffer = function (ctx) {
-	return function (b) {
-		return function () {
-			{
-				return ctx.decodeAudioData(b);
-			}
-		};
-	};
-};
-exports.fetchArrayBufferFromUri = function (s) {
-	return function () {
-		{
-			return fetch(s).then(
-				function (b) {
-					return b.arrayBuffer();
-				},
-				function (e) {
-					console.error('Error fetching buffer', e);
-					return Promise.reject(e);
-				}
-			);
-		}
-	};
-};

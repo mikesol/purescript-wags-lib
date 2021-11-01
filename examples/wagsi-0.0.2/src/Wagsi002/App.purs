@@ -6,7 +6,6 @@ import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
 import Control.Parallel (parallel, sequential)
 import Control.Plus (empty)
-import Control.Promise (toAffE)
 import Data.Array.NonEmpty as NEA
 import Data.List ((:), List(..))
 import Data.Maybe (Maybe(..))
@@ -496,7 +495,7 @@ handleAction = case _ of
         , pad: "https://freesound.org/data/previews/110/110212_1751865-hq.mp3"
         , impulse0: "https://freesound.org/data/previews/382/382907_2812020-hq.mp3"
         }
-    sounds <- H.liftAff $ sequential $ hfoldlWithIndex (TraverseH (parallel <<< toAffE <<< decodeAudioDataFromUri audioCtx)) (pure {} :: ParAff {}) sounds'
+    sounds <- H.liftAff $ sequential $ hfoldlWithIndex (TraverseH (parallel <<< decodeAudioDataFromUri audioCtx)) (pure {} :: ParAff {}) sounds'
     let
       ffiAudio = (defaultFFIAudio audioCtx unitCache)
     unsubscribe <-
