@@ -12,7 +12,7 @@ import WAGS.Lib.Learn (miniplay)
 import WAGS.Lib.Tidal (AFuture, tdl)
 import WAGS.Lib.Tidal.FX (fx, goodbye, hello)
 import WAGS.Lib.Tidal.Tidal (lnr, lnv, lvt, make, onTag, parse_, s)
-import Wags.Learn.Oscillator (lfo)
+import WAGS.Lib.Learn.Oscillator (lfo)
 
 m2 = 4.0 * 1.0 * 60.0 / 111.0 :: Number
 

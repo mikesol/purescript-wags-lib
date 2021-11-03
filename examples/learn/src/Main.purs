@@ -30,7 +30,7 @@ import WAGS.Lib.Learn.Tempo (allegro)
 import WAGS.Lib.Learn.Transpose (transpose)
 import WAGS.Lib.Learn.Volume (mezzoForte)
 import WAGS.Run (SceneI(..))
-import Wags.Learn.Oscillator (lfo)
+import WAGS.Lib.Learn.Oscillator (lfo)
 
 type Slots = (audio :: forall q. H.Slot q Void Unit)
 

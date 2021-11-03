@@ -42,7 +42,7 @@ crochet = Duration $ Identity $ 1.0 :: Duration Identity
 minim = Duration $ Identity $ 2.0 :: Duration Identity
 semibreve = Duration $ Identity $ 4.0 :: Duration Identity
 breve = Duration $ Identity $ 8.0 :: Duration Identity
-longest = Duration $ Identity $ 10_000.0 :: Duration Identity
+longest = Duration $ Identity $ top :: Duration Identity
 
 dottedHemidemisemiquaver = dot hemidemisemiquaver :: Duration Identity
 dottedDemisemiquaver = dot demisemiquaver :: Duration Identity
