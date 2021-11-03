@@ -62,6 +62,7 @@ fot f = Pitch \t -> let Pitch p = f t in toFofT p t
 fot2 :: forall f. FofT f => (Time -> Number -> Number) -> Pitch f -> Pitch ((->) Time)
 fot2 f (Pitch p) = Pitch \t -> f t (toFofT p t)
 
+unison = Pitch $ const (midiToCps' 0.0) :: Pitch ((->) Time)
 semitone = Pitch $ const (midiToCps' 1.0) :: Pitch ((->) Time)
 wholeTone = Pitch $ const (midiToCps' 2.0) :: Pitch ((->) Time)
 minorSecond = Pitch $ const (midiToCps' 1.0) :: Pitch ((->) Time)
