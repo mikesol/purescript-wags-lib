@@ -1,4 +1,4 @@
-module Wags.Learn.Oscillator where
+module WAGS.Lib.Learn.Oscillator where
 
 import Prelude
 
