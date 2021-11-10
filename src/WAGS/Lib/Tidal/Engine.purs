@@ -6,6 +6,7 @@ import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Data.Either (Either, either)
+import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
 import Data.Int (toNumber)
 import Data.Lens (_1, over)
 import Data.Map as Map
@@ -21,7 +22,6 @@ import Effect.Aff (Aff)
 import Effect.Random (randomInt)
 import FRP.Behavior (Behavior, behavior)
 import FRP.Event (Event, makeEvent, subscribe)
-import Heterogeneous.Mapping (hmap, hmapWithIndex)
 import Prim.Row (class Lacks)
 import Prim.RowList (class RowToList)
 import Random.LCG (mkSeed)
@@ -38,20 +38,22 @@ import WAGS.Interpret (bufferDuration)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), CfScoredBufferPool, makeScoredBufferPool)
 import WAGS.Lib.Cofree (tails)
 import WAGS.Lib.Learn (FullSceneBuilder, usingc)
-import WAGS.Run (SceneI(..))
-import WAGS.Subgraph (SubSceneSig)
-import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 import WAGS.Lib.Tidal.Download (downloadSilence, initialBuffers)
 import WAGS.Lib.Tidal.FX (calm)
 import WAGS.Lib.Tidal.Tidal (asScore, intentionalSilenceForInternalUseOnly, openFuture)
-import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, Sample, TheFuture, TimeIs(..), UnsampledTimeIs(..), Voice, ZipProps(..), SampleCache, h2v')
+import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, Sample, SampleCache, TheFuture, TimeIs(..), UnsampledTimeIs(..), h2v')
+import WAGS.Run (SceneI(..))
+import WAGS.Subgraph (SubSceneSig)
+import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
 globalFF = 0.03 :: Number
 globalSize = 5 :: Int
 
 acc :: forall event. Monoid event => Acc event
 acc =
-  { buffers: hmap (\(_ :: Unit) -> emptyPool) (mempty :: { | EWF Unit })
+  { buffers: fromHomogeneous
+      $ map (const emptyPool)
+      $ homogeneous (mempty :: { | EWF Unit })
   , backToTheFuture: openFuture
   , justInCaseTheLastEvent: { isFresh: false, value: mempty }
   }
@@ -372,23 +374,6 @@ interactivity
   -> AudioContext /\ Aff (Event { interactivity :: event | trigger } /\ Behavior { | world })
 interactivity ev = (map <<< map) (over _1 (\e -> Record.insert (Proxy :: _ "interactivity") <$> ev <*> e))
 
-futureMaker
-  :: forall event
-   . { | EWF
-         ( CfScoredBufferPool (Next event) NBuf (RBuf event)
-           -> Globals event
-           -> { future :: CfScoredBufferPool (Next event) NBuf (RBuf event)
-              , globals :: Globals event
-              }
-         )
-     }
-futureMaker = hmap
-  ( \(_ :: Unit) ->
-      { future: _, globals: _ }
-        :: CfScoredBufferPool (Next event) NBuf (RBuf event) -> Globals event -> { future :: CfScoredBufferPool (Next event) NBuf (RBuf event), globals :: (Globals event) }
-  )
-  (mempty :: { | EWF Unit })
-
 h2v :: forall r rl n a. RowToList r rl => HomogenousToVec rl r n a => { | r } -> V.Vec n a
 h2v = h2v' (Proxy :: _ rl)
 
@@ -472,22 +457,19 @@ engine dmo evt bsc = usingc
       event = maybe control.justInCaseTheLastEvent ({ isFresh: true, value: _ } <<< _.interactivity) trigger
       theFuture = maybe control.backToTheFuture (\i -> i.theFuture event) trigger
       ewf = delInPlace (unwrap theFuture)
-      toActualize = hmap
-        ( \(v :: Voice event) ->
-            { time: time'
+      toActualize =
+        map
+          ( { time: time'
             , headroomInSeconds
             , input: _
-            } $ { next: _ } $ _.next $ unwrap v
-        )
-        ewf
-      myGlobals = hmap
-        (\(v :: Voice event) -> _.globals $ unwrap v)
-        ewf
-      actualized = hmapWithIndex (ZipProps control.buffers) toActualize
-      forTemplate' = hmapWithIndex (ZipProps (hmapWithIndex (ZipProps futureMaker) actualized)) myGlobals
-      forTemplate = h2v forTemplate'
+            } <<< { next: _ } <<< _.next <<< unwrap
+          )
+          $ homogeneous ewf
+      myGlobals = map (_.globals <<< unwrap) $ homogeneous ewf
+      actualized = homogeneous control.buffers <*> toActualize
+      forTemplate = h2v (fromHomogeneous $ ({ future: _, globals: _ } <$> actualized <*> myGlobals))
     in
-      { control: { buffers: tails actualized, backToTheFuture: theFuture, justInCaseTheLastEvent: event }
+      { control: { buffers: tails (fromHomogeneous actualized), backToTheFuture: theFuture, justInCaseTheLastEvent: event }
       , scene: { newSeed: mkSeed entropy', size: globalSize } # evalGen do
           seeds <- sequence (V.fill (const $ map { seed: _ } arbitrary))
           seedsDrone <- sequence (V.fill (const arbitrary))

@@ -18,6 +18,7 @@
   , "halogen"
   , "halogen-css"
   , "heterogeneous"
+  , "homogeneous"
   , "identity"
   , "integers"
   , "lazy"

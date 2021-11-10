@@ -96,6 +96,7 @@ import Data.Either (Either(..), hush)
 import Data.Filterable (compact, filter, filterMap, maybeBool)
 import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
+import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
 import Data.Int (fromString, toNumber)
 import Data.Lens (Lens', Prism', _Just, lens, over, prism', set)
 import Data.Lens.Iso.Newtype (unto)
@@ -121,7 +122,6 @@ import Data.Unfoldable (replicate)
 import Data.Vec ((+>))
 import Data.Vec as V
 import Foreign.Object as O
-import Heterogeneous.Mapping (hmap, hmapWithIndex)
 import Prim.Row (class Nub, class Union)
 import Prim.RowList (class RowToList)
 import Record as Record
@@ -134,15 +134,15 @@ import Type.Proxy (Proxy(..))
 import WAGS.Create (class Create)
 import WAGS.Create.Optionals (input)
 import WAGS.Graph.AudioUnit as CTOR
-import WAGS.Tumult (Tumultuous)
-import WAGS.Tumult.Make (tumultuously)
-import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
 import WAGS.Lib.Tidal.Cycle (Cycle(..), flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
 import WAGS.Lib.Tidal.FX (WAGSITumult)
 import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, dronesToSample, nameToSample)
 import WAGS.Lib.Tidal.Samples as S
-import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, ClockTimeIs, CycleDuration(..), DroneNote(..), EWF, EWF', FoT, Globals(..), ICycle(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIsAndWas, UnsampledTimeIs, Voice(..), ZipProps(..))
+import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, ClockTimeIs, CycleDuration(..), DroneNote(..), EWF, EWF', FoT, Globals(..), ICycle(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIsAndWas, UnsampledTimeIs, Voice(..))
+import WAGS.Tumult (Tumultuous)
+import WAGS.Tumult.Make (tumultuously)
+import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
 
 -- | Only play the first cycle, and truncate/interrupt the playing cycle at the next sub-ending.
 impatient :: NextCycle ~> NextCycle
@@ -167,15 +167,18 @@ make
   -> { | inRec }
   -> TheFuture event
 make cl rr = TheFuture $ Record.union
-  ( hmapWithIndex (ZipProps z)
-      ( hmap (\(_ :: (CycleDuration -> Voice event)) -> (wrap cl))
-          { earth: z.earth
-          , wind: z.wind
-          , fire: z.fire
-          }
-      )
+  ( fromHomogeneous $ map ((#) (wrap cl)) $ homogeneous
+      { earth: z.earth
+      , wind: z.wind
+      , fire: z.fire
+      }
   )
-  { air: z.air, heart: z.heart, title: z.title, sounds: z.sounds, preload: z.preload }
+  { air: z.air
+  , heart: z.heart
+  , title: z.title
+  , sounds: z.sounds
+  , preload: z.preload
+  }
   where
   z =
     Record.merge rr
@@ -684,18 +687,18 @@ openVoice = Voice
 type OpenVoices event = { | EWF (CycleDuration -> Voice event) }
 
 openVoices :: forall event. OpenVoices event
-openVoices = hmap (\(_ :: Unit) -> (const $ openVoice)) (mempty :: { | EWF Unit })
+openVoices = fromHomogeneous $ map (const $ const $ openVoice) $ homogeneous (mempty :: { | EWF Unit })
 
 type OpenDrones event = { | AH (Maybe (DroneNote event)) }
 
 openDrones :: forall event. OpenDrones event
-openDrones = hmap (\(_ :: Unit) -> Nothing) (mempty :: { | AH Unit })
+openDrones = fromHomogeneous $ map (const Nothing) $ homogeneous (mempty :: { | AH Unit })
 
 openFuture :: forall event. TheFuture event
 openFuture = TheFuture
-  $ Record.union (hmap (\(_ :: Unit) -> openVoice) (mempty :: { | EWF Unit }))
+  $ Record.union (fromHomogeneous $ map (const openVoice) $ homogeneous (mempty :: { | EWF Unit }))
   $ Record.union
-      (hmap (\(_ :: Unit) -> Nothing) (mempty :: { | AH Unit }))
+      (fromHomogeneous $ map (const Nothing) $ homogeneous (mempty :: { | AH Unit }))
       { title: "wagsi @ tidal", sounds: (Map.empty :: Map.Map Sample BufferUrl), preload: [] }
 
 reFuture :: forall f event. Foldable f => f Sample -> TheFuture event

@@ -15,7 +15,6 @@ import Data.Show.Generic (genericShow)
 import Data.Symbol (class IsSymbol)
 import Data.Typelevel.Num (class Nat, class Succ, D0, D1, D8)
 import Data.Vec as V
-import Heterogeneous.Mapping (class MappingWithIndex)
 import Prim.Row as Row
 import Prim.RowList as RL
 import Record as Record
@@ -166,17 +165,6 @@ type Acc event
   , backToTheFuture :: TheFuture event
   , justInCaseTheLastEvent :: IsFresh event
   }
-
-----------------
-
-newtype ZipProps fns = ZipProps { | fns }
-
-instance zipProps ::
-  ( IsSymbol sym
-  , Row.Cons sym (a -> b) x fns
-  ) =>
-  MappingWithIndex (ZipProps fns) (Proxy sym) a b where
-  mappingWithIndex (ZipProps fns) prop = Record.get prop fns
 
 ---
 
