@@ -36,7 +36,6 @@ import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (ff)
 import WAGS.Interpret (bufferDuration)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), CfScoredBufferPool, makeScoredBufferPool)
-import WAGS.Lib.Cofree (tails)
 import WAGS.Lib.Learn (FullSceneBuilder, usingc)
 import WAGS.Lib.Tidal.Download (downloadSilence, initialBuffers)
 import WAGS.Lib.Tidal.FX (calm)
@@ -469,7 +468,7 @@ engine dmo evt bsc = usingc
       actualized = homogeneous control.buffers <*> toActualize
       forTemplate = h2v (fromHomogeneous $ ({ future: _, globals: _ } <$> actualized <*> myGlobals))
     in
-      { control: { buffers: tails (fromHomogeneous actualized), backToTheFuture: theFuture, justInCaseTheLastEvent: event }
+      { control: { buffers: fromHomogeneous (map unwrapCofree actualized), backToTheFuture: theFuture, justInCaseTheLastEvent: event }
       , scene: { newSeed: mkSeed entropy', size: globalSize } # evalGen do
           seeds <- sequence (V.fill (const $ map { seed: _ } arbitrary))
           seedsDrone <- sequence (V.fill (const arbitrary))

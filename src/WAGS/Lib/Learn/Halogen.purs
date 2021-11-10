@@ -16,7 +16,7 @@ import Halogen.Aff (awaitBody, runHalogenAff)
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.VDom.Driver (runUI)
-import WAGS.Interpret (close, context, defaultFFIAudio, makeUnitCache)
+import WAGS.Interpret (close, context)
 import WAGS.Run (Run)
 import WAGS.WebAPI (AudioContext)
 
@@ -71,9 +71,6 @@ handleAction ::
 handleAction run = case _ of
   StartAudio -> do
     audioCtx <- H.liftEffect context
-    unitCache <- H.liftEffect makeUnitCache
-    let
-      ffiAudio = defaultFFIAudio audioCtx unitCache
     unsubscribe <-
       H.liftEffect
         $ subscribe run (\(_ :: Run res analyserCallbacks) -> pure unit)
