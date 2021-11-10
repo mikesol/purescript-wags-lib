@@ -18,8 +18,10 @@ instance euclideanRingVolume :: Applicative f => EuclideanRing (Volume f) where
   degree _ = 1
   div (Volume a) (Volume b) = Volume ((div <$> (a) <*> (b)))
   mod (Volume a) (Volume b) = Volume ((mod <$> (a) <*> (b)))
+
 instance ringVolume :: Applicative f => Ring (Volume f) where
   sub (Volume a) (Volume b) = Volume ((sub <$> (a) <*> (b)))
+
 instance semiringVolume :: Applicative f => Semiring (Volume f) where
   zero = Volume (pure zero)
   one = Volume (pure one)

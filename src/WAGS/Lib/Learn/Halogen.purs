@@ -28,9 +28,10 @@ easingAlgorithm =
     fOf 20
 
 type State
-  = { unsubscribe :: Effect Unit
-    , audioCtx :: Maybe AudioContext
-    }
+  =
+  { unsubscribe :: Effect Unit
+  , audioCtx :: Maybe AudioContext
+  }
 
 data Action
   = StartAudio
@@ -63,11 +64,13 @@ render _ = do
         [ HH.text "Stop audio" ]
     ]
 
-handleAction ::
-  forall res analyserCallbacks output m.
-  MonadEffect m =>
-  MonadAff m =>
-  Event (Run res analyserCallbacks) -> Action -> H.HalogenM State Action () output m Unit
+handleAction
+  :: forall res analyserCallbacks output m
+   . MonadEffect m
+  => MonadAff m
+  => Event (Run res analyserCallbacks)
+  -> Action
+  -> H.HalogenM State Action () output m Unit
 handleAction run = case _ of
   StartAudio -> do
     audioCtx <- H.liftEffect context
@@ -81,10 +84,10 @@ handleAction run = case _ of
     for_ audioCtx (H.liftEffect <<< close)
     H.modify_ _ { unsubscribe = pure unit, audioCtx = Nothing }
 
-withSimpleControlsRun ::
-  forall res analyserCallbacks.
-  Event (Run res analyserCallbacks) ->
-  Effect Unit
+withSimpleControlsRun
+  :: forall res analyserCallbacks
+   . Event (Run res analyserCallbacks)
+  -> Effect Unit
 withSimpleControlsRun run =
   runHalogenAff do
     body <- awaitBody

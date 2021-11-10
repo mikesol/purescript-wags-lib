@@ -2,7 +2,7 @@ module WAGS.Lib.Tidal.Download where
 
 import Prelude
 
-import Data.Array as A 
+import Data.Array as A
 import Data.Either (Either(..), either)
 import Data.Int (toNumber)
 import Data.Map (Map)

@@ -88,7 +88,8 @@ runWag
    . AudioInterpret audio engine
   => RunWag env control audio engine res graph Unit
   -> WAG audio engine proof res graph control
-  -> env -> WAG audio engine proof res graph control
+  -> env
+  -> WAG audio engine proof res graph control
 runWag monad' wag' env' = res.wag $> res.control
   where
   res = tailRec go { wag: wag' $> unit, control: extract wag', monad: monad' }

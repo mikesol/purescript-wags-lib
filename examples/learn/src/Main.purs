@@ -6,6 +6,9 @@ import Control.Comonad (extract)
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Data.Array as A
 import Data.Function (on)
+import Data.Lens (over)
+import Data.Lens.Index (ix)
+import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..))
 import Data.NonEmpty ((:|))
 import Data.Tuple (Tuple(..))
@@ -21,16 +24,18 @@ import WAGS.Create.Optionals (speaker, playBuf, loopBuf)
 import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (ff)
 import WAGS.Lib.Cofree (ana)
+import WAGS.Lib.Comonad (rewrap)
 import WAGS.Lib.Emitter (makeEmitter)
 import WAGS.Lib.Learn (buffers, component, using, usingc)
 import WAGS.Lib.Learn.Duration (crochet, crochetRest, dottedMinim, minim, semibreve)
 import WAGS.Lib.Learn.Note (accelerando, note, noteFromPitch_, note_, repeat, rs, seq)
-import WAGS.Lib.Learn.Pitch (a4, a5, at, b4, b5, bFlat4, c4, c5, cSharp4, d4, d5, d6, e4, e5, fSharp4, fSharp5, fSharp6, fot2, fuse, g4, g5, gSharp4, gSharp5, majorThird, wholeTone)
+import WAGS.Lib.Learn.Oscillator (lfo)
+import WAGS.Lib.Learn.Pitch (a4, a5, at, b4, b5, bFlat4, c4, c5, cSharp4, d4, d5, d6, e4, e5, fSharp4, fSharp5, fSharp6, fuse, g4, g5, gSharp4, gSharp5, majorThird, wholeTone, fot2)
 import WAGS.Lib.Learn.Tempo (allegro)
 import WAGS.Lib.Learn.Transpose (transpose)
 import WAGS.Lib.Learn.Volume (mezzoForte)
+import WAGS.Lib.Lens (_NonEmptyT)
 import WAGS.Run (SceneI(..))
-import WAGS.Lib.Learn.Oscillator (lfo)
 
 type Slots = (audio :: forall q. H.Slot q Void Unit)
 
@@ -195,7 +200,9 @@ stories = Object.fromFoldable
               $ accelerando
               $ seq
               $ map noteFromPitch_
-              $ c4 :| [ d4, fot2 ((+) <<< lfo { amp: 20.0, freq: 16.0, phase: 0.0 }) e4, fSharp4, gSharp4, bFlat4, c5, bFlat4, gSharp4, fSharp4, e4, d4, c4 ]
+              $ over (_NonEmptyT <<< ix 1) (fot2 ((+) <<< lfo { amp: 20.0, freq: 16.0, phase: 0.0 }))
+              $ map (over _Newtype (rewrap :: _ -> Number -> Number))
+              $ c4 :| [ d4, e4, fSharp4, gSharp4, bFlat4, c5, bFlat4, gSharp4, fSharp4, e4, d4, c4 ]
           )
       )
   , Tuple "blue danube (with rests)" $ proxy

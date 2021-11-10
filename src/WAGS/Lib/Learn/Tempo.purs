@@ -14,7 +14,7 @@ class Tempo a where
   tempo :: Duration Identity -> a -> a
 
 instance tempoPitch :: Applicative f => Tempo (Duration f) where
-  tempo (Duration (Identity d))= mul (Duration (pure d))
+  tempo (Duration (Identity d)) = mul (Duration (pure d))
 
 instance tempoRest :: Applicative f => Tempo (Rest f) where
   tempo (Duration (Identity d)) = mul (Rest (pure d))
