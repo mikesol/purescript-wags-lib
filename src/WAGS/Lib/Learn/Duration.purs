@@ -12,7 +12,7 @@ instance dotDuration :: Applicative f => Dot (Duration f) where
   dot = mul (div (one + one + one) (one + one))
 
 instance dotRest :: Applicative f => Dot (Rest f) where
-  dot =  mul (div (one + one + one) (one + one))
+  dot = mul (div (one + one + one) (one + one))
 
 newtype Duration f = Duration (f Number)
 
@@ -26,8 +26,10 @@ instance euclideanRingDuration :: Applicative f => EuclideanRing (Duration f) wh
   degree _ = 1
   div (Duration a) (Duration b) = Duration ((div <$> (a) <*> (b)))
   mod (Duration a) (Duration b) = Duration ((mod <$> (a) <*> (b)))
+
 instance ringDuration :: Applicative f => Ring (Duration f) where
   sub (Duration a) (Duration b) = Duration ((sub <$> (a) <*> (b)))
+
 instance semiringDuration :: Applicative f => Semiring (Duration f) where
   zero = Duration (pure zero)
   one = Duration (pure one)
@@ -65,8 +67,10 @@ instance euclideanRingRest :: Applicative f => EuclideanRing (Rest f) where
   degree _ = 1
   div (Rest a) (Rest b) = Rest ((div <$> (a) <*> (b)))
   mod (Rest a) (Rest b) = Rest ((mod <$> (a) <*> (b)))
+
 instance ringRest :: Applicative f => Ring (Rest f) where
   sub (Rest a) (Rest b) = Rest ((sub <$> (a) <*> (b)))
+
 instance semiringRest :: Applicative f => Semiring (Rest f) where
   zero = Rest (pure zero)
   one = Rest (pure one)
@@ -90,5 +94,4 @@ dottedCrochetRest = dot crochetRest :: Rest Identity
 dottedMinimRest = dot minimRest :: Rest Identity
 dottedSemibreveRest = dot semibreveRest :: Rest Identity
 dottedBreveRest = dot breveRest :: Rest Identity
-
 

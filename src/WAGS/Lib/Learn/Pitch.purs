@@ -21,6 +21,7 @@ derive newtype instance boundedPitch :: Bounded (f Number) => Bounded (Pitch f)
 derive newtype instance showPitch :: Show (f Number) => Show (Pitch f)
 instance arbitraryPitchIdentity :: Applicative f => Arbitrary (Pitch f) where
   arbitrary = map (Pitch <<< pure <<< calcSlope 0.0 40.0 1.0 3000.0) arbitrary
+
 instance commutativeRingPitch :: Applicative f => CommutativeRing (Pitch f)
 instance euclideanRingPitch :: Applicative f => EuclideanRing (Pitch f) where
   degree _ = 1

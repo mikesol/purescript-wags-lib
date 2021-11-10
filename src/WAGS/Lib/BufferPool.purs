@@ -59,7 +59,7 @@ type MakeBufferPool a
 type MakeHotBufferPool a
   = TimeHeadroomFreq -> a
 
-type MakeScoredBufferPool input a 
+type MakeScoredBufferPool input a
   = TimeHeadroomInput input -> a
 
 type MakeSnappyBufferPool a
