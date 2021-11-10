@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - uses homogeneous in place of heterogeneous when homogeneous will do.
 
-## [0.0.44] - 2021-11-03
+## [0.0.44] - 2021-11-08
 
+- adds Gamelan sound lib.
 - adds arbitrary pitch.
 
 ## [0.0.43] - 2021-11-03
