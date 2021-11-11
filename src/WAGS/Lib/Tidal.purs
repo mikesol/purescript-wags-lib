@@ -43,5 +43,5 @@ tdlx
        Unit
 tdlx aFuture = engine (pure unit) (pure $ const aFuture) $ Right \ac -> do
   rf <- liftEffect $ Ref.new Map.empty
-  doDownloads ac rf (const $ pure unit) (aFuture { clockTime: 0.0 })
+  doDownloads ac rf (const $ pure unit) ((#) { clockTime: 0.0 }) aFuture
   liftEffect $ Ref.read rf
