@@ -53,7 +53,7 @@ acc =
   { buffers: fromHomogeneous
       $ map (const emptyPool)
       $ homogeneous (mempty :: { | EWF Unit })
-  , backToTheFuture: openFuture
+  , backToTheFuture: const openFuture
   , justInCaseTheLastEvent: { isFresh: false, value: mempty }
   }
 
@@ -360,9 +360,17 @@ droneSg = emptyLags
 thePresent
   :: forall trigger world event
    . Lacks "theFuture" trigger
-  => Event (IsFresh event -> TheFuture event)
+  => Event (IsFresh event -> { clockTime :: Number } -> TheFuture event)
   -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
-  -> AudioContext /\ Aff (Event { theFuture :: IsFresh event -> TheFuture event | trigger } /\ Behavior { | world })
+  -> AudioContext /\ Aff
+       ( Event
+           { theFuture ::
+               IsFresh event
+               -> { clockTime :: Number }
+               -> TheFuture event
+           | trigger
+           } /\ Behavior { | world }
+       )
 thePresent ev = (map <<< map) (over _1 (\e -> Record.insert (Proxy :: _ "theFuture") <$> ev <*> e))
 
 interactivity
@@ -437,10 +445,10 @@ engine
   :: forall event
    . Monoid event
   => Event event
-  -> Event (IsFresh event -> TheFuture event)
+  -> Event (IsFresh event -> { clockTime :: Number } -> TheFuture event)
   -> Either (Behavior SampleCache) (AudioContext -> Aff SampleCache)
   -> FullSceneBuilder
-       ( theFuture :: IsFresh event -> TheFuture event
+       ( theFuture :: IsFresh event -> { clockTime :: Number } -> TheFuture event
        , interactivity :: event
        )
        ( buffers :: SampleCache
@@ -454,7 +462,8 @@ engine dmo evt bsc = usingc
   \(SceneI { time: time', headroomInSeconds, trigger, world: { buffers, silence, entropy: entropy' } }) control ->
     let
       event = maybe control.justInCaseTheLastEvent ({ isFresh: true, value: _ } <<< _.interactivity) trigger
-      theFuture = maybe control.backToTheFuture (\i -> i.theFuture event) trigger
+      theFuture' = maybe (control.backToTheFuture) (_.theFuture >>> (#) event) trigger 
+      theFuture = theFuture' { clockTime: time' }
       ewf = delInPlace (unwrap theFuture)
       toActualize =
         map
@@ -468,7 +477,7 @@ engine dmo evt bsc = usingc
       actualized = homogeneous control.buffers <*> toActualize
       forTemplate = h2v (fromHomogeneous $ ({ future: _, globals: _ } <$> actualized <*> myGlobals))
     in
-      { control: { buffers: fromHomogeneous (map unwrapCofree actualized), backToTheFuture: theFuture, justInCaseTheLastEvent: event }
+      { control: { buffers: fromHomogeneous (map unwrapCofree actualized), backToTheFuture: theFuture', justInCaseTheLastEvent: event }
       , scene: { newSeed: mkSeed entropy', size: globalSize } # evalGen do
           seeds <- sequence (V.fill (const $ map { seed: _ } arbitrary))
           seedsDrone <- sequence (V.fill (const arbitrary))

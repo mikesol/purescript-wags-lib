@@ -20,7 +20,7 @@ type AFuture = TheFuture Unit
 tdl
   :: AFuture
   -> FullSceneBuilder
-       ( theFuture :: IsFresh Unit -> AFuture
+       ( theFuture :: IsFresh Unit -> { clockTime :: Number } -> AFuture
        , interactivity :: Unit
        )
        ( buffers :: SampleCache
@@ -28,7 +28,20 @@ tdl
        , silence :: BrowserAudioBuffer
        )
        Unit
-tdl aFuture = engine (pure unit) (pure $ const aFuture) $ Right \ac -> do
+tdl = tdlx <<< pure
+
+tdlx
+  :: ({ clockTime :: Number } -> AFuture)
+  -> FullSceneBuilder
+       ( theFuture :: IsFresh Unit -> { clockTime :: Number } -> AFuture
+       , interactivity :: Unit
+       )
+       ( buffers :: SampleCache
+       , entropy :: Int
+       , silence :: BrowserAudioBuffer
+       )
+       Unit
+tdlx aFuture = engine (pure unit) (pure $ const aFuture) $ Right \ac -> do
   rf <- liftEffect $ Ref.new Map.empty
-  doDownloads ac rf (const $ pure unit) aFuture
+  doDownloads ac rf (const $ pure unit) (aFuture { clockTime: 0.0 })
   liftEffect $ Ref.read rf

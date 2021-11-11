@@ -162,7 +162,7 @@ type Next event = { next :: NextCycle event }
 type Acc event
   =
   { buffers :: { | EWF (AScoredBufferPool (Next event) NBuf (RBuf event)) }
-  , backToTheFuture :: TheFuture event
+  , backToTheFuture :: { clockTime :: Number } -> TheFuture event
   , justInCaseTheLastEvent :: IsFresh event
   }
 
