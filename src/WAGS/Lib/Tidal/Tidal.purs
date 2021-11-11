@@ -687,7 +687,14 @@ openVoice = Voice
 type OpenVoices event = { | EWF (CycleDuration -> Voice event) }
 
 openVoices :: forall event. OpenVoices event
-openVoices = fromHomogeneous $ map (const $ const $ openVoice) $ homogeneous (mempty :: { | EWF Unit })
+openVoices = fromHomogeneous
+  $ map
+      ( const $ s
+          ( intentionalSilenceForInternalUseOnly_
+              :: Cycle (Maybe (Note event))
+          )
+      )
+  $ homogeneous (mempty :: { | EWF Unit })
 
 type OpenDrones event = { | AH (Maybe (DroneNote event)) }
 
