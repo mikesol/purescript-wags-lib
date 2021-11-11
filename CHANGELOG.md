@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.47] - 2021-11-10
+
+- makes pitch use `Identity` instead of `Function Number`. In the beginning, we may want to rethink the representations entirely and make them not functorial, kicking the functorial bits elsewhere into the stack.
+
 ## [0.0.46] - 2021-11-10
 
 - uses homogeneous for unwrapCofree.

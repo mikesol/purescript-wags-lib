@@ -38,7 +38,6 @@ deadEndLazy l = go l
     LLazy.Nil -> a /\ wrap (go (a :| empty))
     (LLazy.Cons b c) -> a /\ wrap (go (b :| c))
 
-
 class Stops f where
   stops :: forall a. NonEmpty f a -> Cofree Identity (Maybe a)
 
