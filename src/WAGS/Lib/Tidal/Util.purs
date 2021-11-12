@@ -45,18 +45,18 @@ d2s (DroneNote { sample }) = sample
 
 doDownloads :: forall a event. AudioContext -> Ref.Ref SampleCache -> (a -> Effect Unit) -> (a -> TheFuture event) -> a -> Aff Unit
 doDownloads audioContext cacheRef push lock key = do
-      cache <- liftEffect $ Ref.read cacheRef
-      let
-        sets = Set.fromFoldable preload
-          <> fold (map v2s [ earth, wind, fire ])
-          <> (Set.fromFoldable $ compact ((map <<< map) d2s [ air, heart ]))
-        samplesToUrl = Set.toMap sets # Map.mapMaybeWithKey \samp@(Sample k) _ -> Map.lookup samp sounds <|> do
-          nm <- O.lookup k nameToSampleO
-          url <- Map.lookup nm sampleToUrls
-          pure url
-      newMap <- getBuffersUsingCache samplesToUrl audioContext cache
-      liftEffect do
-        Ref.write newMap cacheRef
-        push key
+  cache <- liftEffect $ Ref.read cacheRef
+  let
+    sets = Set.fromFoldable preload
+      <> fold (map v2s [ earth, wind, fire ])
+      <> (Set.fromFoldable $ compact ((map <<< map) d2s [ air, heart ]))
+    samplesToUrl = Set.toMap sets # Map.mapMaybeWithKey \samp@(Sample k) _ -> Map.lookup samp sounds <|> do
+      nm <- O.lookup k nameToSampleO
+      url <- Map.lookup nm sampleToUrls
+      pure url
+  newMap <- getBuffersUsingCache samplesToUrl audioContext cache
+  liftEffect do
+    Ref.write newMap cacheRef
+    push key
   where
   TheFuture { earth, wind, fire, air, heart, sounds, preload } = lock key

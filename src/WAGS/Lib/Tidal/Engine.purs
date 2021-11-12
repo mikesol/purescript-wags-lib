@@ -26,7 +26,6 @@ import Prim.Row (class Lacks)
 import Prim.RowList (class RowToList)
 import Random.LCG (mkSeed)
 import Record as Record
-import Record.Builder as RB
 import Test.QuickCheck (arbitrary)
 import Test.QuickCheck.Gen (evalGen)
 import Type.Proxy (Proxy(..))
@@ -40,7 +39,7 @@ import WAGS.Lib.Learn (FullSceneBuilder, usingc)
 import WAGS.Lib.Tidal.Download (downloadSilence, initialBuffers)
 import WAGS.Lib.Tidal.FX (calm)
 import WAGS.Lib.Tidal.Tidal (asScore, intentionalSilenceForInternalUseOnly, openFuture)
-import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, Sample, SampleCache, TheFuture, TimeIs(..), UnsampledTimeIs(..), h2v')
+import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, Sample, SampleCache, TheFuture, TimeIs(..), UnsampledTimeIs(..), CycleDuration(..), h2v')
 import WAGS.Run (SceneI(..))
 import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
@@ -51,11 +50,13 @@ globalSize = 5 :: Int
 acc :: forall event. Monoid event => Acc event
 acc =
   { buffers: fromHomogeneous
-      $ map (const emptyPool)
+      $ map (const (emptyPool cycleDuration))
       $ homogeneous (mempty :: { | EWF Unit })
-  , backToTheFuture: const openFuture
+  , backToTheFuture: const (openFuture cycleDuration)
   , justInCaseTheLastEvent: { isFresh: false, value: mempty }
   }
+  where
+  cycleDuration = CycleDuration 1.0
 
 sampleF
   :: Sample
@@ -384,8 +385,8 @@ interactivity ev = (map <<< map) (over _1 (\e -> Record.insert (Proxy :: _ "inte
 h2v :: forall r rl n a. RowToList r rl => HomogenousToVec rl r n a => { | r } -> V.Vec n a
 h2v = h2v' (Proxy :: _ rl)
 
-emptyPool :: forall event n. Pos n => AScoredBufferPool (Next event) n (RBuf event)
-emptyPool = makeScoredBufferPool
+emptyPool :: forall event n. Pos n => CycleDuration -> AScoredBufferPool (Next event) n (RBuf event)
+emptyPool cycleDuration = makeScoredBufferPool
   { startsAt: 0.0
   , noteStream: \_ ->
       ( (#)
@@ -393,7 +394,8 @@ emptyPool = makeScoredBufferPool
           , prevCycleEnded: 0.0
           , time: 0.0
           , headroomInSeconds: 0.03
-          } $ _.func $ unwrap $ asScore false (pure intentionalSilenceForInternalUseOnly)
+          } $ _.func $ unwrap
+           $ asScore false (pure (intentionalSilenceForInternalUseOnly cycleDuration))
       ) # map \{ startsAfter, rest } ->
         { startsAfter
         , rest:
@@ -403,28 +405,6 @@ emptyPool = makeScoredBufferPool
         }
   }
 
-delInPlace
-  :: forall r a h s t p
-   . Lacks "air" r
-  => Lacks "heart" r
-  => Lacks "sounds" r
-  => Lacks "title" r
-  => Lacks "preload" r
-  => { air :: a
-     , heart :: h
-     , sounds :: s
-     , title :: t
-     , preload :: p
-     | r
-     }
-  -> Record r
-delInPlace = RB.build
-  ( RB.delete (Proxy :: Proxy "air")
-      <<< RB.delete (Proxy :: Proxy "heart")
-      <<< RB.delete (Proxy :: Proxy "sounds")
-      <<< RB.delete (Proxy :: Proxy "preload")
-      <<< RB.delete (Proxy :: Proxy "title")
-  )
 
 ntropi :: Behavior Int
 ntropi =
@@ -462,9 +442,9 @@ engine dmo evt bsc = usingc
   \(SceneI { time: time', headroomInSeconds, trigger, world: { buffers, silence, entropy: entropy' } }) control ->
     let
       event = maybe control.justInCaseTheLastEvent ({ isFresh: true, value: _ } <<< _.interactivity) trigger
-      theFuture' = maybe (control.backToTheFuture) (_.theFuture >>> (#) event) trigger 
+      theFuture' = maybe (control.backToTheFuture) (_.theFuture >>> (#) event) trigger
       theFuture = theFuture' { clockTime: time' }
-      ewf = delInPlace (unwrap theFuture)
+      ewf = let { earth, wind, fire } = unwrap theFuture in { earth, wind, fire }
       toActualize =
         map
           ( { time: time'

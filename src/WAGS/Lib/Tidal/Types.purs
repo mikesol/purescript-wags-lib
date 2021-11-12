@@ -93,7 +93,11 @@ type AH (v :: Type) = AH' v ()
 newtype TheFuture event = TheFuture
   { | EWF' (Voice event)
       ( AH' (Maybe (DroneNote event))
-          (sounds :: Map Sample BufferUrl, title :: String, preload :: Array Sample)
+          ( sounds :: Map Sample BufferUrl
+          , title :: String
+          , preload :: Array Sample
+          , cycleDuration :: CycleDuration
+          )
       )
   }
 

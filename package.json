@@ -1,11 +1,12 @@
 {
   "name": "purescript-wags-lib",
-  "version": "0.0.49",
+  "version": "0.0.50",
   "description": "Lib to work with Web Audio Graphs as a Stream",
   "scripts": {
     "build": "spago build",
     "pulp-publish": "pulp publish",
     "docs": "pulp docs",
+    "format": "purs-tidy format-in-place src/**/*.purs",
     "test": "spago -x test.dhall test"
   },
   "keywords": [],

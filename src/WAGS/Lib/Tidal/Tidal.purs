@@ -12,9 +12,6 @@ module WAGS.Lib.Tidal.Tidal
   , c2s
   , s2f
   , openFuture
-  , massiveFuture
-  , droneyFuture
-  , reFuture
   ---
   , djQuickCheck
   ---
@@ -98,7 +95,7 @@ import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
 import Data.Int (fromString, toNumber)
-import Data.Lens (Lens', Prism', _Just, lens, over, prism', set)
+import Data.Lens (Lens', Prism', _Just, lens, over, prism')
 import Data.Lens.Iso.Newtype (unto)
 import Data.Lens.Record (prop)
 import Data.List (List(..), foldMap, foldl, (:))
@@ -114,7 +111,7 @@ import Data.Profunctor.Choice (class Choice)
 import Data.Profunctor.Strong (class Strong)
 import Data.Set as Set
 import Data.String.CodeUnits (fromCharArray, singleton)
-import Data.Traversable (class Foldable, sequence, traverse)
+import Data.Traversable (sequence, traverse)
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D1)
@@ -137,7 +134,7 @@ import WAGS.Graph.AudioUnit as CTOR
 import WAGS.Lib.Tidal.Cycle (Cycle(..), flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
 import WAGS.Lib.Tidal.FX (WAGSITumult)
 import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
-import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, dronesToSample, nameToSample)
+import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime)
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, ClockTimeIs, CycleDuration(..), DroneNote(..), EWF, EWF', FoT, Globals(..), ICycle(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIsAndWas, UnsampledTimeIs, Voice(..))
 import WAGS.Tumult (Tumultuous)
@@ -167,7 +164,7 @@ make
   -> { | inRec }
   -> TheFuture event
 make cl rr = TheFuture $ Record.union
-  ( fromHomogeneous $ map ((#) (wrap cl)) $ homogeneous
+  ( fromHomogeneous $ map ((#) cycleDuration) $ homogeneous
       { earth: z.earth
       , wind: z.wind
       , fire: z.fire
@@ -178,8 +175,10 @@ make cl rr = TheFuture $ Record.union
   , title: z.title
   , sounds: z.sounds
   , preload: z.preload
+  , cycleDuration
   }
   where
+  cycleDuration = wrap cl
   z =
     Record.merge rr
       ( Record.union (openVoices :: OpenVoices event)
@@ -678,11 +677,15 @@ flattenScore l = flattened
     )
     l
 
-openVoice :: forall event. Voice event
+openVoice :: forall event. CycleDuration -> Voice event
 openVoice = Voice
-  { globals: Globals { gain: const 0.0, fx: const calm }
-  , next: asScore false (pure intentionalSilenceForInternalUseOnly)
-  }
+  <<<
+    { globals: Globals { gain: const 0.0, fx: const calm }
+    , next: _
+    }
+  <<< asScore false
+  <<< pure
+  <<< intentionalSilenceForInternalUseOnly
 
 type OpenVoices event = { | EWF (CycleDuration -> Voice event) }
 
@@ -699,36 +702,29 @@ openVoices = fromHomogeneous
 type OpenDrones event = { | AH (Maybe (DroneNote event)) }
 
 openDrones :: forall event. OpenDrones event
-openDrones = fromHomogeneous $ map (const Nothing) $ homogeneous (mempty :: { | AH Unit })
+openDrones = fromHomogeneous
+  $ map (const Nothing)
+  $ homogeneous (mempty :: { | AH Unit })
 
-openFuture :: forall event. TheFuture event
-openFuture = TheFuture
-  $ Record.union (fromHomogeneous $ map (const openVoice) $ homogeneous (mempty :: { | EWF Unit }))
+openFuture :: forall event. CycleDuration -> TheFuture event
+openFuture cycleDuration = TheFuture
   $ Record.union
-      (fromHomogeneous $ map (const Nothing) $ homogeneous (mempty :: { | AH Unit }))
-      { title: "wagsi @ tidal", sounds: (Map.empty :: Map.Map Sample BufferUrl), preload: [] }
+      ( fromHomogeneous $ map (const (openVoice cycleDuration))
+          $ homogeneous (mempty :: { | EWF Unit })
+      )
+  $ Record.union
+      ( fromHomogeneous $ map (const Nothing)
+          $ homogeneous (mempty :: { | AH Unit })
+      )
+      { title: "wagsi @ tidal"
+      , cycleDuration
+      , sounds: (Map.empty :: Map.Map Sample BufferUrl)
+      , preload: []
+      }
 
-reFuture :: forall f event. Foldable f => f Sample -> TheFuture event
-reFuture fdbl = set
-  ( unto TheFuture
-      <<< prop
-        (Proxy :: _ "earth")
-      <<< unto Voice
-      <<< prop (Proxy :: _ "next")
-      <<< unto NextCycle
-      <<< prop (Proxy :: _ "samples")
-  )
-  (Set.fromFoldable fdbl)
-  openFuture
-
-massiveFuture :: forall event. TheFuture event
-massiveFuture = reFuture $ map snd nameToSample
-
-droneyFuture :: forall event. TheFuture event
-droneyFuture = reFuture $ map snd dronesToSample
-
-intentionalSilenceForInternalUseOnly :: forall event. (NoteInFlattenedTime (Note event))
-intentionalSilenceForInternalUseOnly = NoteInFlattenedTime
+intentionalSilenceForInternalUseOnly
+  :: forall event. CycleDuration -> NoteInFlattenedTime (Note event)
+intentionalSilenceForInternalUseOnly (CycleDuration cl) = NoteInFlattenedTime
   { note: Note
       { sampleFoT: Right $ S.intentionalSilenceForInternalUseOnly__Sample
       , rateFoT: const 1.0
@@ -738,13 +734,13 @@ intentionalSilenceForInternalUseOnly = NoteInFlattenedTime
       }
   , bigStartsAt: 0.0
   , littleStartsAt: 0.0
-  , duration: 0.259253
+  , duration: cl
   , elementsInCycle: 1
   , nCycles: 1
   , positionInCycle: 0
   , currentCycle: 0
-  , bigCycleDuration: 0.259253
-  , littleCycleDuration: 0.259253
+  , bigCycleDuration: cl
+  , littleCycleDuration: cl
   , tag: Nothing
   }
 
@@ -756,7 +752,7 @@ parse_ = parse
 
 parseInternal :: forall event. String -> CycleDuration -> NextCycle event
 parseInternal str dur = asScore false
-  $ maybe (pure intentionalSilenceForInternalUseOnly) flattenScore
+  $ maybe (pure $ intentionalSilenceForInternalUseOnly dur) flattenScore
   $ join
   $ map
       ( NEL.fromList
@@ -769,7 +765,7 @@ parseInternal str dur = asScore false
 
 rend :: forall event. Cycle (Maybe (Note event)) -> CycleDuration -> (NextCycle event)
 rend cyn dur = asScore false
-  $ maybe (pure intentionalSilenceForInternalUseOnly) flattenScore
+  $ maybe (pure (intentionalSilenceForInternalUseOnly dur)) flattenScore
   $ NEL.fromList
   $ compact
   $ map NEL.fromList
@@ -786,12 +782,26 @@ rendNit = asScore false <<< s2f
 c2s :: forall event. Cycle (Maybe (Note event)) -> CycleDuration -> NonEmptyList (NonEmptyList (NoteInTime (Maybe (Note event))))
 c2s = flip cycleToSequence
 
-s2f :: forall event. NonEmptyList (NonEmptyList (NoteInTime (Maybe (Note event)))) -> NonEmptyList (NoteInFlattenedTime (Note event))
-s2f = maybe (pure intentionalSilenceForInternalUseOnly) flattenScore
-  <<< NEL.fromList
-  <<< compact
-  <<< map NEL.fromList
-  <<< unrest
+s2f
+  :: forall event
+   . NonEmptyList (NonEmptyList (NoteInTime (Maybe (Note event))))
+  -> NonEmptyList (NoteInFlattenedTime (Note event))
+s2f = fromMaybe
+  <$>
+    ( pure <<< intentionalSilenceForInternalUseOnly
+        <<< CycleDuration
+        <<< _.cycleDuration
+        <<< unwrap
+        <<< NEL.head
+        <<< NEL.head
+    )
+  <*>
+    ( map flattenScore
+        <<< NEL.fromList
+        <<< compact
+        <<< map NEL.fromList
+        <<< unrest
+    )
 
 ----------------
 -- dj quickcheck --
@@ -899,20 +909,20 @@ genCycle = go 0
         )
   go _ = genSingleNoteOrRest
 
-genVoice :: forall event. Number -> Gen { cycle :: Cycle (Maybe (Note event)), voice :: Voice event }
-genVoice vol = do
+genVoice :: forall event. Number -> CycleDuration -> Gen { cycle :: Cycle (Maybe (Note event)), voice :: Voice event }
+genVoice vol cl = do
   let globals = Globals { gain: const vol, fx: const calm }
   cycle <- genCycle
-  cl' <- arbitrary
-  let cl = CycleDuration (1.0 + 3.0 * cl')
   let next = asScore false $ s2f $ c2s cycle cl
   pure $ { cycle, voice: Voice { globals, next } }
 
 djQuickCheck :: forall event. Gen { cycle :: Cycle (Maybe (Note event)), future :: TheFuture event }
 djQuickCheck = do
-  { cycle, voice: earth } <- genVoice 1.0
-  wind <- pure openVoice
-  fire <- pure openVoice
+  cl' <- arbitrary
+  let cycleDuration = CycleDuration (1.0 + 3.0 * cl')
+  { cycle, voice: earth } <- genVoice 1.0 cycleDuration
+  wind <- pure (openVoice cycleDuration)
+  fire <- pure (openVoice cycleDuration)
   pure $
     { cycle
     , future: TheFuture
@@ -924,6 +934,7 @@ djQuickCheck = do
         , title: "d j q u i c k c h e c k"
         , sounds: Map.empty
         , preload: []
+        , cycleDuration
         }
     }
 
