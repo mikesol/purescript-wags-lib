@@ -30,7 +30,7 @@ import Test.QuickCheck (arbitrary)
 import Test.QuickCheck.Gen (evalGen)
 import Type.Proxy (Proxy(..))
 import WAGS.Control.Functions.Subgraph as SG
-import WAGS.Create.Optionals (gain, loopBuf, playBuf, speaker, subgraph, tumult)
+import WAGS.Create.Optionals (analyser, gain, loopBuf, playBuf, speaker, subgraph, tumult)
 import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (ff)
 import WAGS.Interpret (bufferDuration)
@@ -395,7 +395,7 @@ emptyPool cycleDuration = makeScoredBufferPool
           , time: 0.0
           , headroomInSeconds: 0.03
           } $ _.func $ unwrap
-           $ asScore false (pure (intentionalSilenceForInternalUseOnly cycleDuration))
+          $ asScore false (pure (intentionalSilenceForInternalUseOnly cycleDuration))
       ) # map \{ startsAfter, rest } ->
         { startsAfter
         , rest:
@@ -404,7 +404,6 @@ emptyPool cycleDuration = makeScoredBufferPool
             }
         }
   }
-
 
 ntropi :: Behavior Int
 ntropi =
@@ -439,7 +438,7 @@ engine
 engine dmo evt bsc = usingc
   (interactivity dmo <<< thePresent evt <<< initialBuffers bsc <<< addEntropy <<< downloadSilence)
   acc
-  \(SceneI { time: time', headroomInSeconds, trigger, world: { buffers, silence, entropy: entropy' } }) control ->
+  \(SceneI { time: time', headroomInSeconds, trigger, world: { buffers, silence, entropy: entropy' }, analyserCallbacks: { myAnalyser } }) control ->
     let
       event = maybe control.justInCaseTheLastEvent ({ isFresh: true, value: _ } <<< _.interactivity) trigger
       theFuture' = maybe (control.backToTheFuture) (_.theFuture >>> (#) event) trigger
@@ -463,30 +462,33 @@ engine dmo evt bsc = usingc
           seedsDrone <- sequence (V.fill (const arbitrary))
           let vec = V.zipWithE Record.union forTemplate seeds
           pure $ speaker
-            { mix: gain 1.0
-                { subs: subgraph vec (const $ const $ internal1)
-                    ( const $
-                        { time: time'
-                        , buffers
-                        , event
-                        , silence
-                        , fng: _
-                        }
-                    )
-                    {}
-                , drones: subgraph
-                    (V.zipWithE (/\) seedsDrone ((unwrap theFuture).air +> (unwrap theFuture).heart +> V.empty))
-                    (const $ const $ droneSg)
-                    ( const $ uncurry
-                        { time: time'
-                        , buffers
-                        , silence
-                        , event
-                        , seed: _
-                        , buf: _
-                        }
-                    )
-                    {}
+            { analyse: analyser myAnalyser
+                { analysed: gain 1.0
+                    { subs: subgraph vec (const $ const $ internal1)
+                        ( const $
+                            { time: time'
+                            , buffers
+                            , event
+                            , silence
+                            , fng: _
+                            }
+                        )
+                        {}
+                    , drones: subgraph
+                        (V.zipWithE (/\) seedsDrone ((unwrap theFuture).air +> (unwrap theFuture).heart +> V.empty))
+                        (const $ const $ droneSg)
+                        ( const $ uncurry
+                            { time: time'
+                            , buffers
+                            , silence
+                            , event
+                            , seed: _
+                            , buf: _
+                            }
+                        )
+                        {}
+                    }
                 }
             }
       }
+
