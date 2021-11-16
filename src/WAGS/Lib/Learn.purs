@@ -45,7 +45,7 @@ import Prim.RowList as RL
 import Record as Record
 import Type.Proxy (Proxy(..))
 import WAGS.Change (class Change)
-import WAGS.Control.Functions.Graph (loopUsingScene)
+import WAGS.Control.Functions.Graph (loopUsingScene, loopUsingSceneWithRes)
 import WAGS.Control.Functions.Subgraph as SG
 import WAGS.Control.Types (Frame0, Scene, SubScene)
 import WAGS.Create (class Create)
@@ -511,10 +511,7 @@ using
      )
   -> (SceneI { | trigger } { | world } AnalysersCb -> { | scene })
   -> FullSceneBuilder trigger world Unit
-using triggerWorld piece = FullSceneBuilder
-  { triggerWorld
-  , piece: loopUsingScene (\x y -> { control: y, scene: piece x }) unit
-  }
+using triggerWorld = usingc triggerWorld unit <<< map (const <<< { control: unit, scene: _ })
 
 usingc
   :: forall trigger world scene graph control
@@ -528,6 +525,20 @@ usingc
   -> (SceneI { | trigger } { | world } AnalysersCb -> control -> { scene :: { | scene }, control :: control })
   -> FullSceneBuilder trigger world Unit
 usingc triggerWorld control piece = FullSceneBuilder { triggerWorld, piece: loopUsingScene piece control }
+
+usingcr
+  :: forall trigger world scene graph control res
+   . Create scene () graph
+  => Monoid res
+  => GraphIsRenderable graph
+  => Change scene graph
+  => ( AudioContext /\ Aff (Event {} /\ Behavior {})
+       -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
+     )
+  -> control
+  -> (SceneI { | trigger } { | world } AnalysersCb -> control -> { scene :: { | scene }, control :: control, res :: res })
+  -> FullSceneBuilder trigger world res
+usingcr triggerWorld control piece = FullSceneBuilder { triggerWorld, piece: loopUsingSceneWithRes piece control }
 
 buffers
   :: forall buffersS buffers trigger world

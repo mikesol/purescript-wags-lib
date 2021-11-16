@@ -59,13 +59,14 @@ type RBuf event
   , duration :: Number
   }
 
-type CycleInfo = { cycleStartsAt :: Number
-     , bigCycleDuration :: Number
-     , littleCycleDuration :: Number
-     , currentCycle :: Int
-     , bigStartsAt :: Number
-     , littleStartsAt :: Number
-     }
+type CycleInfo =
+  { cycleStartsAt :: Number
+  , bigCycleDuration :: Number
+  , littleCycleDuration :: Number
+  , currentCycle :: Int
+  , bigStartsAt :: Number
+  , littleStartsAt :: Number
+  }
 
 newtype NextCycle event = NextCycle
   { force :: Boolean

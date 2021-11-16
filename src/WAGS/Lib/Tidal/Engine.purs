@@ -37,11 +37,11 @@ import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (ff)
 import WAGS.Interpret (bufferDuration)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), CfScoredBufferPool, makeScoredBufferPool)
-import WAGS.Lib.Learn (FullSceneBuilder, usingc)
+import WAGS.Lib.Learn (FullSceneBuilder, usingcr)
 import WAGS.Lib.Tidal.Download (downloadSilence, initialBuffers)
 import WAGS.Lib.Tidal.FX (calm)
 import WAGS.Lib.Tidal.Tidal (asScore, intentionalSilenceForInternalUseOnly, openFuture)
-import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, CycleInfo, Sample, SampleCache, TheFuture, TimeIs(..), UnsampledTimeIs(..), CycleDuration(..), h2v')
+import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleDuration(..), DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, Sample, SampleCache, TheFuture, TimeIs(..), UnsampledTimeIs(..), CycleInfo, h2v')
 import WAGS.Run (SceneI(..))
 import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
@@ -453,8 +453,8 @@ engine
        , entropy :: Int
        , silence :: BrowserAudioBuffer
        )
-       Unit
-engine dmo evt bsc = usingc
+       (Array CycleInfo)
+engine dmo evt bsc = usingcr
   (interactivity dmo <<< thePresent evt <<< initialBuffers bsc <<< addEntropy <<< downloadSilence)
   acc
   \(SceneI { time: time', headroomInSeconds, trigger, world: { buffers, silence, entropy: entropy' }, analyserCallbacks: { myAnalyser } }) control ->
@@ -482,7 +482,7 @@ engine dmo evt bsc = usingc
       -- this is not very performant - it would be better to have more of this
       -- information at the top level so that we did not need to do an extra loop
       -- to extract it
-      monoidal = map extractCycleInfo
+      res = map extractCycleInfo
         $ join
         $ Array.fromFoldable
         $ map
@@ -493,7 +493,8 @@ engine dmo evt bsc = usingc
             )
             actualized
     in
-      { control: { buffers: fromHomogeneous (map unwrapCofree actualized), backToTheFuture: theFuture', justInCaseTheLastEvent: event }
+      { res
+      , control: { buffers: fromHomogeneous (map unwrapCofree actualized), backToTheFuture: theFuture', justInCaseTheLastEvent: event }
       , scene: { newSeed: mkSeed entropy', size: globalSize } # evalGen do
           seeds <- sequence (V.fill (const $ map { seed: _ } arbitrary))
           seedsDrone <- sequence (V.fill (const arbitrary))
