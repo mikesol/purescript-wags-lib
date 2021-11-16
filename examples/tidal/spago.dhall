@@ -9,6 +9,10 @@ in      conf
               , "behaviors"
               , "effect"
               , "event"
+              , "halogen-subscriptions"
+              , "simple-json"
+              , "uint"
+              , "arraybuffer"
               , "strings"
               , "string-parsers"
               ]

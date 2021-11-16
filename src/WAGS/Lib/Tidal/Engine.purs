@@ -5,6 +5,7 @@ import Prelude
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
+import Data.Compactable (compact)
 import Data.Either (Either, either)
 import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
 import Data.Int (toNumber)
@@ -35,11 +36,11 @@ import WAGS.Graph.AudioUnit (OnOff(..))
 import WAGS.Graph.Parameter (ff)
 import WAGS.Interpret (bufferDuration)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), CfScoredBufferPool, makeScoredBufferPool)
-import WAGS.Lib.Learn (FullSceneBuilder, usingc)
+import WAGS.Lib.Learn (FullSceneBuilder, usingcr)
 import WAGS.Lib.Tidal.Download (downloadSilence, initialBuffers)
 import WAGS.Lib.Tidal.FX (calm)
 import WAGS.Lib.Tidal.Tidal (asScore, intentionalSilenceForInternalUseOnly, openFuture)
-import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, Sample, SampleCache, TheFuture, TimeIs(..), UnsampledTimeIs(..), CycleDuration(..), h2v')
+import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleDuration(..), CycleInfo, DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, Sample, SampleCache, TheFuture, TimeIs(..), UnsampledTimeIs(..), TidalRes, h2v')
 import WAGS.Run (SceneI(..))
 import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
@@ -420,6 +421,25 @@ addEntropy (ac /\ aff) = ac /\ do
   trigger /\ world <- aff
   pure (trigger /\ (Record.insert (Proxy :: _ "entropy") <$> ntropi <*> world))
 
+extractCycleInfo :: forall event. RBuf event -> CycleInfo
+extractCycleInfo
+  { cycleStartsAt
+  , bigCycleDuration
+  , littleCycleDuration
+  , currentCycle
+  , bigStartsAt
+  , duration
+  , littleStartsAt
+  } =
+  { cycleStartsAt
+  , bigCycleDuration
+  , littleCycleDuration
+  , currentCycle
+  , bigStartsAt
+  , littleStartsAt
+  , duration
+  }
+
 engine
   :: forall event
    . Monoid event
@@ -434,8 +454,8 @@ engine
        , entropy :: Int
        , silence :: BrowserAudioBuffer
        )
-       Unit
-engine dmo evt bsc = usingc
+       TidalRes
+engine dmo evt bsc = usingcr
   (interactivity dmo <<< thePresent evt <<< initialBuffers bsc <<< addEntropy <<< downloadSilence)
   acc
   \(SceneI { time: time', headroomInSeconds, trigger, world: { buffers, silence, entropy: entropy' }, analyserCallbacks: { myAnalyser } }) control ->
@@ -444,6 +464,7 @@ engine dmo evt bsc = usingc
       theFuture' = maybe (control.backToTheFuture) (_.theFuture >>> (#) event) trigger
       theFuture = theFuture' { clockTime: time' }
       ewf = let { earth, wind, fire } = unwrap theFuture in { earth, wind, fire }
+      -- to actualize is the next cycle, which could be the current cycle
       toActualize =
         map
           ( { time: time'
@@ -453,10 +474,26 @@ engine dmo evt bsc = usingc
           )
           $ homogeneous ewf
       myGlobals = map (_.globals <<< unwrap) $ homogeneous ewf
+      -- buffers consume the next input
+      -- what's returned is a bank of buffers
       actualized = homogeneous control.buffers <*> toActualize
       forTemplate = h2v (fromHomogeneous $ ({ future: _, globals: _ } <$> actualized <*> myGlobals))
+      -- to populate the monoid, we "cheat" and take the most recent value
+      -- we can anchor off of this
+      -- this is not very performant - it would be better to have more of this
+      -- information at the top level so that we did not need to do an extra loop
+      -- to extract it
+      res = fromHomogeneous
+        $ map
+            ( map (extractCycleInfo <<< _.rest <<< unwrap)
+                <<< compact
+                <<< V.toArray
+                <<< extract
+            )
+            actualized
     in
-      { control: { buffers: fromHomogeneous (map unwrapCofree actualized), backToTheFuture: theFuture', justInCaseTheLastEvent: event }
+      { res
+      , control: { buffers: fromHomogeneous (map unwrapCofree actualized), backToTheFuture: theFuture', justInCaseTheLastEvent: event }
       , scene: { newSeed: mkSeed entropy', size: globalSize } # evalGen do
           seeds <- sequence (V.fill (const $ map { seed: _ } arbitrary))
           seedsDrone <- sequence (V.fill (const arbitrary))

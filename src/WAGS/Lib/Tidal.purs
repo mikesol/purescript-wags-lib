@@ -7,10 +7,10 @@ import Data.Map as Map
 import Effect.Class (liftEffect)
 import Effect.Ref as Ref
 import WAGS.Lib.Learn (FullSceneBuilder)
-import WAGS.WebAPI (BrowserAudioBuffer)
 import WAGS.Lib.Tidal.Engine (engine)
-import WAGS.Lib.Tidal.Types (IsFresh, SampleCache, TheFuture)
+import WAGS.Lib.Tidal.Types (IsFresh, SampleCache, TheFuture, TidalRes)
 import WAGS.Lib.Tidal.Util (doDownloads)
+import WAGS.WebAPI (BrowserAudioBuffer)
 
 type AFuture = TheFuture Unit
 
@@ -27,7 +27,7 @@ tdl
        , entropy :: Int
        , silence :: BrowserAudioBuffer
        )
-       Unit
+       TidalRes
 tdl = tdlx <<< pure
 
 tdlx
@@ -40,7 +40,7 @@ tdlx
        , entropy :: Int
        , silence :: BrowserAudioBuffer
        )
-       Unit
+       TidalRes
 tdlx aFuture = engine (pure unit) (pure $ const aFuture) $ Right \ac -> do
   rf <- liftEffect $ Ref.new Map.empty
   doDownloads ac rf (const $ pure unit) ((#) { clockTime: 0.0 }) aFuture

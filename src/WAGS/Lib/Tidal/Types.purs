@@ -1,7 +1,6 @@
 module WAGS.Lib.Tidal.Types where
 
 import Prelude
-
 import Data.Either (Either, either)
 import Data.Function (on)
 import Data.Generic.Rep (class Generic)
@@ -25,24 +24,29 @@ import WAGS.Tumult (Tumultuous)
 import WAGS.WebAPI (BrowserAudioBuffer)
 
 --
-type IsFresh val = { isFresh :: Boolean, value :: val }
+type IsFresh val
+  = { isFresh :: Boolean, value :: val }
 
 --
+type ForwardBackwards
+  = { forward :: BrowserAudioBuffer, backwards :: BrowserAudioBuffer }
 
-type ForwardBackwards = { forward :: BrowserAudioBuffer, backwards :: BrowserAudioBuffer }
-
-newtype BufferUrl = BufferUrl String
+newtype BufferUrl
+  = BufferUrl String
 
 derive instance newtypeBufferUrl :: Newtype BufferUrl _
+
 derive instance eqBufferUrl :: Eq BufferUrl
+
 derive instance ordBufferUrl :: Ord BufferUrl
+
 instance showBufferUrl :: Show BufferUrl where
   show (BufferUrl s) = "BufferUrl <" <> s <> ">"
 
-type SampleCache = Map Sample { url :: BufferUrl, buffer :: ForwardBackwards }
+type SampleCache
+  = Map Sample { url :: BufferUrl, buffer :: ForwardBackwards }
 
 --- @@ ---
-
 type RBuf event
   =
   { sampleFoT :: Either (UnsampledTimeIs event -> Sample) Sample
@@ -59,7 +63,21 @@ type RBuf event
   , duration :: Number
   }
 
-newtype NextCycle event = NextCycle
+type CycleInfo
+  =
+  { cycleStartsAt :: Number
+  , bigCycleDuration :: Number
+  , littleCycleDuration :: Number
+  , currentCycle :: Int
+  , bigStartsAt :: Number
+  , littleStartsAt :: Number
+  , duration :: Number
+  }
+
+type TidalRes = { | EWF (Array CycleInfo) }
+
+newtype NextCycle event
+  = NextCycle
   { force :: Boolean
   , samples :: Set Sample
   , func ::
@@ -73,25 +91,35 @@ newtype NextCycle event = NextCycle
 
 derive instance newtypeNextCycle :: Newtype (NextCycle event) _
 
-newtype Globals event = Globals
+newtype Globals event
+  = Globals
   { gain :: O'Past event
   , fx :: ClockTimeIs event -> Tumultuous D1 "output" (voice :: Unit)
   }
 
 derive instance newtypeGlobals :: Newtype (Globals event) _
 
-newtype Voice event = Voice { globals :: Globals event, next :: NextCycle event }
+newtype Voice event
+  = Voice { globals :: Globals event, next :: NextCycle event }
 
 derive instance newtypeVoice :: Newtype (Voice event) _
 
-type EWF' (v :: Type) r = (earth :: v, wind :: v, fire :: v | r)
-type EWF (v :: Type) = EWF' v ()
+type EWF' (v :: Type) r
+  = (earth :: v, wind :: v, fire :: v | r)
 
-type AH' (v :: Type) r = (air :: v, heart :: v | r)
-type AH (v :: Type) = AH' v ()
+type EWF (v :: Type)
+  = EWF' v ()
 
-newtype TheFuture event = TheFuture
-  { | EWF' (Voice event)
+type AH' (v :: Type) r
+  = (air :: v, heart :: v | r)
+
+type AH (v :: Type)
+  = AH' v ()
+
+newtype TheFuture event
+  = TheFuture
+  {
+  | EWF' (Voice event)
       ( AH' (Maybe (DroneNote event))
           ( sounds :: Map Sample BufferUrl
           , title :: String
@@ -104,13 +132,17 @@ newtype TheFuture event = TheFuture
 derive instance newtypeTheFuture :: Newtype (TheFuture event) _
 
 --- @@ ---
-newtype CycleDuration = CycleDuration Number
+newtype CycleDuration
+  = CycleDuration Number
 
 derive instance newtypeCycleDuration :: Newtype CycleDuration _
+
 derive instance eqCycleDuration :: Eq CycleDuration
+
 derive instance ordCycleDuration :: Ord CycleDuration
 
-newtype NoteInTime note = NoteInTime
+newtype NoteInTime note
+  = NoteInTime
   { note :: note
   , startsAt :: Number
   , duration :: Number
@@ -119,15 +151,20 @@ newtype NoteInTime note = NoteInTime
   }
 
 derive instance newtypeNoteInTime :: Newtype (NoteInTime note) _
+
 derive instance genericNoteInTime :: Generic (NoteInTime note) _
+
 derive instance eqNoteInTime :: Eq note => Eq (NoteInTime note)
+
 derive instance ordNoteInTime :: Ord note => Ord (NoteInTime note)
+
 instance showNoteInTime :: Show note => Show (NoteInTime note) where
   show xx = genericShow xx
 
 derive instance functorNoteInTime :: Functor NoteInTime
 
-newtype NoteInFlattenedTime note = NoteInFlattenedTime
+newtype NoteInFlattenedTime note
+  = NoteInFlattenedTime
   { note :: note
   , bigStartsAt :: Number
   , littleStartsAt :: Number
@@ -142,26 +179,32 @@ newtype NoteInFlattenedTime note = NoteInFlattenedTime
   }
 
 derive instance newtypeNoteInFlattenedTime :: Newtype (NoteInFlattenedTime note) _
+
 derive instance genericNoteInFlattenedTime :: Generic (NoteInFlattenedTime note) _
+
 derive instance eqNoteInFlattenedTime :: Eq note => Eq (NoteInFlattenedTime note)
+
 derive instance ordNoteInFlattenedTime :: Ord note => Ord (NoteInFlattenedTime note)
+
 instance showNoteInFlattenedTime :: Show note => Show (NoteInFlattenedTime note) where
   show xx = genericShow xx
 
 derive instance functorNoteInFlattenedTime :: Functor NoteInFlattenedTime
 
 --
-type AfterMatter = { asInternal :: Maybe (NonEmptyList Unit) }
+type AfterMatter
+  = { asInternal :: Maybe (NonEmptyList Unit) }
 
 --
-type Tag = { tag :: Maybe String }
+type Tag
+  = { tag :: Maybe String }
 
 --
-
 type NBuf
   = D8
 
-type Next event = { next :: NextCycle event }
+type Next event
+  = { next :: NextCycle event }
 
 type Acc event
   =
@@ -171,8 +214,10 @@ type Acc event
   }
 
 ---
-
-class Nat n <= HomogenousToVec (rl :: RL.RowList Type) (r :: Row Type) (n :: Type) (a :: Type) | rl r -> n a where
+class
+  Nat n <=
+  HomogenousToVec (rl :: RL.RowList Type) (r :: Row Type) (n :: Type) (a :: Type)
+  | rl r -> n a where
   h2v' :: forall proxy. proxy rl -> { | r } -> V.Vec n a
 
 instance h2vNil :: HomogenousToVec RL.Nil r D0 a where
@@ -197,7 +242,8 @@ data ICycle a
   | ISingleNote { val :: a, env :: { weight :: Number, tag :: Maybe String } }
 
 ----
-newtype DroneNote event = DroneNote
+newtype DroneNote event
+  = DroneNote
   { sample :: Sample
   , forward :: Boolean
   , rateFoT :: O'Past event
@@ -208,7 +254,9 @@ newtype DroneNote event = DroneNote
   }
 
 derive instance newtypeDroneNote :: Newtype (DroneNote event) _
+
 derive instance genericDroneNote :: Generic (DroneNote event) _
+
 instance eqDroneNote :: Eq (DroneNote event) where
   eq = eq `on` (unwrap >>> _.sample)
 
@@ -219,8 +267,8 @@ instance showDroneNote :: Show (DroneNote event) where
   show (DroneNote { sample }) = "DroneNote <" <> show sample <> ">"
 
 ----
-
-newtype Note event = Note
+newtype Note event
+  = Note
   { sampleFoT :: Either (UnsampledTimeIs event -> Sample) Sample
   , forward :: Boolean
   , rateFoT :: FoT event
@@ -229,22 +277,25 @@ newtype Note event = Note
   }
 
 unlockSample :: forall event. event -> UnsampledTimeIs event
-unlockSample event = UnsampledTimeIs
-  { clockTime: 0.0
-  , event: { isFresh: true, value: event }
-  , bigCycleTime: 0.0
-  , littleCycleTime: 0.0
-  , normalizedClockTime: 0.0
-  , normalizedBigCycleTime: 0.0
-  , normalizedLittleCycleTime: 0.0
-  , littleCycleDuration: 0.0
-  , bigCycleDuration: 0.0
-  , entropy: 0.0
-  , initialEntropy: 0.0
-  }
+unlockSample event =
+  UnsampledTimeIs
+    { clockTime: 0.0
+    , event: { isFresh: true, value: event }
+    , bigCycleTime: 0.0
+    , littleCycleTime: 0.0
+    , normalizedClockTime: 0.0
+    , normalizedBigCycleTime: 0.0
+    , normalizedLittleCycleTime: 0.0
+    , littleCycleDuration: 0.0
+    , bigCycleDuration: 0.0
+    , entropy: 0.0
+    , initialEntropy: 0.0
+    }
 
 derive instance newtypeNote :: Newtype (Note event) _
+
 derive instance genericNote :: Generic (Note event) _
+
 instance eqNote :: Monoid event => Eq (Note event) where
   eq = eq `on` (unwrap >>> _.sampleFoT >>> either ((#) (unlockSample mempty)) identity)
 
@@ -255,16 +306,20 @@ instance showNote :: Monoid event => Show (Note event) where
   show (Note { sampleFoT }) = "Note <" <> show (either ((#) (unlockSample mempty)) identity sampleFoT) <> ">"
 
 ----------------------------------
-
-newtype Sample = Sample String
+newtype Sample
+  = Sample String
 
 derive instance sampleNewtype :: Newtype Sample _
+
 derive instance sampleEq :: Eq Sample
+
 derive instance sampleOrd :: Ord Sample
+
 instance sampleShow :: Show Sample where
   show (Sample i) = "Sample <" <> show i <> ">"
 
-newtype ClockTimeIs event = ClockTimeIs
+newtype ClockTimeIs event
+  = ClockTimeIs
   { clockTime :: Number
   , event :: IsFresh event
   , entropy :: Number
@@ -272,44 +327,45 @@ newtype ClockTimeIs event = ClockTimeIs
 
 derive instance newtypeClockTimeIs :: Newtype (ClockTimeIs event) _
 
-newtype UnsampledTimeIs event =
-  UnsampledTimeIs
-    { event :: IsFresh event
-    , clockTime :: Number
-    , bigCycleTime :: Number
-    , littleCycleTime :: Number
-    , normalizedClockTime :: Number
-    , normalizedBigCycleTime :: Number
-    , normalizedLittleCycleTime :: Number
-    , littleCycleDuration :: Number
-    , bigCycleDuration :: Number
-    , entropy :: Number
-    , initialEntropy :: Number
-    }
+newtype UnsampledTimeIs event
+  = UnsampledTimeIs
+  { event :: IsFresh event
+  , clockTime :: Number
+  , bigCycleTime :: Number
+  , littleCycleTime :: Number
+  , normalizedClockTime :: Number
+  , normalizedBigCycleTime :: Number
+  , normalizedLittleCycleTime :: Number
+  , littleCycleDuration :: Number
+  , bigCycleDuration :: Number
+  , entropy :: Number
+  , initialEntropy :: Number
+  }
 
 derive instance newtypeUnsampledTimeIs :: Newtype (UnsampledTimeIs event) _
 
-newtype TimeIs event =
-  TimeIs
-    { event :: IsFresh event
-    , clockTime :: Number
-    , sampleTime :: Number
-    , bigCycleTime :: Number
-    , littleCycleTime :: Number
-    , normalizedClockTime :: Number
-    , normalizedSampleTime :: Number
-    , normalizedBigCycleTime :: Number
-    , normalizedLittleCycleTime :: Number
-    , littleCycleDuration :: Number
-    , bigCycleDuration :: Number
-    , bufferDuration :: Number
-    , entropy :: Number
-    , initialEntropy :: Number
-    }
+newtype TimeIs event
+  = TimeIs
+  { event :: IsFresh event
+  , clockTime :: Number
+  , sampleTime :: Number
+  , bigCycleTime :: Number
+  , littleCycleTime :: Number
+  , normalizedClockTime :: Number
+  , normalizedSampleTime :: Number
+  , normalizedBigCycleTime :: Number
+  , normalizedLittleCycleTime :: Number
+  , littleCycleDuration :: Number
+  , bigCycleDuration :: Number
+  , bufferDuration :: Number
+  , entropy :: Number
+  , initialEntropy :: Number
+  }
 
 derive instance newtypeTimeIs :: Newtype (TimeIs event) _
 
-newtype TimeIsAndWas time = TimeIsAndWas
+newtype TimeIsAndWas time
+  = TimeIsAndWas
   { timeIs :: time
   , valWas :: Maybe Number
   , timeWas :: Maybe time
@@ -317,9 +373,17 @@ newtype TimeIsAndWas time = TimeIsAndWas
 
 derive instance newtypeTimeIsAndWas :: Newtype (TimeIsAndWas time) _
 
-type O'Clock event = ClockTimeIs event -> Number
-type O'Past event = TimeIsAndWas (ClockTimeIs event) -> Number
-type FoT event = TimeIs event -> Number
-type FoP event = TimeIsAndWas (TimeIs event) -> Number
+type O'Clock event
+  = ClockTimeIs event -> Number
 
-type Samples a = Object a
+type O'Past event
+  = TimeIsAndWas (ClockTimeIs event) -> Number
+
+type FoT event
+  = TimeIs event -> Number
+
+type FoP event
+  = TimeIsAndWas (TimeIs event) -> Number
+
+type Samples a
+  = Object a
