@@ -5,7 +5,6 @@ import Prelude
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
-import Data.Array as Array
 import Data.Compactable (compact)
 import Data.Either (Either, either)
 import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
@@ -41,7 +40,7 @@ import WAGS.Lib.Learn (FullSceneBuilder, usingcr)
 import WAGS.Lib.Tidal.Download (downloadSilence, initialBuffers)
 import WAGS.Lib.Tidal.FX (calm)
 import WAGS.Lib.Tidal.Tidal (asScore, intentionalSilenceForInternalUseOnly, openFuture)
-import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleDuration(..), DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, Sample, SampleCache, TheFuture, TimeIs(..), UnsampledTimeIs(..), CycleInfo, h2v')
+import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleDuration(..), CycleInfo, DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, Sample, SampleCache, TheFuture, TimeIs(..), UnsampledTimeIs(..), TidalRes, h2v')
 import WAGS.Run (SceneI(..))
 import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
@@ -429,6 +428,7 @@ extractCycleInfo
   , littleCycleDuration
   , currentCycle
   , bigStartsAt
+  , duration
   , littleStartsAt
   } =
   { cycleStartsAt
@@ -437,6 +437,7 @@ extractCycleInfo
   , currentCycle
   , bigStartsAt
   , littleStartsAt
+  , duration
   }
 
 engine
@@ -453,7 +454,7 @@ engine
        , entropy :: Int
        , silence :: BrowserAudioBuffer
        )
-       (Array CycleInfo)
+       TidalRes
 engine dmo evt bsc = usingcr
   (interactivity dmo <<< thePresent evt <<< initialBuffers bsc <<< addEntropy <<< downloadSilence)
   acc
@@ -482,11 +483,9 @@ engine dmo evt bsc = usingcr
       -- this is not very performant - it would be better to have more of this
       -- information at the top level so that we did not need to do an extra loop
       -- to extract it
-      res = map extractCycleInfo
-        $ join
-        $ Array.fromFoldable
+      res = fromHomogeneous
         $ map
-            ( map (_.rest <<< unwrap)
+            ( map (extractCycleInfo <<< _.rest <<< unwrap)
                 <<< compact
                 <<< V.toArray
                 <<< extract
