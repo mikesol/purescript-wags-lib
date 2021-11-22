@@ -13,6 +13,7 @@ import Data.Newtype (unwrap)
 import Data.NonEmpty ((:|))
 import Data.Show.Generic (genericShow)
 import Data.Traversable (class Traversable, sequenceDefault, traverse)
+import WAGS.Graph.Parameter (Maybe', _just, _nothing)
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.Types (DroneNote, Note(..), Sample, _either, _right, unlockSample)
 
@@ -80,8 +81,8 @@ lastCycle = go
     Internal { nel } -> go' nel
     SingleNote { val } -> val
 
-c2d :: forall event. Cycle (Maybe (Note event)) -> Maybe (DroneNote event)
-c2d = firstCycle >>> map S.note2drone
+c2d :: forall event. Cycle (Maybe (Note event)) -> Maybe' (DroneNote event)
+c2d = firstCycle >>> maybe _nothing _just >>> map S.note2drone
 
 reverse :: Cycle ~> Cycle
 reverse l = go l

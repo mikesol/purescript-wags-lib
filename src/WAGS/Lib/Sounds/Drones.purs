@@ -2,13 +2,8 @@ module WAGS.Lib.Sounds.Drones where
 
 import Prelude
 
-import Data.Bifunctor (bimap)
-import Data.Map (Map)
-import Data.Map as Map
-import Data.Tuple.Nested (type (/\))
 import Foreign.Object (Object, fromHomogeneous)
-import Foreign.Object as Object
-import WAGS.Lib.Tidal.Types (BufferUrl(..), Sample(..))
+import WAGS.Lib.Tidal.Types (BufferUrl(..))
 
 dronesRaw :: Object String
 dronesRaw = fromHomogeneous
@@ -20,7 +15,5 @@ dronesRaw = fromHomogeneous
   , "digeridoo:0": "https://freesound.org/data/previews/197/197998_3684181-hq.mp3"
   }
 
-drones :: Map Sample BufferUrl
-drones = Map.fromFoldable
-  $ map (bimap Sample BufferUrl)
-  $ (Object.toUnfoldable :: _ -> Array (String /\ String)) dronesRaw
+drones :: Object BufferUrl
+drones =  map BufferUrl $ dronesRaw

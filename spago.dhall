@@ -4,7 +4,6 @@
   , "aff-promise"
   , "arrays"
   , "behaviors"
-  , "bifunctors"
   , "console"
   , "control"
   , "css"
