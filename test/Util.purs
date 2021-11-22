@@ -11,7 +11,7 @@ import Data.Traversable (sequence)
 import Effect.Exception (Error)
 import Test.Spec.Assertions (fail, shouldEqual)
 import WAGS.Graph.AudioUnit (OnOff)
-import WAGS.Graph.Parameter (AudioParameter_(..))
+import WAGS.Graph.Parameter (AudioParameter_(..), _maybe)
 
 epsilon :: forall e. EuclideanRing e => e
 epsilon = one `div` (sixteen * sixteen)
@@ -34,7 +34,7 @@ else instance shouldEqualIshMaybe :: (ShouldEqualIsh t, Show t) => ShouldEqualIs
 else instance shouldEqualIshAP :: (ShouldEqualIsh t, Show t) => ShouldEqualIsh (AudioParameter_ t) where
   shouldEqualIsh (AudioParameter v1) (AudioParameter v2) = do
     shouldEqualIsh v1.timeOffset v2.timeOffset
-    shouldEqualIsh v1.param v2.param
+    shouldEqualIsh (_maybe Nothing Just v1.param) (_maybe Nothing Just v2.param)
 else instance shouldEqualIshN ::
   ( Show t
   , Eq t
