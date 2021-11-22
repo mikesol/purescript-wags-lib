@@ -21,7 +21,7 @@ import Halogen.HTML as HH
 import Halogen.Storybook (Stories, runStorybook, proxy)
 import Type.Proxy (Proxy(..))
 import WAGS.Create.Optionals (speaker, playBuf, loopBuf)
-import WAGS.Graph.AudioUnit (OnOff(..))
+import WAGS.Graph.AudioUnit (OnOff, _on, _offOn)
 import WAGS.Graph.Parameter (ff)
 import WAGS.Lib.Cofree (ana)
 import WAGS.Lib.Comonad (rewrap)
@@ -105,7 +105,7 @@ stories = Object.fromFoldable
                           { control: unwrapCofree emitted
                           , scene:
                               speaker $
-                                playBuf { onOff: ff 0.04 $ pure $ if A.null (extract emitted) then On else OffOn } loopy
+                                playBuf { onOff: ff 0.04 $ pure $ if A.null (extract emitted) then _on else _offOn } loopy
                           }
               )
           )

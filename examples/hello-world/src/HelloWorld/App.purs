@@ -26,7 +26,7 @@ import WAGS.Control.Functions.Graph (iloop, (@!>))
 import WAGS.Control.Indexed (IxWAG)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (TGain, TPlayBuf, TSinOsc, TSpeaker)
-import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
+import WAGS.Interpret (close, context, decodeAudioDataFromUri, makeFFIAudioSnapshot)
 import WAGS.Lib.BufferPool (ABufferPool, bOnOff, makeBufferPool)
 import WAGS.Lib.Emitter (AnEmitter, makeEmitter)
 import WAGS.Lib.Rate (ARate, makeRate)
@@ -158,13 +158,11 @@ handleAction :: forall output m. MonadEffect m => MonadAff m => Action -> H.Halo
 handleAction = case _ of
   StartAudio -> do
     audioCtx <- H.liftEffect context
-    unitCache <- H.liftEffect makeUnitCache
+    ffiAudio <- H.liftEffect $ makeFFIAudioSnapshot audioCtx
     bell <-
       H.liftAff $ decodeAudioDataFromUri
             audioCtx
             "https://freesound.org/data/previews/339/339809_5121236-hq.mp3"
-    let
-      ffiAudio = defaultFFIAudio audioCtx unitCache
     unsubscribe <-
       H.liftEffect
         $ subscribe

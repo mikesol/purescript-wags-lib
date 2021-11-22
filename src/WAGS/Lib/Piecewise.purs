@@ -16,7 +16,7 @@ import Data.Set as Set
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\), type (/\))
 import Math ((%))
-import WAGS.Graph.Parameter (AudioParameterTransition(..), AudioParameter_(..))
+import WAGS.Graph.Parameter (AudioParameter_(..), _just, _linearRamp)
 import WAGS.Math (calcSlope)
 
 type TimeHeadroom
@@ -58,11 +58,11 @@ type TLR_AP v
 makeChunks' :: forall v. TLR_AP v -> TLR_AP v -> MakeChunks v
 makeChunks' spillover inChunk l' = (snd shead) /\ map PWChunk (go sorted)
   where
-  (NonEmptyList sorted@(shead :| stail)) = sortBy (\a b -> compare (fst a) (fst b)) (NonEmptyList l')
+  (NonEmptyList sorted@(shead :| _)) = sortBy (\a b -> compare (fst a) (fst b)) (NonEmptyList l')
 
-  go (a /\ b :| Nil) = { left: minValue, right: maxValue, apfot: const (pure b) } :| Nil
+  go (_ /\ b :| Nil) = { left: minValue, right: maxValue, apfot: const (pure b) } :| Nil
 
-  go l@(hol :| tol) =
+  go l@(_ :| tol) =
     { left: minValue, right: (fst $ NEL.head (wrap l)), apfot: const (pure (snd $ NEL.head (wrap l))) }
       :|
         ( ( foldl
@@ -101,16 +101,16 @@ makeChunks =
   makeChunks'
     ( \{ time, right } ->
         AudioParameter
-          { param: Just (snd right)
+          { param: _just (snd right)
           , timeOffset: (fst right) - time
-          , transition: LinearRamp
+          , transition: _linearRamp
           }
     )
     \{ time, left, right } ->
       AudioParameter
-        { param: Just (calcSlope (fst left) (snd left) (fst right) (snd right) time)
+        { param: _just (calcSlope (fst left) (snd left) (fst right) (snd right) time)
         , timeOffset: 0.0
-        , transition: LinearRamp
+        , transition: _linearRamp
         }
 
 makeChunksL :: forall v. MakeChunks v
@@ -118,16 +118,16 @@ makeChunksL =
   makeChunks'
     ( \{ time, left, right } ->
         AudioParameter
-          { param: Just (snd left)
+          { param: _just (snd left)
           , timeOffset: (fst right) - time
-          , transition: LinearRamp
+          , transition: _linearRamp
           }
     )
-    \{ time, left, right } ->
+    \{  left } ->
       AudioParameter
-        { param: Just (snd left)
+        { param: _just (snd left)
         , timeOffset: 0.0
-        , transition: LinearRamp
+        , transition: _linearRamp
         }
 
 makeChunksR :: forall v. MakeChunks v
@@ -135,16 +135,16 @@ makeChunksR =
   makeChunks'
     ( \{ time, right } ->
         AudioParameter
-          { param: Just (snd right)
+          { param: _just (snd right)
           , timeOffset: (fst right) - time
-          , transition: LinearRamp
+          , transition: _linearRamp
           }
     )
-    \{ time, left, right } ->
+    \{  left } ->
       AudioParameter
-        { param: Just (snd left)
+        { param: _just (snd left)
         , timeOffset: 0.0
-        , transition: LinearRamp
+        , transition: _linearRamp
         }
 
 type MakePiecewise v
@@ -157,7 +157,7 @@ makePiecewise' mkc l = go
 
   asSet = Set.fromFoldable chunks
 
-  go th@{ time, headroomInSeconds } = case lookupLE (Beacon time) asSet of
+  go th@{ time } = case lookupLE (Beacon time) asSet of
     Nothing -> pure defaultV
     Just (PWRealized { apfot }) -> apfot th
 

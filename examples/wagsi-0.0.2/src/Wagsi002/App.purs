@@ -39,9 +39,9 @@ import WAGS.Control.Functions.Graph (iloop, startUsingWithHint)
 import WAGS.Control.Functions.Subgraph as SG
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Create.Optionals (gain, loopBuf, playBuf, speaker, subgraph)
-import WAGS.Graph.AudioUnit (OnOff(..))
-import WAGS.Graph.Parameter (AudioParameter_(..), ff)
-import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
+import WAGS.Graph.AudioUnit (OnOff(..), _off, _offOn, _on)
+import WAGS.Graph.Parameter (AudioParameter_(..), _maybe, ff)
+import WAGS.Interpret (close, context, decodeAudioDataFromUri, makeFFIAudioSnapshot)
 import WAGS.Lib.BufferPool (ABufferPool, Buffy(..), BuffyVec, CfBufferPool, MakeBufferPool, makeBufferPool)
 import WAGS.Lib.Cofree (heads, tails)
 import WAGS.Lib.Latch (ALatchAP, CfLatchAP, LatchAP, MakeLatchAP, makeLatchAP)
@@ -123,16 +123,16 @@ graph0 (SceneI { time: time', world }) { room0KickBuf: { buffers } } =
                           ff globalFF
                             $
                               if starting then
-                                ff (max 0.0 (startTime - time)) (pure OffOn)
+                                ff (max 0.0 (startTime - time)) (pure _off)
                               else if time - startTime > 1.0 then
-                                pure Off
+                                pure _off
                               else
-                                pure On
+                                pure _on
                       , playbackRate: 1.0
                       }
                       world.kick1
                   )
-              Nothing -> gain 0.0 (playBuf { onOff: Off } world.kick1)
+              Nothing -> gain 0.0 (playBuf { onOff: _off } world.kick1)
           }
       }
   in
@@ -153,14 +153,14 @@ actualizer1
   -> { room1ClapLatch :: CfLatchAP (First (Maybe Boolean))
      , room1ClapBuffers :: CfBufferPool NBuf
      }
-actualizer1 e@(SceneI e'@{ time, headroomInSeconds }) a =
+actualizer1 (SceneI e'@{ time, headroomInSeconds }) a =
   { room1ClapLatch
   , room1ClapBuffers:
       a.room1ClapBuffers
         { time
         , offsets: UF.fromMaybe do
             AudioParameter { param, timeOffset } <- extract room1ClapLatch
-            (First param') <- param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
+            (First param') <- _maybe Nothing Just param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
             _ <- param'
             pure { offset: timeOffset }
         }
@@ -197,16 +197,16 @@ graph1 (SceneI { time: time', world }) { room1ClapBuffers } =
                           ff globalFF
                             $
                               if starting then
-                                ff (max 0.0 (startTime - time)) (pure OffOn)
+                                ff (max 0.0 (startTime - time)) (pure _offOn)
                               else if time - startTime > 1.0 then
-                                pure Off
+                                pure _off
                               else
-                                pure On
+                                pure _on
                       , playbackRate: 1.2 + sin (pi * time * 0.7) * 0.5
                       }
                       world.clap
                   )
-              Nothing -> gain 0.0 (playBuf { onOff: Off } world.clap)
+              Nothing -> gain 0.0 (playBuf { onOff: _off } world.clap)
           }
       }
   in
@@ -234,7 +234,7 @@ actualizer2 e@(SceneI e'@{ time, headroomInSeconds }) a =
         { time
         , offsets: UF.fromMaybe do
             AudioParameter { param, timeOffset } <- extract room2HiHatLatch
-            (First param') <- param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
+            (First param') <- _maybe Nothing Just param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
             _ <- param'
             pure { offset: timeOffset }
         }
@@ -274,16 +274,16 @@ graph2 (SceneI { time: time', world }) { room2HiHatBuffers } =
                           ff globalFF
                             $
                               if starting then
-                                ff (max 0.0 (startTime - time)) (pure OffOn)
+                                ff (max 0.0 (startTime - time)) (pure _offOn)
                               else if time - startTime > 1.0 then
-                                pure Off
+                                pure _off
                               else
-                                pure On
+                                pure _on
                       , playbackRate: 1.0
                       }
                       world.openHH
                   )
-              Nothing -> gain 0.0 (playBuf { onOff: Off } world.openHH)
+              Nothing -> gain 0.0 (playBuf { onOff: _off } world.openHH)
           }
       }
   in
@@ -476,7 +476,7 @@ handleAction = case _ of
   StartAudio -> do
     handleAction StopAudio
     audioCtx <- H.liftEffect context
-    unitCache <- H.liftEffect makeUnitCache
+    ffiAudio <- H.liftEffect $ makeFFIAudioSnapshot audioCtx
     let
       sounds' =
         { kick1: "https://freesound.org/data/previews/171/171104_2394245-hq.mp3"
@@ -496,8 +496,6 @@ handleAction = case _ of
         , impulse0: "https://freesound.org/data/previews/382/382907_2812020-hq.mp3"
         }
     sounds <- H.liftAff $ sequential $ hfoldlWithIndex (TraverseH (parallel <<< decodeAudioDataFromUri audioCtx)) (pure {} :: ParAff {}) sounds'
-    let
-      ffiAudio = (defaultFFIAudio audioCtx unitCache)
     unsubscribe <-
       H.liftEffect
         $ subscribe

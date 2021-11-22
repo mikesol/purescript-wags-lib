@@ -32,7 +32,7 @@ import Test.QuickCheck.Gen (evalGen)
 import Type.Proxy (Proxy(..))
 import WAGS.Control.Functions.Subgraph as SG
 import WAGS.Create.Optionals (analyser, gain, loopBuf, playBuf, speaker, subgraph, tumult)
-import WAGS.Graph.AudioUnit (OnOff(..))
+import WAGS.Graph.AudioUnit (_off, _offOn, _on)
 import WAGS.Graph.Parameter (ff)
 import WAGS.Interpret (bufferDuration)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), CfScoredBufferPool, makeScoredBufferPool)
@@ -96,7 +96,7 @@ internal0 = { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0.5, sam
    { initialEntropies: initialEntropiesOld } -> case buf' of
     Nothing ->
       { control: { initialEntropies: initialEntropiesOld }
-      , scene: { singleton: gain 0.0 (playBuf { onOff: Off } silence) }
+      , scene: { singleton: gain 0.0 (playBuf { onOff: _off } silence) }
       }
     Just
       ( Buffy
@@ -182,9 +182,9 @@ internal0 = { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0.5, sam
                           ff globalFF
                             $
                               if starting then
-                                ff (max 0.0 (startTime - time)) (pure OffOn)
+                                ff (max 0.0 (startTime - time)) (pure _offOn)
                               else
-                                pure On
+                                pure _on
                       , bufferOffset: bufferOffsetFoT (thisIsTime initialEntropies.bufferOffset offsetEntropy)
                       , playbackRate: ff globalFF $ pure $ rateFoT (thisIsTime initialEntropies.rate rateEntropy)
                       }
@@ -277,7 +277,7 @@ droneSg = emptyLags
         buf' # maybe'
           ( \_ ->
               { control: emptyLags
-              , scene: { singleton: gain 0.0 { dronetmlt: tumult calm { voice: loopBuf { onOff: Off } silence } } }
+              , scene: { singleton: gain 0.0 { dronetmlt: tumult calm { voice: loopBuf { onOff: _off } silence } } }
               }
           )
           ( \( DroneNote
@@ -339,7 +339,7 @@ droneSg = emptyLags
                         gain vol
                           { dronetmlt: tumult (tumultFoT (thisIsTime tumultEntropy))
                               { voice: loopBuf
-                                  { onOff: ff globalFF $ pure On
+                                  { onOff: ff globalFF $ pure _on
                                   , loopStart: loopStartNow
                                   , loopEnd: loopEndNow
                                   , playbackRate: ff globalFF $ pure $ rateNow
@@ -528,4 +528,3 @@ engine dmo evt bsc = usingcr
                 }
             }
       }
-

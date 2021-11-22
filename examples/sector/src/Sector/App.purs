@@ -49,8 +49,8 @@ import WAGS.Change (change)
 import WAGS.Control.Functions (start)
 import WAGS.Control.Functions.Graph ((@|>), loop)
 import WAGS.Control.Types (Frame0, Scene, WAG)
-import WAGS.Graph.AudioUnit (OnOff(..), TGain, TPlayBuf, TSpeaker)
-import WAGS.Interpret (class AudioInterpret, bufferDuration, close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
+import WAGS.Graph.AudioUnit (OnOff(..), TGain, TPlayBuf, TSpeaker, _offOn)
+import WAGS.Interpret (class AudioInterpret, bufferDuration, close, context, decodeAudioDataFromUri, makeFFIAudioSnapshot)
 import WAGS.Lib.Lag (CfLag, makeLag)
 import WAGS.Lib.Latch (CfLatch, makeLatchEq)
 import WAGS.Lib.Rate (ARate, makeRate)
@@ -298,7 +298,7 @@ doBufferAlignment = asr \i -> voidLeft do
   when (prevSector /= Just (i - 1) && isJust (extract sectorLatch))
     $ rChange
         { buf:
-            { onOff: OffOn
+            { onOff: _offOn
             , bufferOffset: (toNumber i) * bufferDuration buffer / toNumber (toInt' (Proxy :: _ s))
             }
         }
@@ -568,13 +568,12 @@ handleAction = case _ of
     unsubscribeFromHalogen <- H.subscribe emitter
     { tfMarkov } <- H.get
     audioCtx <- H.liftEffect context
-    unitCache <- H.liftEffect makeUnitCache
+    ffiAudio <- H.liftEffect $ makeFFIAudioSnapshot audioCtx
     -- in case we want several, we use a traversable
     -- to be able to grab them all later
     let sound' = Identity Sector.sample
     sound <- H.liftAff $ sequential $ traverse (parallel <<< decodeAudioDataFromUri audioCtx) sound'
     let
-      ffiAudio = defaultFFIAudio audioCtx unitCache
       acc = Acc
         { playingNow: maybe order (cycle <<< map (indexMod sector) <<< vecToNonEmptyList <<< flip V.index d0) tfMarkov
         , sectorCount: 0

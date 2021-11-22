@@ -42,18 +42,18 @@ import WAGS.Control.Functions.Graph (iloop, startUsingWithHint)
 import WAGS.Control.Functions.Subgraph as SG
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Create.Optionals (gain, playBuf, speaker, subgraph)
-import WAGS.Graph.AudioUnit (OnOff(..))
+import WAGS.Graph.AudioUnit (OnOff(..), _off, _offOn, _on)
 import WAGS.Graph.Parameter (ff)
-import WAGS.Interpret (close, context, decodeAudioDataFromUri, defaultFFIAudio, makeUnitCache)
-import WAGS.Lib.BufferPool (Buffy(..), makeBufferPool)
-import WAGS.Lib.Cofree (heads, tails)
+import WAGS.Interpret (close, context, decodeAudioDataFromUri, makeFFIAudioSnapshot)
 import WAGS.Lib.BufferPool (Buffy(..), BuffyVec)
-import WAGS.Lib.Cofree (heads, tails)
-import WAGS.Lib.Rate (ARate, CfRate, Rate, timeIs)
 import WAGS.Lib.BufferPool (Buffy(..), makeBufferPool)
+import WAGS.Lib.BufferPool (Buffy(..), makeBufferPool)
+import WAGS.Lib.Cofree (heads, tails)
+import WAGS.Lib.Cofree (heads, tails)
 import WAGS.Lib.Cofree (heads, tails)
 import WAGS.Lib.Latch (makeLatchAP)
 import WAGS.Lib.Rate (ARate, CfRate, MakeRate, Rate, makeRate, timeIs)
+import WAGS.Lib.Rate (ARate, CfRate, Rate, timeIs)
 import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
 import WAGS.Math (calcSlope)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), Run, run)
@@ -189,9 +189,9 @@ keyBufGraph (SceneI { world }) { keyBufs, rate } =
                             ff globalFF
                               $
                                 if starting then
-                                  ff pos (pure OffOn)
+                                  ff pos (pure _offOn)
                                 else
-                                  pure On
+                                  pure _on
                         , playbackRate: 1.0
                         }
                         if xpos < ntp then
@@ -199,7 +199,7 @@ keyBufGraph (SceneI { world }) { keyBufs, rate } =
                         else
                           fromMaybe browserBuf (A.index (Vec.toArray bufz) (floor $ chg * nk))
                     )
-              Nothing -> gain 0.0 (playBuf { onOff: Off } browserBuf)
+              Nothing -> gain 0.0 (playBuf { onOff: _off } browserBuf)
           }
       }
   in
@@ -345,7 +345,7 @@ handleAction = case _ of
   StartAudio -> do
     handleAction StopAudio
     audioCtx <- H.liftEffect context
-    unitCache <- H.liftEffect makeUnitCache
+    ffiAudio <- H.liftEffect $ makeFFIAudioSnapshot audioCtx
     let
       sounds' = "https://freesound.org/data/previews/24/24620_130612-hq.mp3"
         +> "https://freesound.org/data/previews/24/24622_130612-hq.mp3"
@@ -357,8 +357,6 @@ handleAction = case _ of
         +> V.empty
 
     sounds <- H.liftAff $ sequential $ traverse (parallel <<< decodeAudioDataFromUri audioCtx) sounds'
-    let
-      ffiAudio = defaultFFIAudio audioCtx unitCache
     mouse' <- H.liftEffect getMouse
     unsubscribe <-
       H.liftEffect

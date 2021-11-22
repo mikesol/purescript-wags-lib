@@ -14,6 +14,7 @@
 module WAGS.Lib.SFofT where
 
 import Prelude
+
 import Control.Comonad.Cofree (Cofree, hoistCofree, (:<))
 import Control.Semigroupoid (composeFlipped)
 import Data.Lens (_1, _2, over, traversed)
@@ -21,7 +22,7 @@ import Data.List (List(..), (:))
 import Data.Maybe (Maybe(..))
 import Data.NonEmpty (NonEmpty, (:|))
 import Data.Tuple.Nested ((/\), type (/\))
-import WAGS.Graph.Parameter (AudioParameterTransition(..), AudioParameter, AudioParameter_(..))
+import WAGS.Graph.Parameter (AudioParameter, AudioParameter_(..), _just, _linearRamp)
 import WAGS.Math (calcSlope)
 
 type TimeHeadroom
@@ -49,12 +50,12 @@ makeLoopingPiecewise v0 v1 = go v0 v1 v1
         in
           ( if lookahead >= c then
               AudioParameter
-                { param: Just d
+                { param: _just d
                 , timeOffset: c - time
-                , transition: LinearRamp
+                , transition: _linearRamp
                 }
             else
-              AudioParameter { param: Just (calcSlope a b c d time), timeOffset: 0.0, transition: LinearRamp }
+              AudioParameter { param: _just (calcSlope a b c d time), timeOffset: 0.0, transition: _linearRamp }
           )
             :< go n l v
     | otherwise = go n l (c /\ d :| e) { time, headroomInSeconds }
@@ -66,9 +67,9 @@ infixl 6 makeLoopingPiecewise as /@:<
 makePiecewise :: NonEmpty List (Number /\ Number) -> SAPFofT
 makePiecewise (a /\ b :| Nil) _ =
   AudioParameter
-    { param: Just b
+    { param: _just b
     , timeOffset: 0.0
-    , transition: LinearRamp
+    , transition: _linearRamp
     }
     :< makePiecewise (a /\ b :| Nil)
 
@@ -79,12 +80,12 @@ makePiecewise v@(a /\ b :| (Cons (c /\ d) e)) { time, headroomInSeconds }
       in
         ( if lookahead >= c then
             AudioParameter
-              { param: Just d
+              { param: _just d
               , timeOffset: c - time
-              , transition: LinearRamp
+              , transition: _linearRamp
               }
           else
-            AudioParameter { param: Just (calcSlope a b c d time), timeOffset: 0.0, transition: LinearRamp }
+            AudioParameter { param: _just (calcSlope a b c d time), timeOffset: 0.0, transition: _linearRamp }
         )
           :< makePiecewise v
   | otherwise = makePiecewise (c /\ d :| e) { time, headroomInSeconds }

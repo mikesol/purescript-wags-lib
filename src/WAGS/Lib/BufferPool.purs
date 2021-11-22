@@ -16,7 +16,7 @@ import Data.Typelevel.Num (class Pos)
 import Data.Vec as V
 import Record as Record
 import Type.Proxy (Proxy(..))
-import WAGS.Graph.AudioUnit (APOnOff, OnOff(..))
+import WAGS.Graph.AudioUnit (APOnOff, _off, _offOn, _on)
 import WAGS.Graph.Parameter (ff)
 import WAGS.Lib.Blip (makeBlip)
 import WAGS.Lib.Cofree (ana, combineComonadCofreeChooseB)
@@ -341,4 +341,4 @@ type Time
   = Number
 
 bOnOff :: forall r. Time -> Maybe (Buffy r) -> APOnOff
-bOnOff time = maybe (pure Off) (unwrap >>> \{ starting, startTime } -> if starting then ff (max (startTime - time) 0.0) (pure OffOn) else pure On)
+bOnOff time = maybe (pure _off) (unwrap >>> \{ starting, startTime } -> if starting then ff (max (startTime - time) 0.0) (pure _offOn) else pure _on)
