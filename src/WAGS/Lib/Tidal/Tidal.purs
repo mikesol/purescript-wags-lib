@@ -39,6 +39,8 @@ module WAGS.Lib.Tidal.Tidal
   , onTag
   , onTag'
   ---
+  , l_j
+  , l_r
   , lvg
   , lvt
   , lfn
@@ -132,7 +134,7 @@ import Type.Proxy (Proxy(..))
 import WAGS.Create (class Create)
 import WAGS.Create.Optionals (input)
 import WAGS.Graph.AudioUnit as CTOR
-import WAGS.Graph.Parameter (Maybe', _nothing)
+import WAGS.Graph.Parameter (Maybe', _just, _maybe, _nothing)
 import WAGS.Lib.Tidal.Cycle (Cycle(..), flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
 import WAGS.Lib.Tidal.FX (WAGSITumult)
 import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
@@ -231,6 +233,12 @@ plainly :: NextCycle ~> Voice
 plainly = Voice <<< { globals: Globals { gain: const 1.0, fx: const calm }, next: _ }
 
 --- lenses
+l_j :: forall a. Prism' (Maybe' a) a
+l_j = prism' _just (_maybe Nothing Just)
+
+l_r :: forall a b. Prism' (Either' a b) b
+l_r = prism' _right _hush
+
 lvg :: forall event. Lens' (Voice event) (O'Past event)
 lvg = unto Voice <<< prop (Proxy :: _ "globals") <<< unto Globals <<< prop (Proxy :: _ "gain")
 
