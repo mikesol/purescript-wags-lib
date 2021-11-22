@@ -2,7 +2,6 @@ module WAGS.Lib.Tidal.Cycle where
 
 import Prelude
 
-import Data.Either (Either(..), either)
 import Data.Foldable (class Foldable, foldMapDefaultR, foldl, foldr, intercalate)
 import Data.FunctorWithIndex (class FunctorWithIndex)
 import Data.Generic.Rep (class Generic)
@@ -15,7 +14,7 @@ import Data.NonEmpty ((:|))
 import Data.Show.Generic (genericShow)
 import Data.Traversable (class Traversable, sequenceDefault, traverse)
 import WAGS.Lib.Tidal.Samples as S
-import WAGS.Lib.Tidal.Types (DroneNote, Note(..), Sample, unlockSample)
+import WAGS.Lib.Tidal.Types (DroneNote, Note(..), Sample, _either, _right, unlockSample)
 
 data Cycle a
   = Branching { nel :: NonEmptyList (Cycle a), env :: { weight :: Number, tag :: Maybe String } }
@@ -111,7 +110,7 @@ cycleToString event = go
   go (SingleNote { env, val }) =
     ( maybe "~"
         ( S.sampleToString
-            <<< either ((#) (unlockSample event)) identity
+            <<< _either ((#) (unlockSample event)) identity
             <<< _.sampleFoT
             <<< unwrap
         )
@@ -123,7 +122,7 @@ noteFromSample' weight sample = SingleNote
   { env: { weight, tag: Nothing }
   , val: Just
       ( Note
-          { sampleFoT: Right sample
+          { sampleFoT: _right sample
           , rateFoT: const 1.0
           , volumeFoT: const 1.0
           , bufferOffsetFoT: const 0.0

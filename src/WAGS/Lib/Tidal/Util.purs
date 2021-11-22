@@ -7,6 +7,8 @@ import Control.Comonad.Cofree (Cofree, (:<))
 import Data.Compactable (compact)
 import Data.List (List(..), fold, (:))
 import Data.Map as Map
+import Data.Maybe (Maybe(..))
+import Data.Newtype (unwrap)
 import Data.Set as Set
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -15,10 +17,12 @@ import Effect.Ref as Ref
 import FRP.Behavior (Behavior, behavior)
 import FRP.Event as Event
 import Foreign.Object as O
-import WAGS.WebAPI (AudioContext)
+import Foreign.Object as Object
+import WAGS.Graph.Parameter (_maybe)
 import WAGS.Lib.Tidal.Download (getBuffersUsingCache)
 import WAGS.Lib.Tidal.Samples (nameToSampleO, sampleToUrls)
 import WAGS.Lib.Tidal.Types (DroneNote(..), NextCycle(..), Sample(..), SampleCache, TheFuture(..), Voice(..))
+import WAGS.WebAPI (AudioContext)
 
 r2b :: Ref.Ref ~> Behavior
 r2b r = behavior \e -> Event.makeEvent \f -> Event.subscribe e \v -> Ref.read r >>= f <<< v
@@ -37,7 +41,7 @@ easingAlgorithm =
   in
     fOf 15
 
-v2s :: forall event. Voice event -> Set.Set Sample
+v2s :: forall event. Voice event -> Array Sample
 v2s (Voice { next: NextCycle { samples } }) = samples
 
 d2s :: forall event. DroneNote event -> Sample
@@ -64,10 +68,10 @@ doDownloads'
 doDownloads' audioContext { read, write } push lock key = do
   cache <- liftEffect read
   let
-    sets = Set.fromFoldable preload
+    sets = Set.fromFoldable (preload
       <> fold (map v2s [ earth, wind, fire ])
-      <> (Set.fromFoldable $ compact ((map <<< map) d2s [ air, heart ]))
-    samplesToUrl = Set.toMap sets # Map.mapMaybeWithKey \samp@(Sample k) _ -> Map.lookup samp sounds <|> do
+      <> (compact $ (map (_maybe Nothing Just)) $ ((map <<< map) d2s [ air, heart ])))
+    samplesToUrl = Set.toMap sets # Map.mapMaybeWithKey \samp@(Sample k) _ -> Object.lookup (unwrap samp) sounds <|> do
       nm <- O.lookup k nameToSampleO
       url <- Map.lookup nm sampleToUrls
       pure url

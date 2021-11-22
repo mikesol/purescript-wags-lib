@@ -6,17 +6,18 @@ import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Data.Compactable (compact)
-import Data.Either (Either, either)
+import Data.Either (Either)
 import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
 import Data.Int (toNumber)
 import Data.Lens (_1, over)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), maybe, maybe')
+import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (unwrap, wrap)
 import Data.Traversable (sequence)
 import Data.Tuple (uncurry)
 import Data.Tuple.Nested (type (/\), (/\))
 import Data.Typelevel.Num (class Pos)
+import Data.Variant (match)
 import Data.Vec ((+>))
 import Data.Vec as V
 import Effect.Aff (Aff)
@@ -33,14 +34,14 @@ import Type.Proxy (Proxy(..))
 import WAGS.Control.Functions.Subgraph as SG
 import WAGS.Create.Optionals (analyser, gain, loopBuf, playBuf, speaker, subgraph, tumult)
 import WAGS.Graph.AudioUnit (_off, _offOn, _on)
-import WAGS.Graph.Parameter (ff)
+import WAGS.Graph.Parameter (Maybe', ff)
 import WAGS.Interpret (bufferDuration)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), CfScoredBufferPool, makeScoredBufferPool)
 import WAGS.Lib.Learn (FullSceneBuilder, usingcr)
 import WAGS.Lib.Tidal.Download (downloadSilence, initialBuffers)
 import WAGS.Lib.Tidal.FX (calm)
 import WAGS.Lib.Tidal.Tidal (asScore, intentionalSilenceForInternalUseOnly, openFuture)
-import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleDuration(..), CycleInfo, DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, Sample, SampleCache, TheFuture, TimeIs(..), UnsampledTimeIs(..), TidalRes, h2v')
+import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleDuration(..), CycleInfo, DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, Sample, SampleCache, TheFuture, TidalRes, TimeIs(..), UnsampledTimeIs(..), _either, h2v')
 import WAGS.Run (SceneI(..))
 import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
@@ -148,7 +149,7 @@ internal0 = { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0.5, sam
             , initialEntropy: initialEntropy'
             , entropy: entropy'
             }
-        buf = sampleF (either ((#) (thisIsUnsampledTime initialEntropies.sample sampleEntropy)) identity sampleFoT)
+        buf = sampleF (_either ((#) (thisIsUnsampledTime initialEntropies.sample sampleEntropy)) identity sampleFoT)
           forward
           silence
           buffers
@@ -254,10 +255,14 @@ makeLag = Nothing :< go
   where
   go old = Just old :< go
 
+_maybe' :: forall a b. (Unit -> b) -> (a -> b) -> Maybe' a -> b
+_maybe' fn fj = unwrap >>> match {
+  just: \a -> fj a, nothing: fn
+}
 droneSg
   :: forall event
    . SubSceneSig "singleton" ()
-       { buf :: Maybe (DroneNote event)
+       { buf :: Maybe' (DroneNote event)
        , silence :: BrowserAudioBuffer
        , buffers :: SampleCache
        , event :: IsFresh event
@@ -274,7 +279,7 @@ droneSg = emptyLags
        , buf: buf'
        }
        { timeLag, rateLag, volumeLag, loopStartLag, loopEndLag } ->
-        buf' # maybe'
+        buf' # _maybe'
           ( \_ ->
               { control: emptyLags
               , scene: { singleton: gain 0.0 { dronetmlt: tumult calm { voice: loopBuf { onOff: _off } silence } } }

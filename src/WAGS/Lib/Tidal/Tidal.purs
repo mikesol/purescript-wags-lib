@@ -103,7 +103,6 @@ import Data.List as L
 import Data.List.NonEmpty (sortBy)
 import Data.List.NonEmpty as NEL
 import Data.List.Types (NonEmptyList(..))
-import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, fromMaybe', maybe)
 import Data.Newtype (unwrap, wrap)
 import Data.NonEmpty ((:|))
@@ -118,7 +117,9 @@ import Data.Typelevel.Num (D1)
 import Data.Unfoldable (replicate)
 import Data.Vec ((+>))
 import Data.Vec as V
+import Foreign.Object (Object)
 import Foreign.Object as O
+import Foreign.Object as Object
 import Prim.Row (class Nub, class Union)
 import Prim.RowList (class RowToList)
 import Record as Record
@@ -131,12 +132,13 @@ import Type.Proxy (Proxy(..))
 import WAGS.Create (class Create)
 import WAGS.Create.Optionals (input)
 import WAGS.Graph.AudioUnit as CTOR
+import WAGS.Graph.Parameter (Maybe', _nothing)
 import WAGS.Lib.Tidal.Cycle (Cycle(..), flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
 import WAGS.Lib.Tidal.FX (WAGSITumult)
 import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime)
 import WAGS.Lib.Tidal.Samples as S
-import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, ClockTimeIs, CycleDuration(..), DroneNote(..), EWF, EWF', FoT, Globals(..), ICycle(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIsAndWas, UnsampledTimeIs, Voice(..))
+import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, ClockTimeIs, CycleDuration(..), DroneNote(..), EWF, EWF', Either', FoT, Globals(..), ICycle(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIsAndWas, UnsampledTimeIs, Voice(..), _hush, _right)
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -149,15 +151,22 @@ make
   :: forall inRec overfull rest event
    . Union inRec
        ( EWF' (CycleDuration -> Voice event)
-           ( AH' (Maybe (DroneNote event))
-               (title :: String, sounds :: Map.Map Sample BufferUrl, preload :: Array Sample)
+           ( AH' (Maybe' (DroneNote event))
+               ( title :: String
+               , sounds :: Object BufferUrl
+               , preload :: Array Sample
+               )
            )
        )
        overfull
   => Nub overfull
        ( EWF' (CycleDuration -> Voice event)
-           ( AH' (Maybe (DroneNote event))
-               (title :: String, sounds :: Map.Map Sample BufferUrl, preload :: Array Sample | rest)
+           ( AH' (Maybe' (DroneNote event))
+               ( title :: String
+               , sounds :: Object BufferUrl
+               , preload :: Array Sample
+               | rest
+               )
            )
        )
   => Number
@@ -185,14 +194,14 @@ make cl rr = TheFuture $ Record.union
           $ Record.union (openDrones :: OpenDrones event)
               { title: "wagsi @ tidal"
               , preload: [] :: Array Sample
-              , sounds: Map.empty :: Map.Map Sample BufferUrl
+              , sounds: Object.empty :: Object BufferUrl
               }
       )
       ::
            { | EWF' (CycleDuration -> Voice event)
-               ( AH' (Maybe (DroneNote event))
+               ( AH' (Maybe' (DroneNote event))
                    ( title :: String
-                   , sounds :: Map.Map Sample BufferUrl
+                   , sounds :: Object BufferUrl
                    , preload :: Array Sample
                    | rest
                    )
@@ -258,7 +267,7 @@ ltd = unto NoteInTime <<< prop (Proxy :: _ "duration")
 ltt :: forall p note. Choice p => Strong p => p String String -> p (NoteInTime note) (NoteInTime note)
 ltt = unto NoteInTime <<< prop (Proxy :: _ "tag") <<< _Just
 
-lns :: forall event. Lens' (Note event) (Either (UnsampledTimeIs event -> Sample) Sample)
+lns :: forall event. Lens' (Note event) (Either' (UnsampledTimeIs event -> Sample) Sample)
 lns = unto Note <<< prop (Proxy :: _ "sampleFoT")
 
 lnr :: forall event. Lens' (Note event) (FoT event)
@@ -398,7 +407,7 @@ sampleP = do
   -- otherwise, if it is not in the original stock, we use the name as-is
   case O.lookup possiblySample S.nameToSampleMNO of
     Nothing -> pure $ Just $ Note
-      { sampleFoT: Right $ Sample possiblySample
+      { sampleFoT: _right $ Sample possiblySample
       , bufferOffsetFoT: const 0.0
       , rateFoT: const 1.0
       , forward: true
@@ -612,7 +621,7 @@ unrest = filter (not <<< L.null) <<< NEL.toList <<< map go
 asScore :: forall event. Boolean -> NonEmptyList (NoteInFlattenedTime (Note event)) -> NextCycle event
 asScore force flattened = NextCycle
   { force
-  , samples: Set.fromFoldable $ compact $ NEL.toList $ map (unwrap >>> _.note >>> unwrap >>> _.sampleFoT >>> hush) flattened
+  , samples: A.fromFoldable $ compact $ NEL.toList $ map (unwrap >>> _.note >>> unwrap >>> _.sampleFoT >>> _hush) flattened
   , func: scoreInput
   }
   where
@@ -699,11 +708,11 @@ openVoices = fromHomogeneous
       )
   $ homogeneous (mempty :: { | EWF Unit })
 
-type OpenDrones event = { | AH (Maybe (DroneNote event)) }
+type OpenDrones event = { | AH (Maybe' (DroneNote event)) }
 
 openDrones :: forall event. OpenDrones event
 openDrones = fromHomogeneous
-  $ map (const Nothing)
+  $ map (const _nothing)
   $ homogeneous (mempty :: { | AH Unit })
 
 openFuture :: forall event. CycleDuration -> TheFuture event
@@ -713,12 +722,12 @@ openFuture cycleDuration = TheFuture
           $ homogeneous (mempty :: { | EWF Unit })
       )
   $ Record.union
-      ( fromHomogeneous $ map (const Nothing)
+      ( fromHomogeneous $ map (const _nothing)
           $ homogeneous (mempty :: { | AH Unit })
       )
       { title: "wagsi @ tidal"
       , cycleDuration
-      , sounds: (Map.empty :: Map.Map Sample BufferUrl)
+      , sounds: (Object.empty :: Object BufferUrl)
       , preload: []
       }
 
@@ -726,7 +735,7 @@ intentionalSilenceForInternalUseOnly
   :: forall event. CycleDuration -> NoteInFlattenedTime (Note event)
 intentionalSilenceForInternalUseOnly (CycleDuration cl) = NoteInFlattenedTime
   { note: Note
-      { sampleFoT: Right $ S.intentionalSilenceForInternalUseOnly__Sample
+      { sampleFoT: _right $ S.intentionalSilenceForInternalUseOnly__Sample
       , rateFoT: const 1.0
       , forward: true
       , volumeFoT: const 1.0
@@ -822,7 +831,7 @@ genSingleNote =
       , bufferOffsetFoT: const 0.0
       , sampleFoT: _
       }
-    <<< Right <$> genSingleSample
+    <<< _right <$> genSingleSample
 
 genRest :: forall event. Gen (Cycle (Maybe (Note event)))
 genRest = pure $ SingleNote { env: { weight: 1.0, tag: Nothing }, val: Nothing }
@@ -929,10 +938,10 @@ djQuickCheck = do
         { earth
         , wind
         , fire
-        , air: Nothing
-        , heart: Nothing
+        , air: _nothing
+        , heart: _nothing
         , title: "d j q u i c k c h e c k"
-        , sounds: Map.empty
+        , sounds: Object.empty
         , preload: []
         , cycleDuration
         }

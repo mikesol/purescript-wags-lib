@@ -1,23 +1,24 @@
 module WAGS.Lib.Tidal.Types where
 
 import Prelude
-import Data.Either (Either, either)
+
 import Data.Function (on)
 import Data.Generic.Rep (class Generic)
 import Data.List.Types (NonEmptyList)
 import Data.Map (Map)
-import Data.Maybe (Maybe)
-import Foreign.Object (Object)
-import Data.Newtype (class Newtype, unwrap)
-import Data.Set (Set)
+import Data.Maybe (Maybe(..))
+import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Show.Generic (genericShow)
 import Data.Symbol (class IsSymbol)
 import Data.Typelevel.Num (class Nat, class Succ, D0, D1, D8)
+import Data.Variant (Variant, inj, match)
 import Data.Vec as V
+import Foreign.Object (Object)
 import Prim.Row as Row
 import Prim.RowList as RL
 import Record as Record
 import Type.Proxy (Proxy(..))
+import WAGS.Graph.Parameter (Maybe')
 import WAGS.Lib.BufferPool (AScoredBufferPool)
 import WAGS.Lib.Score (CfNoteStream')
 import WAGS.Tumult (Tumultuous)
@@ -46,10 +47,30 @@ instance showBufferUrl :: Show BufferUrl where
 type SampleCache
   = Map Sample { url :: BufferUrl, buffer :: ForwardBackwards }
 
+newtype Either' a b = Either' (Variant (left :: a, right :: b))
+derive instance Newtype (Either' a b) _
+
+_hush :: forall a b. Either' a b -> Maybe b
+_hush (Either' v) = v # match {
+  left: \_ -> Nothing,
+  right: \a -> Just a
+}
+
+_right :: forall a b. b -> Either' a b
+_right = wrap <<< inj (Proxy :: Proxy "right")
+
+_left :: forall a b. a -> Either' a b
+_left = wrap <<< inj (Proxy :: Proxy "left")
+
+_either :: forall a b c. (a -> c) -> (b -> c) -> Either' a b -> c
+_either lf rf (Either' v) = v # match {
+  left: \a -> lf a,
+  right: \b -> rf b
+}
 --- @@ ---
 type RBuf event
   =
-  { sampleFoT :: Either (UnsampledTimeIs event -> Sample) Sample
+  { sampleFoT :: Either' (UnsampledTimeIs event -> Sample) Sample
   , forward :: Boolean
   , rateFoT :: FoT event
   , bufferOffsetFoT :: FoT event
@@ -79,7 +100,7 @@ type TidalRes = { | EWF (Array CycleInfo) }
 newtype NextCycle event
   = NextCycle
   { force :: Boolean
-  , samples :: Set Sample
+  , samples :: Array Sample
   , func ::
       { currentCount :: Number
       , prevCycleEnded :: Number
@@ -120,8 +141,8 @@ newtype TheFuture event
   = TheFuture
   {
   | EWF' (Voice event)
-      ( AH' (Maybe (DroneNote event))
-          ( sounds :: Map Sample BufferUrl
+      ( AH' (Maybe' (DroneNote event))
+          ( sounds :: Object BufferUrl
           , title :: String
           , preload :: Array Sample
           , cycleDuration :: CycleDuration
@@ -269,7 +290,7 @@ instance showDroneNote :: Show (DroneNote event) where
 ----
 newtype Note event
   = Note
-  { sampleFoT :: Either (UnsampledTimeIs event -> Sample) Sample
+  { sampleFoT :: Either' (UnsampledTimeIs event -> Sample) Sample
   , forward :: Boolean
   , rateFoT :: FoT event
   , bufferOffsetFoT :: FoT event
@@ -297,13 +318,13 @@ derive instance newtypeNote :: Newtype (Note event) _
 derive instance genericNote :: Generic (Note event) _
 
 instance eqNote :: Monoid event => Eq (Note event) where
-  eq = eq `on` (unwrap >>> _.sampleFoT >>> either ((#) (unlockSample mempty)) identity)
+  eq = eq `on` (unwrap >>> _.sampleFoT >>> _either ((#) (unlockSample mempty)) identity)
 
 instance ordNote :: Monoid event => Ord (Note event) where
-  compare = compare `on` (unwrap >>> _.sampleFoT >>> (either ((#) (unlockSample mempty)) identity))
+  compare = compare `on` (unwrap >>> _.sampleFoT >>> (_either ((#) (unlockSample mempty)) identity))
 
 instance showNote :: Monoid event => Show (Note event) where
-  show (Note { sampleFoT }) = "Note <" <> show (either ((#) (unlockSample mempty)) identity sampleFoT) <> ">"
+  show (Note { sampleFoT }) = "Note <" <> show (_either ((#) (unlockSample mempty)) identity sampleFoT) <> ">"
 
 ----------------------------------
 newtype Sample
