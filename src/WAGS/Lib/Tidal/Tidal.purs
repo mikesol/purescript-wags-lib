@@ -446,7 +446,7 @@ eliminateLastSequential :: forall event. NonEmptyList (ICycle (Maybe (Note event
 eliminateLastSequential l = case uss.last of
   (ISequential { nel: badnel }) -> case uss.init of
     Nil -> badnel
-    (a : b) -> NonEmptyList (a :| b) <> badnel
+    (a : b) -> NonEmptyList (a :| b) <> (eliminateLastSequential badnel)
   _ -> l
   where
   uss = NEL.unsnoc l
