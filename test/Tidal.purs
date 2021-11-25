@@ -40,6 +40,9 @@ testTidal = do
         "tabla2:42 hc:0 hc:2" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (noteFromSample S.hc_0__Sample) : (noteFromSample S.hc_2__Sample) : Nil) })
       runWrapped
         "tabla2:42 hc:0 hc:2 hc:1" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (noteFromSample S.hc_0__Sample) : (noteFromSample S.hc_2__Sample) : (noteFromSample S.hc_1__Sample)  : Nil) })
+    it "Fixes a bug where cycles were crunched towards then end" do
+      runWrapped
+        "tabla2:42 hc:0 [tabla2:42 hc:2] hc:1 tabla2:42 [tabla2:42 hc:2] hc:0 hc:1" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ( (noteFromSample S.tabla2_42__Sample) :| (noteFromSample S.hc_0__Sample) : (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (noteFromSample S.hc_2__Sample)  : Nil) }) : (noteFromSample S.hc_1__Sample)  : (noteFromSample S.tabla2_42__Sample)  : (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (noteFromSample S.hc_2__Sample)  : Nil) }) : (noteFromSample S.hc_0__Sample) : (noteFromSample S.hc_1__Sample) : Nil) })
     it "Works on internal cycles" do
       runWrapped
         "[tabla2:42 hc:0] tabla2:42" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (noteFromSample S.hc_0__Sample) : Nil) } :| (noteFromSample S.tabla2_42__Sample) : Nil) })

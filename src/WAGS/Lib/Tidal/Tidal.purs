@@ -442,6 +442,15 @@ branchingcyclePInternal lvl = IBranching <$> do
 ident ∷ Int → String
 ident lvl = (fold (map (const " ") (0 .. (lvl - 1))))
 
+eliminateLastSequential :: forall event. NonEmptyList (ICycle (Maybe (Note event))) -> NonEmptyList (ICycle (Maybe (Note event)))
+eliminateLastSequential l = case uss.last of
+  (ISequential { nel: badnel }) -> case uss.init of
+    Nil -> badnel
+    (a : b) -> NonEmptyList (a :| b) <> badnel
+  _ -> l
+  where
+  uss = NEL.unsnoc l
+
 simultaneouscyclePInternal :: forall event. Int -> Parser (ICycle (Maybe (Note event)))
 simultaneouscyclePInternal lvl = ISimultaneous <$> do
   nel <- between (skipSpaces *> char '[' *> skipSpaces) (skipSpaces *> char ']' *> skipSpaces) do
@@ -472,7 +481,13 @@ sequentialcyclePInternal lvl = map ISequential $
           _ -> others
 
       --  = spy (ident i <> "sequentialcyclePInternal ending single " <> show i) true
-      pure { nel: NonEmptyList (sgl :| othersHack), env: { weight: 1.0, tag: Nothing } }
+
+      ---- if the last value is sequential then, given this parsing scheme, that will be wrong
+      -- it happens when, for example, there is a non sequential followed
+      -- by a sequential.
+      let nel = NonEmptyList (sgl :| othersHack)
+      let nelHack = eliminateLastSequential nel
+      pure { nel: nelHack, env: { weight: 1.0, tag: Nothing } }
   )
     <|>
       ( do
@@ -481,8 +496,9 @@ sequentialcyclePInternal lvl = map ISequential $
           sgl <- skipSpaces *> cyclePInternalLackingSequential (lvl + 1)
           others <- sepEndBy (cyclePInternal (lvl + 1)) skipSpaces
           let nel = NonEmptyList (sgl :| others)
+          let nelHack = eliminateLastSequential nel
           --  = spy (ident i <> "rewinding to sequentialcyclePInternal ending many with length " <> (show $ NEL.length nel) <> " " <> show i) true
-          pure { nel, env: { weight: 1.0, tag: Nothing } }
+          pure { nel: nelHack, env: { weight: 1.0, tag: Nothing } }
       )
 
 singleSampleP :: forall event. Unit -> Parser (ICycle (Maybe (Note event)))
