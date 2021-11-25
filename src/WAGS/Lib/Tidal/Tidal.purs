@@ -77,6 +77,7 @@ module WAGS.Lib.Tidal.Tidal
   , x'
   , x_
   ----- internal
+  , parseWithBrackets
   , ident
   ) where
 
@@ -768,10 +769,14 @@ intentionalSilenceForInternalUseOnly (CycleDuration cl) = NoteInFlattenedTime
   , tag: Nothing
   }
 
+parseWithBrackets = runParser cycleP
+  <<< ("[ " <> _ )
+  <<< (_ <> " ]")
+
 parse :: forall event. String -> Cycle (Maybe (Note event))
-parse raw = fromMaybe intentionalSilenceForInternalUseOnly_ $ hush $ runParser cycleP bracketed
-  where
-  bracketed = "[ " <> raw <> " ]"
+parse = fromMaybe intentionalSilenceForInternalUseOnly_
+  <<< hush
+  <<< parseWithBrackets
 
 parse_ :: String -> Cycle (Maybe (Note Unit))
 parse_ = parse
@@ -787,7 +792,7 @@ parseInternal str dur = asScore false
           <<< (unrest <<< cycleToSequence dur)
       )
   $ hush
-  $ runParser cycleP str
+  $ parseWithBrackets str
 
 rend :: forall event. Cycle (Maybe (Note event)) -> CycleDuration -> (NextCycle event)
 rend cyn dur = asScore false

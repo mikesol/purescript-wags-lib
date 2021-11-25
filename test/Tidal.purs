@@ -13,7 +13,7 @@ import Test.Spec.Assertions (shouldEqual)
 import Text.Parsing.StringParser (runParser)
 import WAGS.Lib.Tidal.Cycle (Cycle(..), noteFromSample, noteFromSample')
 import WAGS.Lib.Tidal.Samples as S
-import WAGS.Lib.Tidal.Tidal (c2s, cycleP_, unrest)
+import WAGS.Lib.Tidal.Tidal (c2s, cycleP_, parseWithBrackets, unrest)
 import WAGS.Lib.Tidal.Types (Note(..), NoteInTime(..), _right)
 
 runWrapped
@@ -23,7 +23,7 @@ runWrapped
        , pos :: Int
        }
        (Cycle (Maybe (Note Unit)))
-runWrapped = runParser cycleP_ <<< (\x -> "[" <> x <> "]")
+runWrapped = parseWithBrackets
 
 testTidal :: Spec Unit
 testTidal = do
