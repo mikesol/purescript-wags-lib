@@ -431,9 +431,10 @@ branchingcyclePInternal lvl = IBranching <$> do
   --  = spy (ident i <> "branchingcyclePInternal finished" <> show i) nel
   --------- HACK
   --- if there is a single sequential we expand it
-  let nelHack = case nel of
-        NonEmptyList ((ISequential { nel: badnel }) :| Nil) -> badnel
-        _ -> nel
+  let
+    nelHack = case nel of
+      NonEmptyList ((ISequential { nel: badnel }) :| Nil) -> badnel
+      _ -> nel
   { tag } <- tagP
   weight <- weightP
   pure { nel: nelHack, env: { weight, tag } }
@@ -460,14 +461,19 @@ joinSequential (aa : bb) = aa : joinSequential bb
 
 sequentialcyclePInternal :: forall event. Int -> Parser (ICycle (Maybe (Note event)))
 sequentialcyclePInternal lvl = map ISequential $
-    (try do
-        pure unit -- breaks recursion
-        --  = spy (ident i <> "sequentialcyclePInternal starting single " <> show i) true
-        sgl <- skipSpaces *> singleSampleP unit
-        others <- sepEndBy (cyclePInternal (lvl + 1)) skipSpaces
-        --  = spy (ident i <> "sequentialcyclePInternal ending single " <> show i) true
-        pure { nel: NonEmptyList (sgl :| others), env: { weight: 1.0, tag: Nothing } }
-    )
+  ( try do
+      pure unit -- breaks recursion
+      --  = spy (ident i <> "sequentialcyclePInternal starting single " <> show i) true
+      sgl <- skipSpaces *> singleSampleP unit
+      others <- sepEndBy (cyclePInternal (lvl + 1)) skipSpaces
+      let
+        othersHack = case others of
+          (ISequential { nel: badl } : Nil) -> NEL.toList badl
+          _ -> others
+
+      --  = spy (ident i <> "sequentialcyclePInternal ending single " <> show i) true
+      pure { nel: NonEmptyList (sgl :| othersHack), env: { weight: 1.0, tag: Nothing } }
+  )
     <|>
       ( do
           pure unit -- breaks recursion
@@ -501,7 +507,6 @@ cyclePInternalLackingSequential :: forall event. Int -> Parser (ICycle (Maybe (N
 cyclePInternalLackingSequential lvl = try (branchingcyclePInternal lvl)
   <|> try (simultaneouscyclePInternal lvl)
   <|> fail "Could not parse cycle lacking sequential"
-
 
 cycleP_ :: Parser (Cycle (Maybe (Note Unit)))
 cycleP_ = cycleP
@@ -770,7 +775,7 @@ intentionalSilenceForInternalUseOnly (CycleDuration cl) = NoteInFlattenedTime
   }
 
 parseWithBrackets = runParser cycleP
-  <<< ("[ " <> _ )
+  <<< ("[ " <> _)
   <<< (_ <> " ]")
 
 parse :: forall event. String -> Cycle (Maybe (Note event))
