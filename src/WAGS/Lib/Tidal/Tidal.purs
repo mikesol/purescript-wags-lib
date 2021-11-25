@@ -1,86 +1,83 @@
 module WAGS.Lib.Tidal.Tidal
-  ( module WAGS.Lib.Tidal.Cycle
-  , make
-  , parse
-  , parse_
-  , impatient
-  , plainly
-  , s
-  , rend
-  , rend_
-  , rendNit
-  , c2s
-  , s2f
-  , openFuture
-  ---
-  , djQuickCheck
-  ---
+  ( asScore
   , b
-  , i
-  , x
   , b'
-  , i'
-  , x'
   , b_
-  , i_
-  , x_
-  , u
-  ---
-  , onTagsCWithIndex
-  , onTagsCWithIndex'
-  , onTagsC
-  , onTagsC'
-  , onTagsWithIndex
-  , onTagsWithIndex'
-  , onTags
-  , onTags'
-  , onTagWithIndex
-  , onTagWithIndex'
-  , onTag
-  , onTag'
-  ---
-  , l_j
-  , l_r
-  , lvg
-  , lvt
-  , lfn
-  , lft
-  , lfb
-  , lfl
-  , lfc
-  , lfd
-  , ltn
-  , lts
-  , ltd
-  , ltt
-  , lns
-  , lnr
-  , lnbo
-  , lnf
-  , lnv
-  , lds
-  , ldr
-  , ldls
-  , ldle
-  , ldf
-  , ldv
-  , lcw
-  , lct
-  , ldt
-  ---
-  , when_
-  , focus
-  , mapmap
   , betwixt
-  , derivative
-  ---
-  , asScore
-  , openVoice
+  , c2s
+  , class S
   , cycleP
   , cycleP_
-  , unrest
-  , class S
+  , derivative
+  , djQuickCheck
+  , focus
+  , i
+  , i'
+  , i_
+  , impatient
   , intentionalSilenceForInternalUseOnly
+  , l_j
+  , l_r
+  , lct
+  , lcw
+  , ldf
+  , ldle
+  , ldls
+  , ldr
+  , lds
+  , ldt
+  , ldv
+  , lfb
+  , lfc
+  , lfd
+  , lfl
+  , lfn
+  , lft
+  , lnbo
+  , lnf
+  , lnr
+  , lns
+  , lnv
+  , ltd
+  , ltn
+  , lts
+  , ltt
+  , lvg
+  , lvt
+  , make
+  , mapmap
+  , module WAGS.Lib.Tidal.Cycle
+  , onTag
+  , onTag'
+  , onTagWithIndex
+  , onTagWithIndex'
+  , onTags
+  , onTags'
+  , onTagsC
+  , onTagsC'
+  , onTagsCWithIndex
+  , onTagsCWithIndex'
+  , onTagsWithIndex
+  , onTagsWithIndex'
+  , openFuture
+  , openVoice
+  , parse
+  , parse_
+  , plainly
+  , rend
+  , rendNit
+  , rend_
+  , s
+  , s2f
+  , sequentialcyclePInternal
+  , u
+  , unrest
+  , when_
+  , x
+  , x'
+  , x_
+  ----- internal
+  , ident
   ) where
 
 import Prelude hiding (between)
@@ -88,10 +85,11 @@ import Prelude hiding (between)
 import Control.Alt ((<|>))
 import Control.Comonad.Cofree ((:<))
 import Control.Monad.State (evalState, get, put)
+import Data.Array (fold, (..))
 import Data.Array as A
 import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Array.NonEmpty as NEA
-import Data.Either (Either(..), hush)
+import Data.Either (hush)
 import Data.Filterable (compact, filter, filterMap, maybeBool)
 import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
@@ -128,8 +126,8 @@ import Record as Record
 import Test.QuickCheck (arbitrary)
 import Test.QuickCheck.Gen (Gen, arrayOf1, elements, frequency, resize)
 import Text.Parsing.StringParser (Parser, fail, runParser, try)
-import Text.Parsing.StringParser.CodeUnits (satisfy, oneOf, skipSpaces, string, alphaNum, anyDigit, char)
-import Text.Parsing.StringParser.Combinators (between, many, many1, optionMaybe, sepBy, sepEndBy)
+import Text.Parsing.StringParser.CodeUnits (alphaNum, anyDigit, char, oneOf, satisfy, skipSpaces)
+import Text.Parsing.StringParser.Combinators (between, many, many1, optionMaybe, sepBy1, sepEndBy)
 import Type.Proxy (Proxy(..))
 import WAGS.Create (class Create)
 import WAGS.Create.Optionals (input)
@@ -423,61 +421,65 @@ sampleP = do
       }
     Just foundSample -> pure foundSample
 
-internalcyclePInternal :: forall event. Parser (ICycle (Maybe (Note event)))
-internalcyclePInternal = IInternal <$> do
-  nel <- between (skipSpaces *> char '[' *> skipSpaces) (skipSpaces *> char ']' *> skipSpaces) do
-    pure unit -- breaks recursion
-    cyc <- cyclePInternal unit
-    case cyc of
-      ISequential { nel } -> pure nel
-      xx -> pure (pure xx)
-  { tag } <- tagP
-  weight <- weightP
-  pure { nel, env: { weight, tag } }
-
-branchingcyclePInternal :: forall event. Parser (ICycle (Maybe (Note event)))
-branchingcyclePInternal = IBranching <$> do
+branchingcyclePInternal :: forall event. Int -> Parser (ICycle (Maybe (Note event)))
+branchingcyclePInternal lvl = IBranching <$> do
   nel <- between (skipSpaces *> char '<' *> skipSpaces) (skipSpaces *> char '>' *> skipSpaces) do
     pure unit -- breaks recursion
-    cyc <- cyclePInternal unit
-    case cyc of
-      ISequential { nel } -> pure nel
-      xx -> pure (pure xx)
+    --  = spy (ident i <> "branchingcyclePInternal in between " <> show i) true
+    sepBy1 (cyclePInternal (lvl + 1)) skipSpaces
+  --  = spy (ident i <> "branchingcyclePInternal finished" <> show i) nel
+  --------- HACK
+  --- if there is a single sequential we expand it
+  let nelHack = case nel of
+        NonEmptyList ((ISequential { nel: badnel }) :| Nil) -> badnel
+        _ -> nel
   { tag } <- tagP
   weight <- weightP
-  pure { nel, env: { weight, tag } }
+  pure { nel: nelHack, env: { weight, tag } }
 
-simultaneouscyclePInternal :: forall event. Unit -> Parser (ICycle (Maybe (Note event)))
-simultaneouscyclePInternal _ = ISimultaneous <<< { env: { weight: 1.0, tag: Nothing }, nel: _ } <$> do
-  sep <- sepBy ((fromCharArray <<< A.fromFoldable) <$> many (satisfy (not <<< eq ','))) (string ",")
-  case sep of
-    Nil -> fail "Lacks comma"
-    (_ : Nil) -> fail "Lacks comma"
-    (aa : bb : cc) -> case traverse (runParser reducedP) (NonEmptyList (aa :| bb : cc)) of
-      Left e -> fail $ show e
-      Right rr -> pure rr
-  where
-  reducedP = try branchingcyclePInternal
-    <|> try sequentialcyclePInternal
-    <|> try internalcyclePInternal
-    <|> try singleSampleP
-    <|> fail "Could not parse cycle"
+ident ∷ Int → String
+ident lvl = (fold (map (const " ") (0 .. (lvl - 1))))
+
+simultaneouscyclePInternal :: forall event. Int -> Parser (ICycle (Maybe (Note event)))
+simultaneouscyclePInternal lvl = ISimultaneous <$> do
+  nel <- between (skipSpaces *> char '[' *> skipSpaces) (skipSpaces *> char ']' *> skipSpaces) do
+    pure unit -- breaks recursion
+    --  = spy (ident i <> "simultaneouscyclePInternal in between " <> show i) true
+    sepBy1 (cyclePInternal (lvl + 1)) (skipSpaces *> char ',' *> skipSpaces)
+  --  = spy (ident i <> "simultaneouscyclePInternal finishing " <> show i) true
+  { tag } <- tagP
+  weight <- weightP
+  --  = spy (ident i <> "simultaneouscyclePInternal got weights " <> show i) true
+  pure { nel, env: { weight, tag } }
 
 joinSequential :: forall a. List (ICycle a) -> List (ICycle a)
 joinSequential Nil = Nil
 joinSequential (ISequential { nel: NonEmptyList (aa :| bb) } : cc) = (aa : joinSequential bb) <> joinSequential cc
 joinSequential (aa : bb) = aa : joinSequential bb
 
-sequentialcyclePInternal :: forall event. Parser (ICycle (Maybe (Note event)))
-sequentialcyclePInternal = ISequential <<< { env: { weight: 1.0, tag: Nothing }, nel: _ } <$> do
-  skipSpaces
-  leadsWith <- try internalcyclePInternal <|> singleSampleP
-  skipSpaces
-  rest <- joinSequential <$> many (cyclePInternal unit)
-  pure (NonEmptyList (leadsWith :| rest))
+sequentialcyclePInternal :: forall event. Int -> Parser (ICycle (Maybe (Note event)))
+sequentialcyclePInternal lvl = map ISequential $
+    (try do
+        pure unit -- breaks recursion
+        --  = spy (ident i <> "sequentialcyclePInternal starting single " <> show i) true
+        sgl <- skipSpaces *> singleSampleP unit
+        others <- sepEndBy (cyclePInternal (lvl + 1)) skipSpaces
+        --  = spy (ident i <> "sequentialcyclePInternal ending single " <> show i) true
+        pure { nel: NonEmptyList (sgl :| others), env: { weight: 1.0, tag: Nothing } }
+    )
+    <|>
+      ( do
+          pure unit -- breaks recursion
+          --  = spy (ident i <> "rewinding to sequentialcyclePInternal starting many " <> show i) true
+          sgl <- skipSpaces *> cyclePInternalLackingSequential (lvl + 1)
+          others <- sepEndBy (cyclePInternal (lvl + 1)) skipSpaces
+          let nel = NonEmptyList (sgl :| others)
+          --  = spy (ident i <> "rewinding to sequentialcyclePInternal ending many with length " <> (show $ NEL.length nel) <> " " <> show i) true
+          pure { nel, env: { weight: 1.0, tag: Nothing } }
+      )
 
-singleSampleP :: forall event. Parser (ICycle (Maybe (Note event)))
-singleSampleP = do
+singleSampleP :: forall event. Unit -> Parser (ICycle (Maybe (Note event)))
+singleSampleP _ = do
   skipSpaces
   sample <- sampleP
   afterMatter <- afterMatterP
@@ -488,18 +490,23 @@ singleSampleP = do
     Nothing -> ISingleNote { env: { weight, tag }, val: sample }
     Just ntimes -> IInternal { env: { weight, tag }, nel: map (const $ ISingleNote { env: { weight: 1.0, tag: Nothing }, val: sample }) ntimes }
 
-cyclePInternal :: forall event. Unit -> Parser (ICycle (Maybe (Note event)))
-cyclePInternal _ = try branchingcyclePInternal
-  <|> try (simultaneouscyclePInternal unit)
-  <|> try sequentialcyclePInternal
-  <|> try singleSampleP
+cyclePInternal :: forall event. Int -> Parser (ICycle (Maybe (Note event)))
+cyclePInternal lvl = try (branchingcyclePInternal lvl)
+  <|> try (sequentialcyclePInternal lvl)
+  <|> try (simultaneouscyclePInternal lvl)
   <|> fail "Could not parse cycle"
+
+cyclePInternalLackingSequential :: forall event. Int -> Parser (ICycle (Maybe (Note event)))
+cyclePInternalLackingSequential lvl = try (branchingcyclePInternal lvl)
+  <|> try (simultaneouscyclePInternal lvl)
+  <|> fail "Could not parse cycle lacking sequential"
+
 
 cycleP_ :: Parser (Cycle (Maybe (Note Unit)))
 cycleP_ = cycleP
 
 cycleP :: forall event. Parser (Cycle (Maybe (Note event)))
-cycleP = go <$> cyclePInternal unit
+cycleP = go <$> cyclePInternalLackingSequential 0
   where
   go (IBranching { nel: NonEmptyList (a :| Nil) }) = go a
   go (ISimultaneous { nel: NonEmptyList (a :| Nil) }) = go a
@@ -762,7 +769,9 @@ intentionalSilenceForInternalUseOnly (CycleDuration cl) = NoteInFlattenedTime
   }
 
 parse :: forall event. String -> Cycle (Maybe (Note event))
-parse = fromMaybe intentionalSilenceForInternalUseOnly_ <<< hush <<< runParser cycleP
+parse raw = fromMaybe intentionalSilenceForInternalUseOnly_ $ hush $ runParser cycleP bracketed
+  where
+  bracketed = "[ " <> raw <> " ]"
 
 parse_ :: String -> Cycle (Maybe (Note Unit))
 parse_ = parse
