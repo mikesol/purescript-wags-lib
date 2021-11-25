@@ -7,6 +7,7 @@
   , "console"
   , "control"
   , "css"
+  , "debug"
   , "effect"
   , "either"
   , "event"
