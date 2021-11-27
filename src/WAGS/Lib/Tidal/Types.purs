@@ -254,14 +254,6 @@ instance h2vCons ::
   HomogenousToVec (RL.Cons key a rest) r n a where
   h2v' _ r = V.cons (Record.get (Proxy :: _ key) r) (h2v' (Proxy :: _ rest) r)
 
----
-data ICycle a
-  = IBranching { nel :: NonEmptyList (ICycle a), env :: { weight :: Number, tag :: Maybe String } }
-  | ISimultaneous { nel :: NonEmptyList (ICycle a), env :: { weight :: Number, tag :: Maybe String } }
-  | ISequential { nel :: NonEmptyList (ICycle a), env :: { weight :: Number, tag :: Maybe String } }
-  | IInternal { nel :: NonEmptyList (ICycle a), env :: { weight :: Number, tag :: Maybe String } }
-  | ISingleNote { val :: a, env :: { weight :: Number, tag :: Maybe String } }
-
 ----
 newtype DroneNote event
   = DroneNote
