@@ -11,7 +11,7 @@ import Data.NonEmpty ((:|))
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Text.Parsing.StringParser (runParser)
-import WAGS.Lib.Tidal.Cycle (Cycle(..), noteFromSample, noteFromSample')
+import WAGS.Lib.Tidal.Cycle (Cycle(..), cycleFromSample, cycleFromSample')
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.Tidal (c2s, cycleP_, parseWithBrackets, unrest)
 import WAGS.Lib.Tidal.Types (Note(..), NoteInTime(..), _right)
@@ -30,28 +30,28 @@ testTidal = do
   describe "Tests parser" do
     it "Works on simple imput" do
       runWrapped
-        "tabla2:42" `shouldEqual` Right (noteFromSample S.tabla2_42__Sample)
+        "tabla2:42" `shouldEqual` Right (cycleFromSample S.tabla2_42__Sample)
       runWrapped
-        "  tabla2:42" `shouldEqual` Right (noteFromSample S.tabla2_42__Sample)
+        "  tabla2:42" `shouldEqual` Right (cycleFromSample S.tabla2_42__Sample)
       runWrapped
-        "tabla2:42 hc:0" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (noteFromSample S.hc_0__Sample) : Nil) })
+        "tabla2:42 hc:0" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.tabla2_42__Sample) :| (cycleFromSample S.hc_0__Sample) : Nil) })
     it "Evenly divides cycles" do
       runWrapped
-        "tabla2:42 hc:0 hc:2" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (noteFromSample S.hc_0__Sample) : (noteFromSample S.hc_2__Sample) : Nil) })
+        "tabla2:42 hc:0 hc:2" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.tabla2_42__Sample) :| (cycleFromSample S.hc_0__Sample) : (cycleFromSample S.hc_2__Sample) : Nil) })
       runWrapped
-        "tabla2:42 hc:0 hc:2 hc:1" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (noteFromSample S.hc_0__Sample) : (noteFromSample S.hc_2__Sample) : (noteFromSample S.hc_1__Sample)  : Nil) })
+        "tabla2:42 hc:0 hc:2 hc:1" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.tabla2_42__Sample) :| (cycleFromSample S.hc_0__Sample) : (cycleFromSample S.hc_2__Sample) : (cycleFromSample S.hc_1__Sample)  : Nil) })
     it "Fixes a bug where cycles were crunched towards then end" do
       runWrapped
-        "tabla2:42 hc:0 [tabla2:42 hc:2] hc:1 tabla2:42 [tabla2:42 hc:2] hc:0 hc:1" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ( (noteFromSample S.tabla2_42__Sample) :| (noteFromSample S.hc_0__Sample) : (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (noteFromSample S.hc_2__Sample)  : Nil) }) : (noteFromSample S.hc_1__Sample)  : (noteFromSample S.tabla2_42__Sample)  : (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (noteFromSample S.hc_2__Sample)  : Nil) }) : (noteFromSample S.hc_0__Sample) : (noteFromSample S.hc_1__Sample) : Nil) })
+        "tabla2:42 hc:0 [tabla2:42 hc:2] hc:1 tabla2:42 [tabla2:42 hc:2] hc:0 hc:1" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ( (cycleFromSample S.tabla2_42__Sample) :| (cycleFromSample S.hc_0__Sample) : (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.tabla2_42__Sample) :| (cycleFromSample S.hc_2__Sample)  : Nil) }) : (cycleFromSample S.hc_1__Sample)  : (cycleFromSample S.tabla2_42__Sample)  : (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.tabla2_42__Sample) :| (cycleFromSample S.hc_2__Sample)  : Nil) }) : (cycleFromSample S.hc_0__Sample) : (cycleFromSample S.hc_1__Sample) : Nil) })
     it "Works on internal cycles" do
       runWrapped
-        "[tabla2:42 hc:0] tabla2:42" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (noteFromSample S.hc_0__Sample) : Nil) } :| (noteFromSample S.tabla2_42__Sample) : Nil) })
+        "[tabla2:42 hc:0] tabla2:42" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.tabla2_42__Sample) :| (cycleFromSample S.hc_0__Sample) : Nil) } :| (cycleFromSample S.tabla2_42__Sample) : Nil) })
     it "Works on internal cycles 2" do
       runWrapped
-        "tabla2:42*2 tabla2:41" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (noteFromSample S.tabla2_42__Sample) : Nil) } :| (noteFromSample S.tabla2_41__Sample) : Nil) })
+        "tabla2:42*2 tabla2:41" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.tabla2_42__Sample) :| (cycleFromSample S.tabla2_42__Sample) : Nil) } :| (cycleFromSample S.tabla2_41__Sample) : Nil) })
     it "Works on branching cycles" do
       runWrapped
-        "[tabla2:42 <hc:0 tech:0>] tabla2:42" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (Branching { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.hc_0__Sample) :| (noteFromSample S.tech_0__Sample) : Nil) }) : Nil) } :| (noteFromSample S.tabla2_42__Sample) : Nil) })
+        "[tabla2:42 <hc:0 tech:0>] tabla2:42" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.tabla2_42__Sample) :| (Branching { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.hc_0__Sample) :| (cycleFromSample S.tech_0__Sample) : Nil) }) : Nil) } :| (cycleFromSample S.tabla2_42__Sample) : Nil) })
     it "Works on dual groups" do
       runWrapped
         "[tabla2 tabla2] [diphone2 <sitar latibro>]" `shouldEqual` Right
@@ -61,15 +61,15 @@ testTidal = do
                 ( Internal
                     { env: { weight: 1.0, tag: Nothing }
                     , nel: NonEmptyList
-                        ( (noteFromSample S.tabla2_0__Sample)
-                            :| (noteFromSample S.tabla2_0__Sample) : Nil
+                        ( (cycleFromSample S.tabla2_0__Sample)
+                            :| (cycleFromSample S.tabla2_0__Sample) : Nil
                         )
                     } :|
                     Internal
                       { env: { weight: 1.0, tag: Nothing }
                       , nel: NonEmptyList
-                          ( (noteFromSample S.diphone2_0__Sample)
-                              :| (Branching { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.sitar_0__Sample) :| (noteFromSample S.latibro_0__Sample) : Nil) }) : Nil
+                          ( (cycleFromSample S.diphone2_0__Sample)
+                              :| (Branching { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.sitar_0__Sample) :| (cycleFromSample S.latibro_0__Sample) : Nil) }) : Nil
                           )
                       } : Nil
 
@@ -85,15 +85,15 @@ testTidal = do
                 ( Internal
                     { env: { weight: 1.0, tag: Nothing }
                     , nel: NonEmptyList
-                        ( (noteFromSample S.diphone2_0__Sample)
-                            :| (noteFromSample S.diphone2_0__Sample) : Nil
+                        ( (cycleFromSample S.diphone2_0__Sample)
+                            :| (cycleFromSample S.diphone2_0__Sample) : Nil
                         )
                     } :|
                     Internal
                       { env: { weight: 1.0, tag: Nothing }
                       , nel: NonEmptyList
-                          ( (noteFromSample S.tech_0__Sample)
-                              :| (noteFromSample S.tech_2__Sample) : Nil
+                          ( (cycleFromSample S.tech_0__Sample)
+                              :| (cycleFromSample S.tech_2__Sample) : Nil
                           )
                       } : Nil
                 )
@@ -101,16 +101,16 @@ testTidal = do
         )
     it "Works on simultaneous cycles 2" do
       runWrapped
-        "[tabla2:42 <hc:0 tech:0>] , tabla2:42" `shouldEqual` Right (Simultaneous { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (Branching { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.hc_0__Sample) :| (noteFromSample S.tech_0__Sample) : Nil) }) : Nil) } :| (noteFromSample S.tabla2_42__Sample) : Nil) })
+        "[tabla2:42 <hc:0 tech:0>] , tabla2:42" `shouldEqual` Right (Simultaneous { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.tabla2_42__Sample) :| (Branching { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.hc_0__Sample) :| (cycleFromSample S.tech_0__Sample) : Nil) }) : Nil) } :| (cycleFromSample S.tabla2_42__Sample) : Nil) })
     it "Works on weights" do
       runWrapped
-        "[tabla2:42 _ <hc:0 tech:0>] , tabla2:42 _ _" `shouldEqual` Right (Simultaneous { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample' 2.0 S.tabla2_42__Sample) :| (Branching { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.hc_0__Sample) :| (noteFromSample S.tech_0__Sample) : Nil) }) : Nil) } :| (noteFromSample' 3.0 S.tabla2_42__Sample) : Nil) })
+        "[tabla2:42 _ <hc:0 tech:0>] , tabla2:42 _ _" `shouldEqual` Right (Simultaneous { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample' 2.0 S.tabla2_42__Sample) :| (Branching { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.hc_0__Sample) :| (cycleFromSample S.tech_0__Sample) : Nil) }) : Nil) } :| (cycleFromSample' 3.0 S.tabla2_42__Sample) : Nil) })
     it "Works on branching cycles with internal cycle" do
       runWrapped
-        "[tabla2:42 <[hc:0 hc:0] tech:0>] tabla2:42" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (Branching { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.hc_0__Sample) :| (noteFromSample S.hc_0__Sample) : Nil) }) :| (noteFromSample S.tech_0__Sample) : Nil) }) : Nil) } :| (noteFromSample S.tabla2_42__Sample) : Nil) })
+        "[tabla2:42 <[hc:0 hc:0] tech:0>] tabla2:42" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.tabla2_42__Sample) :| (Branching { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.hc_0__Sample) :| (cycleFromSample S.hc_0__Sample) : Nil) }) :| (cycleFromSample S.tech_0__Sample) : Nil) }) : Nil) } :| (cycleFromSample S.tabla2_42__Sample) : Nil) })
     it "Works on branching cycles with internal simultenaity" do
       runWrapped
-        "[tabla2:42 <[hc:0 , hc:1] tech:0>] tabla2:42" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.tabla2_42__Sample) :| (Branching { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((Simultaneous { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((noteFromSample S.hc_0__Sample) :| (noteFromSample S.hc_1__Sample) : Nil) }) :| (noteFromSample S.tech_0__Sample) : Nil) }) : Nil) } :| (noteFromSample S.tabla2_42__Sample) : Nil) })
+        "[tabla2:42 <[hc:0 , hc:1] tech:0>] tabla2:42" `shouldEqual` Right (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.tabla2_42__Sample) :| (Branching { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((Simultaneous { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList ((cycleFromSample S.hc_0__Sample) :| (cycleFromSample S.hc_1__Sample) : Nil) }) :| (cycleFromSample S.tech_0__Sample) : Nil) }) : Nil) } :| (cycleFromSample S.tabla2_42__Sample) : Nil) })
   describe "Test cycle to sequence" do
     let run = map (flip c2s $ wrap 1.0) <<< runWrapped
     it "Works on simple imput" do
