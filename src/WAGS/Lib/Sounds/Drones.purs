@@ -16,4 +16,4 @@ dronesRaw = fromHomogeneous
   }
 
 drones :: Object BufferUrl
-drones =  map BufferUrl $ dronesRaw
+drones = map BufferUrl $ dronesRaw

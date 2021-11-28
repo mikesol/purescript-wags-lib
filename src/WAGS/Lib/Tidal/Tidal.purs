@@ -451,13 +451,12 @@ simultaneouscyclePInternal lvl = Simultaneous <$> do
   pure { nel, env: { weight, tag } }
 
 sequentialcyclePInternal :: forall event. Int -> Parser (Cycle (Maybe (Note event)))
-sequentialcyclePInternal lvl = map Internal  do
-          pure unit -- breaks recursion
-          --  = spy (ident i <> "rewinding to sequentialcyclePInternal starting many " <> show i) true
-          nel <- skipSpaces *> sepEndBy1 (cyclePInternal (lvl + 1)) skipSpaces
-          --  = spy (ident i <> "rewinding to sequentialcyclePInternal ending many with length " <> (show $ NEL.length nel) <> " " <> show i) true
-          pure { nel, env: { weight: 1.0, tag: Nothing } }
-
+sequentialcyclePInternal lvl = map Internal do
+  pure unit -- breaks recursion
+  --  = spy (ident i <> "rewinding to sequentialcyclePInternal starting many " <> show i) true
+  nel <- skipSpaces *> sepEndBy1 (cyclePInternal (lvl + 1)) skipSpaces
+  --  = spy (ident i <> "rewinding to sequentialcyclePInternal ending many with length " <> (show $ NEL.length nel) <> " " <> show i) true
+  pure { nel, env: { weight: 1.0, tag: Nothing } }
 
 singleSampleP :: forall event. Int -> Parser (Cycle (Maybe (Note event)))
 singleSampleP _ = do
@@ -741,8 +740,9 @@ intentionalSilenceForInternalUseOnly (CycleDuration cl) = NoteInFlattenedTime
   , tag: Nothing
   }
 
-parseWithBrackets :: forall event.
-  String
+parseWithBrackets
+  :: forall event
+   . String
   -> Either
        { error :: String
        , pos :: Int

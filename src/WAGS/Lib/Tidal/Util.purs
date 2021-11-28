@@ -68,9 +68,11 @@ doDownloads'
 doDownloads' audioContext { read, write } push lock key = do
   cache <- liftEffect read
   let
-    sets = Set.fromFoldable (preload
-      <> fold (map v2s [ earth, wind, fire ])
-      <> (compact $ (map (_maybe Nothing Just)) $ ((map <<< map) d2s [ air, heart ])))
+    sets = Set.fromFoldable
+      ( preload
+          <> fold (map v2s [ earth, wind, fire ])
+          <> (compact $ (map (_maybe Nothing Just)) $ ((map <<< map) d2s [ air, heart ]))
+      )
     samplesToUrl = Set.toMap sets # Map.mapMaybeWithKey \samp@(Sample k) _ -> Object.lookup (unwrap samp) sounds <|> do
       nm <- O.lookup k nameToSampleO
       url <- Map.lookup nm sampleToUrls

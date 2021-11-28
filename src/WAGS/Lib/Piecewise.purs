@@ -123,7 +123,7 @@ makeChunksL =
           , transition: _linearRamp
           }
     )
-    \{  left } ->
+    \{ left } ->
       AudioParameter
         { param: _just (snd left)
         , timeOffset: 0.0
@@ -140,7 +140,7 @@ makeChunksR =
           , transition: _linearRamp
           }
     )
-    \{  left } ->
+    \{ left } ->
       AudioParameter
         { param: _just (snd left)
         , timeOffset: 0.0

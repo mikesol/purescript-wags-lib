@@ -48,13 +48,14 @@ type SampleCache
   = Map Sample { url :: BufferUrl, buffer :: ForwardBackwards }
 
 newtype Either' a b = Either' (Variant (left :: a, right :: b))
+
 derive instance Newtype (Either' a b) _
 
 _hush :: forall a b. Either' a b -> Maybe b
-_hush (Either' v) = v # match {
-  left: \_ -> Nothing,
-  right: \a -> Just a
-}
+_hush (Either' v) = v # match
+  { left: \_ -> Nothing
+  , right: \a -> Just a
+  }
 
 _right :: forall a b. b -> Either' a b
 _right = wrap <<< inj (Proxy :: Proxy "right")
@@ -63,10 +64,11 @@ _left :: forall a b. a -> Either' a b
 _left = wrap <<< inj (Proxy :: Proxy "left")
 
 _either :: forall a b c. (a -> c) -> (b -> c) -> Either' a b -> c
-_either lf rf (Either' v) = v # match {
-  left: \a -> lf a,
-  right: \b -> rf b
-}
+_either lf rf (Either' v) = v # match
+  { left: \a -> lf a
+  , right: \b -> rf b
+  }
+
 --- @@ ---
 type RBuf event
   =

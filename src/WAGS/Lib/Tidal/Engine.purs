@@ -256,9 +256,11 @@ makeLag = Nothing :< go
   go old = Just old :< go
 
 _maybe' :: forall a b. (Unit -> b) -> (a -> b) -> Maybe' a -> b
-_maybe' fn fj = unwrap >>> match {
-  just: \a -> fj a, nothing: fn
-}
+_maybe' fn fj = unwrap >>> match
+  { just: \a -> fj a
+  , nothing: fn
+  }
+
 droneSg
   :: forall event
    . SubSceneSig "singleton" ()
