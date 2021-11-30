@@ -7,12 +7,12 @@ import WAGS.Lib.Tidal.Types (BufferUrl(..))
 
 dronesRaw :: Object String
 dronesRaw = fromHomogeneous
-  { "spacewind:0": "https://freesound.org/data/previews/370/370754_3104030-hq.mp3"
-  , "ambienta:0": "https://freesound.org/data/previews/546/546360_10196790-hq.mp3"
-  , "lowdark:0": "https://freesound.org/data/previews/579/579260_10522382-hq.mp3"
-  , "harmonium:0": "https://freesound.org/data/previews/264/264442_4965426-hq.mp3"
-  , "hollowair:0": "https://freesound.org/data/previews/370/370316_3104030-hq.mp3"
-  , "digeridoo:0": "https://freesound.org/data/previews/197/197998_3684181-hq.mp3"
+  { "spacewind:0": "https://media.graphcms.com/huYqv3YTRp2897eaReSl"
+  , "ambienta:0": "https://media.graphcms.com/dOsnH4XSHaYxut8hT7lQ"
+  , "lowdark:0": "https://media.graphcms.com/x9aA1yAgRwCCBdzYBNIj"
+  , "harmonium:0": "https://media.graphcms.com/5uiXrX2IQW2hoktWAowd"
+  , "hollowair:0": "https://media.graphcms.com/eG3qD6c5SEaTia8m5s4O"
+  , "digeridoo:0": "https://media.graphcms.com/FeqmdhiQVjqrQfpxoHVw"
   }
 
 drones :: Object BufferUrl

@@ -15,6 +15,7 @@ module WAGS.Lib.Tidal.Tidal
   , i'
   , i_
   , impatient
+  , drone
   , intentionalSilenceForInternalUseOnly
   , l_j
   , l_r
@@ -143,7 +144,7 @@ import WAGS.Graph.Parameter (Maybe', _just, _maybe, _nothing)
 import WAGS.Lib.Tidal.Cycle (Cycle(..), flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
 import WAGS.Lib.Tidal.FX (WAGSITumult)
 import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
-import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime)
+import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, sample2drone)
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, ClockTimeIs, CycleDuration(..), DroneNote(..), EWF, EWF', Either', FoT, Globals(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..), _either, _hush, _left, _right)
 import WAGS.Tumult (Tumultuous)
@@ -410,6 +411,9 @@ x_ = x
 
 u :: Cycle (Maybe (Note Unit)) -> Cycle (Maybe (Note Unit))
 u = identity
+
+drone :: forall event. String -> Maybe' (DroneNote event)
+drone = _just <<< sample2drone <<< Sample
 
 sampleName :: Parser String
 sampleName = map (fromCharArray <<< A.fromFoldable <<< NEL.toList) (many1 $ oneOf [ 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', '~' ])
