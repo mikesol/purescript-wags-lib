@@ -359,8 +359,7 @@ newtype UnsampledTimeIs event
 
 derive instance newtypeUnsampledTimeIs :: Newtype (UnsampledTimeIs event) _
 
-newtype TimeIs event
-  = TimeIs
+type TimeIs' event =
   { event :: IsFresh event
   , clockTime :: Number
   , sampleTime :: Number
@@ -376,6 +375,8 @@ newtype TimeIs event
   , entropy :: Number
   , initialEntropy :: Number
   }
+
+newtype TimeIs event = TimeIs (TimeIs' event)
 
 derive instance newtypeTimeIs :: Newtype (TimeIs event) _
 

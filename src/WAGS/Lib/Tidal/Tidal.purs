@@ -34,10 +34,15 @@ module WAGS.Lib.Tidal.Tidal
   , lfn
   , lft
   , lnbo
+  , changeBufferOffset
   , lnf
+  , changeForward
   , lnr
+  , changeRate
   , lns
+  , changeSample
   , lnv
+  , changeVolume
   , ltd
   , ltn
   , lts
@@ -90,13 +95,13 @@ import Data.Array (fold, (..))
 import Data.Array as A
 import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Array.NonEmpty as NEA
-import Data.Either (Either, hush)
+import Data.Either (Either(..), either, hush)
 import Data.Filterable (compact, filter, filterMap, maybeBool)
 import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
 import Data.Int (fromString, toNumber)
-import Data.Lens (Lens', Prism', _Just, lens, over, prism')
+import Data.Lens (Lens', Prism', _Just, _Right, iso, lens, over, prism', set, traversed)
 import Data.Lens.Iso.Newtype (unto)
 import Data.Lens.Record (prop)
 import Data.List (List(..), foldMap, foldl, (:))
@@ -105,13 +110,14 @@ import Data.List.NonEmpty (sortBy)
 import Data.List.NonEmpty as NEL
 import Data.List.Types (NonEmptyList(..))
 import Data.Maybe (Maybe(..), fromMaybe, fromMaybe', maybe)
-import Data.Newtype (unwrap, wrap)
+import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.NonEmpty ((:|))
+import Data.Profunctor (class Profunctor, lcmap)
 import Data.Profunctor.Choice (class Choice)
 import Data.Profunctor.Strong (class Strong)
 import Data.Set as Set
 import Data.String.CodeUnits (fromCharArray, singleton)
-import Data.Traversable (sequence, traverse)
+import Data.Traversable (class Traversable, sequence, traverse)
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D1)
@@ -139,7 +145,7 @@ import WAGS.Lib.Tidal.FX (WAGSITumult)
 import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime)
 import WAGS.Lib.Tidal.Samples as S
-import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, ClockTimeIs, CycleDuration(..), DroneNote(..), EWF, EWF', Either', FoT, Globals(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIsAndWas, UnsampledTimeIs, Voice(..), _hush, _right)
+import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, ClockTimeIs, CycleDuration(..), DroneNote(..), EWF, EWF', Either', FoT, Globals(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..), _either, _hush, _left, _right)
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -274,20 +280,53 @@ ltd = unto NoteInTime <<< prop (Proxy :: _ "duration")
 ltt :: forall p note. Choice p => Strong p => p String String -> p (NoteInTime note) (NoteInTime note)
 ltt = unto NoteInTime <<< prop (Proxy :: _ "tag") <<< _Just
 
+setter' :: forall t163 t170 t171 t172 t175 t176 t177 t178. Traversable t170 => Profunctor t177 => Newtype t178 t175 => ((t163 -> t177 t178 t176) -> t171 -> t172) -> t177 t175 t176 -> t170 t171 -> t170 t172
+setter' len = set (traversed <<< len) <<< lcmap unwrap
+
 lns :: forall event. Lens' (Note event) (Either' (UnsampledTimeIs event -> Sample) Sample)
 lns = unto Note <<< prop (Proxy :: _ "sampleFoT")
+
+changeSample :: forall container event
+   . Traversable container
+  => Sample
+  -> container (Note event)
+  -> container (Note event)
+changeSample = set (traversed <<< lns <<< iso (_either Left Right) (either _left _right) <<< _Right)
 
 lnr :: forall event. Lens' (Note event) (FoT event)
 lnr = unto Note <<< prop (Proxy :: _ "rateFoT")
 
+type ChangeSig =
+  forall container event
+   . Traversable container
+  => (TimeIs' event -> Number)
+  -> container (Note event)
+  -> container (Note event)
+
+changeRate :: ChangeSig
+changeRate = setter' lnr
+
 lnbo :: forall event. Lens' (Note event) (FoT event)
 lnbo = unto Note <<< prop (Proxy :: _ "bufferOffsetFoT")
+
+changeBufferOffset :: ChangeSig
+changeBufferOffset = setter' lnbo
 
 lnf :: forall event. Lens' (Note event) Boolean
 lnf = unto Note <<< prop (Proxy :: _ "forward")
 
+changeForward :: forall container event
+   . Traversable container
+  => Boolean
+  -> container (Note event)
+  -> container (Note event)
+changeForward = set (traversed <<< lnf)
+
 lnv :: forall event. Lens' (Note event) (FoT event)
 lnv = unto Note <<< prop (Proxy :: _ "volumeFoT")
+
+changeVolume :: ChangeSig
+changeVolume = setter' lnv
 
 lds :: forall event. Lens' (DroneNote event) Sample
 lds = unto DroneNote <<< prop (Proxy :: _ "sample")

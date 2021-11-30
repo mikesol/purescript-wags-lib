@@ -35,7 +35,7 @@ import WAGS.Lib.Learn (class ToScene, Analysers, State', WagsState(..), bStyle, 
 import WAGS.Lib.Learn.Oscillator (lfo)
 import WAGS.Lib.Tidal (AFuture, tdl)
 import WAGS.Lib.Tidal.FX (fx, goodbye, hello)
-import WAGS.Lib.Tidal.Tidal (lnr, lnv, lvt, make, onTag, parse_, s)
+import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, lnr, lnv, lvt, make, onTag, parse_, s)
 import WAGS.Lib.Tidal.Types (TidalRes)
 import WAGS.Run (Run)
 import WAGS.WebAPI (AudioContext)
@@ -66,10 +66,10 @@ wag =
                       ( goodbye $ highpass (200.0 + mody * 100.0) hello
                       )
               )
-          ) $ s $ onTag "ph" (set (_Just <<< lnr) $ lcmap unwrap \{ normalizedSampleTime: t } -> min 1.2 (1.0 + t * 0.3))
-          $ onTag "print" (set (_Just <<< lnv) $ lcmap unwrap \{ normalizedSampleTime: _ } -> 0.2)
-          $ onTag "pk" (set (_Just <<< lnr) $ lcmap unwrap \{ normalizedSampleTime: t } -> 0.7 - t * 0.2)
-          $ onTag "kt" (set (_Just <<< lnr) $ lcmap unwrap \{ normalizedSampleTime: t } -> min 1.0 (0.6 + t * 0.8))
+          ) $ s $ onTag "ph" (changeRate \{ normalizedSampleTime: t } -> min 1.2 (1.0 + t * 0.3))
+          $ onTag "print" (changeVolume \{ normalizedSampleTime: _ } -> 0.2)
+          $ onTag "pk" (changeRate \{ normalizedSampleTime: t } -> 0.7 - t * 0.2)
+          $ onTag "kt" (changeRate \{ normalizedSampleTime: t } -> min 1.0 (0.6 + t * 0.8))
           $ parse_ "psr:3 ~ [~ chin*4] ~ ~ [psr:3;ph psr:3;ph ~ ] _ _ , [~ ~ ~ <psr:1;print kurt:0;print> ] kurt:5;kt , ~ ~ pluck:1;pk ~ ~ ~ ~ ~ "
     , fire:
         map
