@@ -68,7 +68,7 @@ type World = { bell :: BrowserAudioBuffer }
 
 createFrame :: SceneI Unit World () -> IxWAG RunAudio RunEngine Frame0 Unit () SceneType Acc
 createFrame = \(SceneI { time, world: { bell } }) ->
-  ( ipatch { microphone: empty }
+  ( ipatch { microphone: empty, mediaElement: empty }
       :*>
         ( ichange
             { b0: bell

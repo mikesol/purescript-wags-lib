@@ -264,7 +264,7 @@ piece :: forall env analyserCbs. Scene (SceneI env World analyserCbs) RunAudio R
 piece =
   startUsingWithHint
     scene
-    { microphone: empty }
+    { microphone: empty, mediaElement: empty }
     acc
     ( iloop
         ( \e@(SceneI e') a ->

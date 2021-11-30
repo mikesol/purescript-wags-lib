@@ -385,7 +385,7 @@ piece :: forall env aCb. Scene (SceneI env World aCb) RunAudio RunEngine Frame0 
 piece =
   startUsingWithHint
     scene
-    { microphone: empty }
+    { microphone: empty, mediaElement: empty }
     acc
     ( iloop
         ( \e a ->

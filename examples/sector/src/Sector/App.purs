@@ -369,7 +369,7 @@ firstFrame
   -> Env -> WAG audio engine Frame0 Res Graph (Acc audio engine)
 firstFrame acc env@(SceneI { world: { buffer } }) =
   start
-    # patch { microphone: empty }
+    # patch { microphone: empty, mediaElement: empty }
     # voidRight { gain: 1.0, buf: buffer }
     # change
     # voidRight acc

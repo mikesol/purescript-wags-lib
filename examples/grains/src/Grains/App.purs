@@ -52,7 +52,7 @@ piece :: Scene (SceneI Unit World ()) RunAudio RunEngine Frame0 Unit
 piece =
   startUsingWithHint
     scene
-    { microphone: Nothing }
+    { microphone: Nothing, mediaElement: Nothing }
     acc
     ( iloop \(SceneI { time, headroomInSeconds, world: { entropy, buffers: { bells } } }) (a :: Acc) ->
         let
