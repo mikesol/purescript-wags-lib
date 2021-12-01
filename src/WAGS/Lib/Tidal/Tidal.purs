@@ -50,6 +50,7 @@ module WAGS.Lib.Tidal.Tidal
   , ltt
   , lvg
   , lvt
+  , addEffect
   , make
   , mapmap
   , module WAGS.Lib.Tidal.Cycle
@@ -146,7 +147,7 @@ import WAGS.Lib.Tidal.FX (WAGSITumult)
 import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, sample2drone)
 import WAGS.Lib.Tidal.Samples as S
-import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, ClockTimeIs, CycleDuration(..), DroneNote(..), EWF, EWF', Either', FoT, Globals(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..), _either, _hush, _left, _right)
+import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, ClockTimeIs, CycleDuration(..), DroneNote(..), EWF, EWF', Either', FoT, Globals(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..), ClockTimeIs', _either, _hush, _left, _right)
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -251,6 +252,15 @@ lvg = unto Voice <<< prop (Proxy :: _ "globals") <<< unto Globals <<< prop (Prox
 lvt :: forall event. Lens' (Voice event) (ClockTimeIs event -> Tumultuous D1 "output" (voice :: Unit))
 lvt = unto Voice <<< prop (Proxy :: _ "globals") <<< unto Globals <<< prop (Proxy :: _ "fx")
 
+addEffect
+  :: forall event
+   . ( ClockTimeIs' event
+       -> Tumultuous D1 "output" (voice :: Unit)
+     )
+  -> Voice event
+  -> Voice event
+addEffect = set lvt <<< lcmap unwrap
+
 lfn :: forall note. Lens' (NoteInFlattenedTime note) note
 lfn = unto NoteInFlattenedTime <<< prop (Proxy :: _ "note")
 
@@ -287,7 +297,8 @@ setter' len = set (traversed <<< len) <<< lcmap unwrap
 lns :: forall event. Lens' (Note event) (Either' (UnsampledTimeIs event -> Sample) Sample)
 lns = unto Note <<< prop (Proxy :: _ "sampleFoT")
 
-changeSample :: forall container event
+changeSample
+  :: forall container event
    . Traversable container
   => Sample
   -> container (Note event)
@@ -316,7 +327,8 @@ changeBufferOffset = setter' lnbo
 lnf :: forall event. Lens' (Note event) Boolean
 lnf = unto Note <<< prop (Proxy :: _ "forward")
 
-changeForward :: forall container event
+changeForward
+  :: forall container event
    . Traversable container
   => Boolean
   -> container (Note event)

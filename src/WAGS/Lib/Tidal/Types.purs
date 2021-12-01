@@ -333,12 +333,13 @@ derive instance sampleOrd :: Ord Sample
 instance sampleShow :: Show Sample where
   show (Sample i) = "Sample <" <> show i <> ">"
 
-newtype ClockTimeIs event
-  = ClockTimeIs
+type ClockTimeIs' event =
   { clockTime :: Number
   , event :: IsFresh event
   , entropy :: Number
   }
+
+newtype ClockTimeIs event = ClockTimeIs (ClockTimeIs' event)
 
 derive instance newtypeClockTimeIs :: Newtype (ClockTimeIs event) _
 
