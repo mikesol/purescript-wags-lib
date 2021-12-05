@@ -9,7 +9,7 @@ import Data.Compactable (compact)
 import Data.Either (Either)
 import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
 import Data.Int (toNumber)
-import Data.Lens (_1, over)
+import Data.Lens (_1, _2, over)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (unwrap, wrap)
@@ -22,7 +22,7 @@ import Data.Vec ((+>))
 import Data.Vec as V
 import Effect.Aff (Aff)
 import Effect.Random (randomInt)
-import FRP.Behavior (Behavior, behavior)
+import FRP.Behavior (Behavior, behavior, step)
 import FRP.Event (Event, makeEvent, subscribe)
 import Prim.Row (class Lacks)
 import Prim.RowList (class RowToList)
@@ -54,7 +54,6 @@ acc =
   { buffers: fromHomogeneous
       $ map (const (emptyPool cycleDuration))
       $ homogeneous (mempty :: { | EWF Unit })
-  , backToTheFuture: const (openFuture cycleDuration)
   , justInCaseTheLastEvent: { isFresh: false, value: mempty }
   }
   where
@@ -368,19 +367,24 @@ droneSg = emptyLags
 
 thePresent
   :: forall trigger world event
-   . Lacks "theFuture" trigger
+   . Lacks "theFuture" world
   => Event (IsFresh event -> { clockTime :: Number } -> TheFuture event)
   -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
   -> AudioContext /\ Aff
        ( Event
+           { | trigger
+           } /\ Behavior
            { theFuture ::
                IsFresh event
                -> { clockTime :: Number }
                -> TheFuture event
-           | trigger
-           } /\ Behavior { | world }
+           | world
+           }
        )
-thePresent ev = (map <<< map) (over _1 (\e -> Record.insert (Proxy :: _ "theFuture") <$> ev <*> e))
+thePresent ev = (map <<< map)
+  $ over _2 \e -> Record.insert (Proxy :: _ "theFuture")
+      <$> (step (\_ _ -> openFuture (CycleDuration 1.0)) ev)
+      <*> e
 
 interactivity
   :: forall trigger world event
@@ -454,22 +458,24 @@ engine
   -> Event (IsFresh event -> { clockTime :: Number } -> TheFuture event)
   -> Either (Behavior SampleCache) (AudioContext -> Aff SampleCache)
   -> FullSceneBuilder
-       ( theFuture :: IsFresh event -> { clockTime :: Number } -> TheFuture event
-       , interactivity :: event
+       ( interactivity :: event
        )
        ( buffers :: SampleCache
        , entropy :: Int
+       , theFuture ::
+           IsFresh event
+           -> { clockTime :: Number }
+           -> TheFuture event
        , silence :: BrowserAudioBuffer
        )
        TidalRes
 engine dmo evt bsc = usingcr
   (interactivity dmo <<< thePresent evt <<< initialBuffers bsc <<< addEntropy <<< downloadSilence)
   acc
-  \(SceneI { time: time', headroomInSeconds, trigger, world: { buffers, silence, entropy: entropy' }, analyserCallbacks: { myAnalyser } }) control ->
+  \(SceneI { time: time', headroomInSeconds, trigger, world: { buffers, theFuture: theFutureFromWorld, silence, entropy: entropy' }, analyserCallbacks: { myAnalyser } }) control ->
     let
       event = maybe control.justInCaseTheLastEvent ({ isFresh: true, value: _ } <<< _.interactivity) trigger
-      theFuture' = maybe (control.backToTheFuture) (_.theFuture >>> (#) event) trigger
-      theFuture = theFuture' { clockTime: time' }
+      theFuture = theFutureFromWorld event { clockTime: time' }
       ewf = let { earth, wind, fire } = unwrap theFuture in { earth, wind, fire }
       -- to actualize is the next cycle, which could be the current cycle
       toActualize =
@@ -500,7 +506,7 @@ engine dmo evt bsc = usingcr
             actualized
     in
       { res
-      , control: { buffers: fromHomogeneous (map unwrapCofree actualized), backToTheFuture: theFuture', justInCaseTheLastEvent: event }
+      , control: { buffers: fromHomogeneous (map unwrapCofree actualized), justInCaseTheLastEvent: event }
       , scene: { newSeed: mkSeed entropy', size: globalSize } # evalGen do
           seeds <- sequence (V.fill (const $ map { seed: _ } arbitrary))
           seedsDrone <- sequence (V.fill (const arbitrary))

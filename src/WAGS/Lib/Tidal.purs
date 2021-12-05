@@ -20,11 +20,14 @@ type AFuture = TheFuture Unit
 tdl
   :: AFuture
   -> FullSceneBuilder
-       ( theFuture :: IsFresh Unit -> { clockTime :: Number } -> AFuture
-       , interactivity :: Unit
+       ( interactivity :: Unit
        )
        ( buffers :: SampleCache
        , entropy :: Int
+       , theFuture ::
+           IsFresh Unit
+           -> { clockTime :: Number }
+           -> AFuture
        , silence :: BrowserAudioBuffer
        )
        TidalRes
@@ -33,11 +36,14 @@ tdl = tdlx <<< pure
 tdlx
   :: ({ clockTime :: Number } -> AFuture)
   -> FullSceneBuilder
-       ( theFuture :: IsFresh Unit -> { clockTime :: Number } -> AFuture
-       , interactivity :: Unit
+       ( interactivity :: Unit
        )
        ( buffers :: SampleCache
        , entropy :: Int
+       , theFuture ::
+           IsFresh Unit
+           -> { clockTime :: Number }
+           -> AFuture
        , silence :: BrowserAudioBuffer
        )
        TidalRes
