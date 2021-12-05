@@ -9,7 +9,7 @@ import Data.Compactable (compact)
 import Data.Either (Either)
 import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
 import Data.Int (toNumber)
-import Data.Lens (_1, _2, over)
+import Data.Lens (_1, over)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (unwrap, wrap)
@@ -21,8 +21,10 @@ import Data.Variant (match)
 import Data.Vec ((+>))
 import Data.Vec as V
 import Effect.Aff (Aff)
+import Effect.Class (liftEffect)
 import Effect.Random (randomInt)
-import FRP.Behavior (Behavior, behavior, step)
+import Effect.Ref as Ref
+import FRP.Behavior (Behavior, behavior)
 import FRP.Event (Event, makeEvent, subscribe)
 import Prim.Row (class Lacks)
 import Prim.RowList (class RowToList)
@@ -42,6 +44,7 @@ import WAGS.Lib.Tidal.Download (downloadSilence, initialBuffers)
 import WAGS.Lib.Tidal.FX (calm)
 import WAGS.Lib.Tidal.Tidal (asScore, intentionalSilenceForInternalUseOnly, openFuture)
 import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleDuration(..), CycleInfo, DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, Sample, SampleCache, TheFuture, TidalRes, TimeIs(..), UnsampledTimeIs(..), _either, h2v')
+import WAGS.Lib.Tidal.Util (r2b)
 import WAGS.Run (SceneI(..))
 import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
@@ -381,10 +384,16 @@ thePresent
            | world
            }
        )
-thePresent ev = (map <<< map)
-  $ over _2 \e -> Record.insert (Proxy :: _ "theFuture")
-      <$> (step (\_ _ -> openFuture (CycleDuration 1.0)) ev)
-      <*> e
+thePresent ev (ac /\ aff) = ac /\ do
+  trigger /\ world <- aff
+  rf <- liftEffect $ Ref.new (\_ _ -> openFuture (CycleDuration 1.0))
+  unsub <- liftEffect $ subscribe ev (flip Ref.write rf)
+  let
+    newTrigger = makeEvent \f -> do
+      sb <- subscribe trigger f
+      pure (sb *> unsub)
+  let newWorld = Record.insert (Proxy :: _ "theFuture") <$> (r2b rf) <*> world
+  pure (newTrigger /\ newWorld)
 
 interactivity
   :: forall trigger world event
