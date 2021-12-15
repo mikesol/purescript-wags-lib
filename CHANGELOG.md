@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.69] - 2021-12-15
+
+- changes internal types to more js-friendly representations for smoother js interop.
+
 ## [0.0.68] - 2021-12-05
 
 - avoids using `step` in `Engine.purs`. Because `step` is based on an underlying hot event, whenever it is subscribed to, it will emit that event first. By changing it to a cold event, we get better performance.
