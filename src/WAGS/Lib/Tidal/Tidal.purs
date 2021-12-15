@@ -52,7 +52,6 @@ module WAGS.Lib.Tidal.Tidal
   , lvt
   , addEffect
   , make
-  , mapmap
   , module WAGS.Lib.Tidal.Cycle
   , onTag
   , onTag'
@@ -93,10 +92,10 @@ import Prelude hiding (between)
 import Control.Alt ((<|>))
 import Control.Comonad.Cofree ((:<))
 import Control.Monad.State (evalState, get, put)
-import Data.Array (fold, (..))
+import Data.Array (fold, null, uncons, (..))
 import Data.Array as A
-import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Array.NonEmpty as NEA
+import Data.Array.NonEmpty.Internal (NonEmptyArray)
 import Data.Either (Either(..), either, hush)
 import Data.Filterable (compact, filter, filterMap, maybeBool)
 import Data.Function (on)
@@ -108,8 +107,6 @@ import Data.Lens.Iso.Newtype (unto)
 import Data.Lens.Record (prop)
 import Data.List (List(..), foldMap, foldl, (:))
 import Data.List as L
-import Data.List.NonEmpty (sortBy)
-import Data.List.NonEmpty as NEL
 import Data.List.Types (NonEmptyList(..))
 import Data.Maybe (Maybe(..), fromMaybe, fromMaybe', maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
@@ -118,7 +115,7 @@ import Data.Profunctor (class Profunctor, lcmap)
 import Data.Profunctor.Choice (class Choice)
 import Data.Profunctor.Strong (class Strong)
 import Data.Set as Set
-import Data.String.CodeUnits (fromCharArray, singleton)
+import Data.String.CodeUnits as CU
 import Data.Traversable (class Traversable, sequence, traverse)
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\), type (/\))
@@ -142,12 +139,13 @@ import WAGS.Create (class Create)
 import WAGS.Create.Optionals (input)
 import WAGS.Graph.AudioUnit as CTOR
 import WAGS.Graph.Parameter (Maybe', _just, _maybe, _nothing)
-import WAGS.Lib.Tidal.Cycle (Cycle(..), flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
+import WAGS.Lib.Tidal.Cycle (Cycle(..), singleton, branching, simultaneous, internal, flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
 import WAGS.Lib.Tidal.FX (WAGSITumult)
 import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, sample2drone)
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, ClockTimeIs, CycleDuration(..), DroneNote(..), EWF, EWF', Either', FoT, Globals(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..), ClockTimeIs', _either, _hush, _left, _right)
+import Data.Variant (match)
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -364,20 +362,21 @@ ldt = unto DroneNote <<< prop (Proxy :: _ "tumultFoT")
 
 lcw :: forall note. Lens' (Cycle note) Number
 lcw = lens getWeight
-  ( case _ of
-      Branching ii -> \weight -> Branching $ ii { env = ii.env { weight = weight } }
-      Simultaneous ii -> \weight -> Simultaneous $ ii { env = ii.env { weight = weight } }
-      Internal ii -> \weight -> Internal $ ii { env = ii.env { weight = weight } }
-      SingleNote ii -> \weight -> SingleNote $ ii { env = ii.env { weight = weight } }
-  )
+  ( unwrap >>> match {
+      branching: \ii -> \weight -> branching $ ii { env = ii.env { weight = weight } },
+      simultaneous: \ii -> \weight -> simultaneous $ ii { env = ii.env { weight = weight } },
+      internal: \ii -> \weight -> internal $ ii { env = ii.env { weight = weight } },
+      singleton: \ii -> \weight -> singleton $ ii { env = ii.env { weight = weight } }
+  })
 
 lct :: forall note. Lens' (Cycle note) (Maybe String)
 lct = lens getTag
-  ( case _ of
-      Branching ii -> \tag -> Branching $ ii { env = ii.env { tag = tag } }
-      Simultaneous ii -> \tag -> Simultaneous $ ii { env = ii.env { tag = tag } }
-      Internal ii -> \tag -> Internal $ ii { env = ii.env { tag = tag } }
-      SingleNote ii -> \tag -> SingleNote $ ii { env = ii.env { tag = tag } }
+  ( unwrap >>> match
+      { branching: \ii -> \tag -> branching $ ii { env = ii.env { tag = tag } }
+      , simultaneous: \ii -> \tag -> simultaneous $ ii { env = ii.env { tag = tag } }
+      , internal: \ii -> \tag -> internal $ ii { env = ii.env { tag = tag } }
+      , singleton: \ii -> \tag -> singleton $ ii { env = ii.env { tag = tag } }
+      }
   )
 
 ---
@@ -389,13 +388,8 @@ focus :: forall a. (a -> Boolean) -> Prism' a a
 focus = prism' identity <<< maybeBool
 
 ---
-
-mapmap :: forall f g a b. Functor f => Functor g => (a -> b) -> f (g a) -> f (g b)
-mapmap = map <<< map
-
----
 b :: forall event. Cycle (Maybe (Note event)) -> Array (Cycle (Maybe (Note event))) -> Cycle (Maybe (Note event))
-b bx by = Branching { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (bx :| L.fromFoldable by) }
+b bx by = branching { env: { weight: 1.0, tag: Nothing }, cycles: NEA.fromNonEmpty (bx :| by) }
 
 b' :: forall event. Cycle (Maybe (Note event)) -> Cycle (Maybe (Note event))
 b' bx = b bx []
@@ -404,7 +398,7 @@ b_ :: Cycle (Maybe (Note Unit)) -> Array (Cycle (Maybe (Note Unit))) -> Cycle (M
 b_ = b
 
 i :: forall event. Cycle (Maybe (Note event)) -> Array (Cycle (Maybe (Note event))) -> Cycle (Maybe (Note event))
-i sx sy = Internal { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (sx :| L.fromFoldable sy) }
+i sx sy = internal { env: { weight: 1.0, tag: Nothing }, cycles: NEA.fromNonEmpty (sx :| sy) }
 
 i' :: forall event. Cycle (Maybe (Note event)) -> Cycle (Maybe (Note event))
 i' sx = i sx []
@@ -413,7 +407,7 @@ i_ :: Cycle (Maybe (Note Unit)) -> Array (Cycle (Maybe (Note Unit))) -> Cycle (M
 i_ = i
 
 x :: forall event. Cycle (Maybe (Note event)) -> Array (Cycle (Maybe (Note event))) -> Cycle (Maybe (Note event))
-x xx xy = Simultaneous { env: { weight: 1.0, tag: Nothing }, nel: NonEmptyList (xx :| L.fromFoldable xy) }
+x xx xy = simultaneous { env: { weight: 1.0, tag: Nothing }, cycles: NEA.fromNonEmpty (xx :| xy) }
 
 x' :: forall event. Cycle (Maybe (Note event)) -> Cycle (Maybe (Note event))
 x' sx = x sx []
@@ -427,24 +421,27 @@ u = identity
 drone :: forall event. String -> Maybe' (DroneNote event)
 drone = _just <<< sample2drone <<< Sample
 
+nel2nea :: NonEmptyList ~> NonEmptyArray
+nel2nea (NonEmptyList (aa :| bb)) = NEA.fromNonEmpty (aa :| A.fromFoldable bb)
+
 sampleName :: Parser String
-sampleName = map (fromCharArray <<< A.fromFoldable <<< NEL.toList) (many1 $ oneOf [ 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', '~' ])
+sampleName = map (CU.fromCharArray <<< NEA.toArray <<< nel2nea) (many1 $ oneOf [ 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', '~' ])
 
 ---
 whiteSpace1 :: Parser String
 whiteSpace1 = do
   cs <- many1 (satisfy \c -> c == '\n' || c == '\r' || c == ' ' || c == '\t')
-  pure (foldMap singleton cs)
+  pure (foldMap CU.singleton cs)
 
 afterMatterP :: Parser AfterMatter
 afterMatterP = do
   asInternal <-
     optionMaybe $
       ( ( fromString
-            <<< fromCharArray
+            <<< CU.fromCharArray
             <<< A.fromFoldable <$> (char '*' *> many anyDigit)
         ) >>= maybe (fail "Could not parse int")
-          ( \v -> case (NEL.fromList $ replicate v unit) of
+          ( \v -> case (NEA.fromArray $ replicate v unit) of
               Just vv -> pure vv
               Nothing -> fail "Number must be positive"
           )
@@ -453,7 +450,7 @@ afterMatterP = do
 
 tagP :: Parser Tag
 tagP = do
-  tag <- optionMaybe (map (fromCharArray <<< A.fromFoldable) (char ';' *> many1 alphaNum))
+  tag <- optionMaybe (map (CU.fromCharArray <<< A.fromFoldable) (char ';' *> many1 alphaNum))
   pure { tag }
 
 weightP :: Parser Number
@@ -478,40 +475,40 @@ sampleP = do
     Just foundSample -> pure foundSample
 
 branchingcyclePInternal :: forall event. Int -> Parser (Cycle (Maybe (Note event)))
-branchingcyclePInternal lvl = Branching <$> do
-  nel <- between (skipSpaces *> char '<' *> skipSpaces) (skipSpaces *> char '>' *> skipSpaces) do
+branchingcyclePInternal lvl = branching <$> do
+  cycles <- between (skipSpaces *> char '<' *> skipSpaces) (skipSpaces *> char '>' *> skipSpaces) do
     pure unit -- breaks recursion
     --  = spy (ident i <> "branchingcyclePInternal in between " <> show i) true
-    sepBy1 (cyclePInternal (lvl + 1)) skipSpaces
-  --  = spy (ident i <> "branchingcyclePInternal finished" <> show i) nel
+    map nel2nea $ sepBy1 (cyclePInternal (lvl + 1)) skipSpaces
+  --  = spy (ident i <> "branchingcyclePInternal finished" <> show i) cycles
   --------- HACK
   --- if there is a single sequential we expand it
   { tag } <- tagP
   weight <- weightP
-  pure { nel, env: { weight, tag } }
+  pure { cycles, env: { weight, tag } }
 
 ident ∷ Int → String
 ident lvl = (fold (map (const " ") (0 .. (lvl - 1))))
 
 simultaneouscyclePInternal :: forall event. Int -> Parser (Cycle (Maybe (Note event)))
-simultaneouscyclePInternal lvl = Simultaneous <$> do
-  nel <- between (skipSpaces *> char '[' *> skipSpaces) (skipSpaces *> char ']' *> skipSpaces) do
+simultaneouscyclePInternal lvl = simultaneous <$> do
+  cycles <- between (skipSpaces *> char '[' *> skipSpaces) (skipSpaces *> char ']' *> skipSpaces) do
     pure unit -- breaks recursion
     --  = spy (ident i <> "simultaneouscyclePInternal in between " <> show i) true
-    sepBy1 (sequentialcyclePInternal (lvl + 1)) (skipSpaces *> char ',' *> skipSpaces)
+    map nel2nea $ sepBy1 (sequentialcyclePInternal (lvl + 1)) (skipSpaces *> char ',' *> skipSpaces)
   --  = spy (ident i <> "simultaneouscyclePInternal finishing " <> show i) true
   { tag } <- tagP
   weight <- weightP
   --  = spy (ident i <> "simultaneouscyclePInternal got weights " <> show i) true
-  pure { nel, env: { weight, tag } }
+  pure { cycles, env: { weight, tag } }
 
 sequentialcyclePInternal :: forall event. Int -> Parser (Cycle (Maybe (Note event)))
-sequentialcyclePInternal lvl = map Internal do
+sequentialcyclePInternal lvl = map internal do
   pure unit -- breaks recursion
   --  = spy (ident i <> "rewinding to sequentialcyclePInternal starting many " <> show i) true
-  nel <- skipSpaces *> sepEndBy1 (cyclePInternal (lvl + 1)) skipSpaces
-  --  = spy (ident i <> "rewinding to sequentialcyclePInternal ending many with length " <> (show $ NEL.length nel) <> " " <> show i) true
-  pure { nel, env: { weight: 1.0, tag: Nothing } }
+  cycles <- skipSpaces *> (map nel2nea $ sepEndBy1 (cyclePInternal (lvl + 1)) skipSpaces)
+  --  = spy (ident i <> "rewinding to sequentialcyclePInternal ending many with length " <> (show $ NEA.length cycles) <> " " <> show i) true
+  pure { cycles, env: { weight: 1.0, tag: Nothing } }
 
 singleSampleP :: forall event. Int -> Parser (Cycle (Maybe (Note event)))
 singleSampleP _ = do
@@ -522,8 +519,8 @@ singleSampleP _ = do
   { tag } <- tagP
   weight <- weightP
   pure $ case afterMatter.asInternal of
-    Nothing -> SingleNote { env: { weight, tag }, val: sample }
-    Just ntimes -> Internal { env: { weight, tag }, nel: map (const $ SingleNote { env: { weight: 1.0, tag: Nothing }, val: sample }) ntimes }
+    Nothing -> singleton { env: { weight, tag }, val: sample }
+    Just ntimes -> internal { env: { weight, tag }, cycles: map (const $ singleton { env: { weight: 1.0, tag: Nothing }, val: sample }) ntimes }
 
 cyclePInternal :: forall event. Int -> Parser (Cycle (Maybe (Note event)))
 cyclePInternal lvl = try (branchingcyclePInternal lvl)
@@ -537,41 +534,61 @@ cycleP_ = cycleP
 cycleP :: forall event. Parser (Cycle (Maybe (Note event)))
 cycleP = go <$> cyclePInternal 0
   where
-  go (Branching { nel: NonEmptyList (a :| Nil) }) = go a
-  go (Simultaneous { nel: NonEmptyList (a :| Nil) }) = go a
-  go (Internal { nel: NonEmptyList (a :| Nil) }) = go a
-  go (Branching { env, nel }) = Branching { env, nel: map go nel }
-  go (Simultaneous { env, nel }) = Simultaneous { env, nel: map go nel }
-  go (Internal { env, nel }) = Internal { env, nel: map go nel }
-  go (SingleNote note) = SingleNote note
+  c cycles env ctr =
+    let
+      h = NEA.head cycles
+      t = NEA.tail cycles
+    in
+      if null t then go h else ctr { env, cycles: map go cycles }
+  go = unwrap >>> match
+    { branching: \{ cycles, env } -> c cycles env branching
+    , simultaneous: \{ cycles, env } -> c cycles env simultaneous
+    , internal: \{ cycles, env } -> c cycles env internal
+    , singleton: \note -> singleton note
+    }
 
-flatMap :: forall event. NonEmptyList (NonEmptyList (NonEmptyList (NoteInTime (Maybe (Note event))))) -> NonEmptyList (NonEmptyList (NoteInTime (Maybe (Note event))))
-flatMap (NonEmptyList (aa :| Nil)) = aa
-flatMap (NonEmptyList (aa :| bb : cc)) = join $ aa # map \a' -> flatMap (wrap (bb :| cc)) # map \bbb -> a' <> bbb
+flatMap :: forall event. NonEmptyArray (NonEmptyArray (NonEmptyArray (NoteInTime (Maybe (Note event))))) -> NonEmptyArray (NonEmptyArray (NoteInTime (Maybe (Note event))))
+flatMap nea =
+  let
+    aa = NEA.head nea
+    tt = NEA.tail nea
+    ucd = uncons tt
+  in
+    ucd # maybe aa \ucd' ->
+      let
+        bb = ucd'.head
+        cc = ucd'.tail
+      in
+        join $ aa # map \a' -> flatMap (NEA.fromNonEmpty (bb :| cc)) # map \bbb -> a' <> bbb
 
 getWeight :: forall a. Cycle a -> Number
-getWeight (Branching { env: { weight } }) = weight
-getWeight (Simultaneous { env: { weight } }) = weight
-getWeight (Internal { env: { weight } }) = weight
-getWeight (SingleNote { env: { weight } }) = weight
+getWeight = unwrap >>> match
+  { branching: _.env >>> _.weight
+  , simultaneous: _.env >>> _.weight
+  , internal: _.env >>> _.weight
+  , singleton: _.env >>> _.weight
+  }
 
 getTag :: forall a. Cycle a -> Maybe String
-getTag (Branching { env: { tag } }) = tag
-getTag (Simultaneous { env: { tag } }) = tag
-getTag (Internal { env: { tag } }) = tag
-getTag (SingleNote { env: { tag } }) = tag
+getTag = unwrap >>> match
+  { branching: _.env >>> _.tag
+  , simultaneous: _.env >>> _.tag
+  , internal: _.env >>> _.tag
+  , singleton: _.env >>> _.tag
+  }
 
 onTagsCWithIndex :: forall a. (Set.Set String -> Boolean) -> (Int -> Cycle a -> Cycle a) -> Cycle a -> Cycle a
 onTagsCWithIndex pf fff vvv = (go Set.empty 0 vvv).val
   where
-  go' st ff ii env nel = let nst = ((Set.fromFoldable env.tag) <> st) in let folded = foldl (\axc cyc -> axc <> (pure (go nst (NEL.last axc).i cyc))) (pure (go nst ii (NEL.head nel))) (NEL.tail nel) in { i: _.i $ NEL.last folded, val: ff { env, nel: map _.val folded } }
+  go' st ff ii env cycles = let nst = ((Set.fromFoldable env.tag) <> st) in let folded = foldl (\axc cyc -> axc <> (pure (go nst (NEA.last axc).i cyc))) (pure (go nst ii (NEA.head cycles))) (NEA.tail cycles) in { i: _.i $ NEA.last folded, val: ff { env, cycles: map _.val folded } }
 
   go :: Set.Set String -> Int -> Cycle a -> { i :: Int, val :: Cycle a }
-  go st ii = case _ of
-    Branching { env, nel } -> go' st Branching ii env nel
-    Simultaneous { env, nel } -> go' st Simultaneous ii env nel
-    Internal { env, nel } -> go' st Internal ii env nel
-    SingleNote { env, val } -> let res = (Set.fromFoldable env.tag) <> st in if pf res then { i: ii + 1, val: fff ii $ SingleNote { env, val } } else { i: ii, val: SingleNote { env, val } }
+  go st ii = unwrap >>> match
+    { branching: \{ env, cycles } -> go' st branching ii env cycles
+    , simultaneous: \{ env, cycles } -> go' st simultaneous ii env cycles
+    , internal: \{ env, cycles } -> go' st internal ii env cycles
+    , singleton: \{ env, val } -> let res = (Set.fromFoldable env.tag) <> st in if pf res then { i: ii + 1, val: fff ii $ singleton { env, val } } else { i: ii, val: singleton { env, val } }
+    }
 
 onTagsC :: forall a. (Set.Set String -> Boolean) -> (Cycle a -> Cycle a) -> Cycle a -> Cycle a
 onTagsC pf f = onTagsCWithIndex pf \_ -> f
@@ -579,14 +596,15 @@ onTagsC pf f = onTagsCWithIndex pf \_ -> f
 onTagsCWithIndex' :: forall a. (Set.Set String -> Boolean) -> (Int -> Cycle a -> Cycle a) -> Cycle a -> Cycle a
 onTagsCWithIndex' pf fff vvv = (go Set.empty 0 vvv).val
   where
-  go' st ff ii env nel = let nst = st in let folded = foldl (\axc cyc -> axc <> (pure (go nst (NEL.last axc).i cyc))) (pure (go nst ii (NEL.head nel))) (NEL.tail nel) in { i: _.i $ NEL.last folded, val: ff { env, nel: map _.val folded } }
+  go' st ff ii env cycles = let nst = st in let folded = foldl (\axc cyc -> axc <> (pure (go nst (NEA.last axc).i cyc))) (pure (go nst ii (NEA.head cycles))) (NEA.tail cycles) in { i: _.i $ NEA.last folded, val: ff { env, cycles: map _.val folded } }
 
   go :: Set.Set String -> Int -> Cycle a -> { i :: Int, val :: Cycle a }
-  go st ii = case _ of
-    Branching { env, nel } -> go' st Branching ii env nel
-    Simultaneous { env, nel } -> go' st Simultaneous ii env nel
-    Internal { env, nel } -> go' st Internal ii env nel
-    SingleNote { env, val } -> let res = (Set.fromFoldable env.tag) <> st in if pf res then { i: ii + 1, val: fff ii $ SingleNote { env, val } } else { i: ii, val: SingleNote { env, val } }
+  go st ii = unwrap >>> match
+    { branching: \{ env, cycles } -> go' st branching ii env cycles
+    , simultaneous: \{ env, cycles } -> go' st simultaneous ii env cycles
+    , internal: \{ env, cycles } -> go' st internal ii env cycles
+    , singleton: \{ env, val } -> let res = (Set.fromFoldable env.tag) <> st in if pf res then { i: ii + 1, val: fff ii $ singleton { env, val } } else { i: ii, val: singleton { env, val } }
+    }
 
 onTagsC' :: forall a. (Set.Set String -> Boolean) -> (Cycle a -> Cycle a) -> Cycle a -> Cycle a
 onTagsC' pf f = onTagsCWithIndex' pf \_ -> f
@@ -615,24 +633,26 @@ onTag = onTags <<< Set.member
 onTag' :: forall a. String -> (a -> a) -> Cycle a -> Cycle a
 onTag' = onTags' <<< Set.member
 
-cycleToSequence :: forall event. CycleDuration -> Cycle (Maybe (Note event)) -> NonEmptyList (NonEmptyList (NoteInTime (Maybe (Note event))))
+cycleToSequence :: forall event. CycleDuration -> Cycle (Maybe (Note event)) -> NonEmptyArray (NonEmptyArray (NoteInTime (Maybe (Note event))))
 cycleToSequence (CycleDuration cycleDuration) = go { currentSubdivision: cycleDuration, currentOffset: 0.0 }
   where
-  go state (Branching { nel }) = join $ map (go state) nel
-  go state (Simultaneous { nel }) = map (sortBy (compare `on` (unwrap >>> _.startsAt)))
-    $ flatMap
-    $ map (go state) nel
-  go state (Internal { nel }) = seq state nel
-  go state (SingleNote { env: { tag }, val }) = pure $ pure $ NoteInTime
-    { duration: state.currentSubdivision
-    , startsAt: state.currentOffset
-    , note: val
-    , cycleDuration
-    , tag
+  go state = unwrap >>> match
+    { branching: \{ cycles } -> join $ map (go state) cycles
+    , simultaneous: \{ cycles } -> map (NEA.sortBy (compare `on` (unwrap >>> _.startsAt)))
+        $ flatMap
+        $ map (go state) cycles
+    , internal: \{ cycles } -> seq state cycles
+    , singleton: \{ env: { tag }, val } -> pure $ pure $ NoteInTime
+        { duration: state.currentSubdivision
+        , startsAt: state.currentOffset
+        , note: val
+        , cycleDuration
+        , tag
+        }
     }
-  seq state nel =
+  seq state cycles =
     let
-      allWeights = foldl (+) 0.0 (map getWeight nel)
+      allWeights = foldl (+) 0.0 (map getWeight cycles)
       withStateInfo = evalState
         ( ( traverse \vv -> do
               ii <- get
@@ -643,7 +663,7 @@ cycleToSequence (CycleDuration cycleDuration) = go { currentSubdivision: cycleDu
                 , currentOffset: state.currentOffset + state.currentSubdivision * ii / allWeights
                 , vv
                 }
-          ) nel
+          ) cycles
         )
         0.0
     in
@@ -651,25 +671,26 @@ cycleToSequence (CycleDuration cycleDuration) = go { currentSubdivision: cycleDu
         (\{ currentSubdivision, currentOffset, vv } -> go { currentSubdivision, currentOffset } vv)
         withStateInfo
 
-unrest :: forall event. NonEmptyList (NonEmptyList (NoteInTime (Maybe (Note event)))) -> List (List (NoteInTime (Note event)))
-unrest = filter (not <<< L.null) <<< NEL.toList <<< map go
+unrest :: forall event. NonEmptyArray (NonEmptyArray (NoteInTime (Maybe (Note event)))) -> Array (Array (NoteInTime (Note event)))
+unrest = filter (not <<< A.null) <<< NEA.toArray <<< map go
   where
   go =
     filterMap
       ( \(NoteInTime { startsAt, duration, cycleDuration, tag, note }) ->
           NoteInTime <<< { startsAt, duration, cycleDuration, tag, note: _ } <$> note
-      ) <<< NEL.toList
+      ) <<< NEA.toArray
 
-asScore :: forall event. Boolean -> NonEmptyList (NoteInFlattenedTime (Note event)) -> NextCycle event
+asScore :: forall event. Boolean -> NonEmptyArray (NoteInFlattenedTime (Note event)) -> NextCycle event
 asScore force flattened = NextCycle
   { force
-  , samples: A.fromFoldable $ compact $ NEL.toList $ map (unwrap >>> _.note >>> unwrap >>> _.sampleFoT >>> _hush) flattened
+  , samples: compact $ NEA.toArray $ map (unwrap >>> _.note >>> unwrap >>> _.sampleFoT >>> _hush) flattened
   , func: scoreInput
   }
   where
   scoreInput ccPce = go ccPce.currentCount ccPce.prevCycleEnded flattened
-  go currentCount prevCycleEnded (NonEmptyList (NoteInFlattenedTime aa :| bb)) =
+  go currentCount prevCycleEnded nea =
     let
+      NoteInFlattenedTime aa :| bb = NEA.toNonEmpty nea
       st = prevCycleEnded + aa.bigStartsAt
     in
       { startsAfter: st - currentCount
@@ -689,26 +710,26 @@ asScore force flattened = NextCycle
           }
       } :<
         \{ time, headroomInSeconds, input: { next: (NextCycle nc) } } ->
-          case bb of
-            Nil -> nc.func
+          case uncons bb of
+            Nothing -> nc.func
               { currentCount: st
               , prevCycleEnded: prevCycleEnded + aa.bigCycleDuration
               , time
               , headroomInSeconds
               }
-            cc : dd ->
+            Just { head: cc, tail: dd } ->
               if nc.force && aa.positionInCycle == aa.elementsInCycle - 1 then nc.func
                 { currentCount: st
                 , prevCycleEnded: prevCycleEnded + aa.littleCycleDuration * toNumber (aa.currentCycle + 1)
                 , time
                 , headroomInSeconds
                 }
-              else go st prevCycleEnded (NonEmptyList (cc :| dd))
+              else go st prevCycleEnded (NEA.fromNonEmpty (cc :| dd))
 
-flattenScore :: forall event. NonEmptyList (NonEmptyList (NoteInTime (Note event))) -> NonEmptyList (NoteInFlattenedTime (Note event))
+flattenScore :: forall event. NonEmptyArray (NonEmptyArray (NoteInTime (Note event))) -> NonEmptyArray (NoteInFlattenedTime (Note event))
 flattenScore l = flattened
   where
-  ll = NEL.length l
+  ll = NEA.length l
   flattened = join $ mapWithIndex
     ( \ii -> mapWithIndex
         ( \jj (NoteInTime { note, duration, startsAt, cycleDuration, tag }) -> NoteInFlattenedTime
@@ -716,8 +737,8 @@ flattenScore l = flattened
             , duration
             , bigStartsAt: startsAt + cycleDuration * toNumber ii
             , currentCycle: ii
-            , elementsInCycle: NEL.length (NEL.head l)
-            , nCycles: NEL.length l
+            , elementsInCycle: NEA.length (NEA.head l)
+            , nCycles: NEA.length l
             , positionInCycle: jj
             , littleStartsAt: startsAt
             , littleCycleDuration: cycleDuration
@@ -820,9 +841,9 @@ parseInternal str dur = asScore false
   $ maybe (pure $ intentionalSilenceForInternalUseOnly dur) flattenScore
   $ join
   $ map
-      ( NEL.fromList
+      ( NEA.fromArray
           <<< compact
-          <<< map NEL.fromList
+          <<< map NEA.fromArray
           <<< (unrest <<< cycleToSequence dur)
       )
   $ hush
@@ -831,9 +852,9 @@ parseInternal str dur = asScore false
 rend :: forall event. Cycle (Maybe (Note event)) -> CycleDuration -> (NextCycle event)
 rend cyn dur = asScore false
   $ maybe (pure (intentionalSilenceForInternalUseOnly dur)) flattenScore
-  $ NEL.fromList
+  $ NEA.fromArray
   $ compact
-  $ map NEL.fromList
+  $ map NEA.fromArray
   $ unrest
   $ cycleToSequence dur
   $ cyn
@@ -841,30 +862,30 @@ rend cyn dur = asScore false
 rend_ :: Cycle (Maybe (Note Unit)) -> CycleDuration -> (NextCycle Unit)
 rend_ = rend
 
-rendNit :: forall event. NonEmptyList (NonEmptyList (NoteInTime (Maybe (Note event)))) -> NextCycle event
+rendNit :: forall event. NonEmptyArray (NonEmptyArray (NoteInTime (Maybe (Note event)))) -> NextCycle event
 rendNit = asScore false <<< s2f
 
-c2s :: forall event. Cycle (Maybe (Note event)) -> CycleDuration -> NonEmptyList (NonEmptyList (NoteInTime (Maybe (Note event))))
+c2s :: forall event. Cycle (Maybe (Note event)) -> CycleDuration -> NonEmptyArray (NonEmptyArray (NoteInTime (Maybe (Note event))))
 c2s = flip cycleToSequence
 
 s2f
   :: forall event
-   . NonEmptyList (NonEmptyList (NoteInTime (Maybe (Note event))))
-  -> NonEmptyList (NoteInFlattenedTime (Note event))
+   . NonEmptyArray (NonEmptyArray (NoteInTime (Maybe (Note event))))
+  -> NonEmptyArray (NoteInFlattenedTime (Note event))
 s2f = fromMaybe
   <$>
     ( pure <<< intentionalSilenceForInternalUseOnly
         <<< CycleDuration
         <<< _.cycleDuration
         <<< unwrap
-        <<< NEL.head
-        <<< NEL.head
+        <<< NEA.head
+        <<< NEA.head
     )
   <*>
     ( map flattenScore
-        <<< NEL.fromList
+        <<< NEA.fromArray
         <<< compact
-        <<< map NEL.fromList
+        <<< map NEA.fromArray
         <<< unrest
     )
 
@@ -877,9 +898,9 @@ qcSamples = map fst $ fromMaybe (sampleToDur') $ NEA.fromArray $ NEA.filter ((>)
 genSingleSample :: Gen Sample
 genSingleSample = elements qcSamples
 
-genSingleNote :: forall event. Gen (Cycle (Maybe (Note event)))
-genSingleNote =
-  SingleNote <<< { env: { weight: 1.0, tag: Nothing }, val: _ } <<< Just <<< Note
+genSingleton :: forall event. Gen (Cycle (Maybe (Note event)))
+genSingleton =
+  singleton <<< { env: { weight: 1.0, tag: Nothing }, val: _ } <<< Just <<< Note
     <<<
       { rateFoT: const 1.0
       , volumeFoT: const 1.0
@@ -890,40 +911,37 @@ genSingleNote =
     <<< _right <$> genSingleSample
 
 genRest :: forall event. Gen (Cycle (Maybe (Note event)))
-genRest = pure $ SingleNote { env: { weight: 1.0, tag: Nothing }, val: Nothing }
+genRest = pure $ singleton { env: { weight: 1.0, tag: Nothing }, val: Nothing }
 
-genSingleNoteOrRest :: forall event. Gen (Cycle (Maybe (Note event)))
-genSingleNoteOrRest = frequency (NonEmptyList ((7.0 /\ genSingleNote) :| (3.0 /\ genRest) : Nil))
-
-nea2nel :: NonEmptyArray ~> NonEmptyList
-nea2nel = NonEmptyList <<< (\(aa :| bb) -> aa :| L.fromFoldable bb) <<< NEA.toNonEmpty
+genSingletonOrRest :: forall event. Gen (Cycle (Maybe (Note event)))
+genSingletonOrRest = frequency (wrap ((7.0 /\ genSingleton) :| (3.0 /\ genRest) : Nil))
 
 genCycle :: forall event. Gen (Cycle (Maybe (Note event)))
 genCycle = go 0
   where
   genSameInternal nn = do
-    sn <- genSingleNote
+    sn <- genSingleton
     ii <- case nn of
       0 -> elements $ NEA.fromNonEmpty (2 :| [ 3, 4, 5, 6 ])
       1 -> elements $ NEA.fromNonEmpty (2 :| [ 3, 4, 6 ])
       _ -> elements $ NEA.fromNonEmpty (2 :| [ 3, 4 ])
-    pure $ Internal { env: { weight: 1.0, tag: Nothing }, nel: nea2nel $ NEA.fromNonEmpty (sn :| A.replicate (ii - 1) sn) }
+    pure $ internal { env: { weight: 1.0, tag: Nothing }, cycles: NEA.fromNonEmpty (sn :| A.replicate (ii - 1) sn) }
   genDiffInternal nn = do
     let gg = go (nn + 1)
     ii <- case nn of
       0 -> elements $ NEA.fromNonEmpty (2 :| [ 3, 4, 8 ])
       1 -> elements $ NEA.fromNonEmpty (2 :| [ 4 ])
       _ -> elements $ NEA.fromNonEmpty (2 :| [])
-    nel <- sequence $ nea2nel $ NEA.fromNonEmpty (gg :| A.replicate (ii - 1) gg)
-    pure $ Internal { env: { weight: 1.0, tag: Nothing }, nel }
-  genBranching nn = resize 3 (Branching <<< { env: { weight: 1.0, tag: Nothing }, nel: _ } <<< nea2nel <$> arrayOf1 (go (nn + 1)))
-  genSimultaneous nn = resize 3 (Simultaneous <<< { env: { weight: 1.0, tag: Nothing }, nel: _ } <<< nea2nel <$> arrayOf1 (go (nn + 1)))
+    cycles <- sequence $ NEA.fromNonEmpty (gg :| A.replicate (ii - 1) gg)
+    pure $ internal { env: { weight: 1.0, tag: Nothing }, cycles }
+  genBranching nn = resize 3 (branching <<< { env: { weight: 1.0, tag: Nothing }, cycles: _ } <$> arrayOf1 (go (nn + 1)))
+  genSimultaneous nn = resize 3 (simultaneous <<< { env: { weight: 1.0, tag: Nothing }, cycles: _ } <$> arrayOf1 (go (nn + 1)))
   go 0 =
     let
       zz = 0
     in
       frequency
-        ( NonEmptyList
+        ( wrap
             ( (1.0 /\ (genBranching zz))
                 :| (1.0 /\ (genSimultaneous zz))
                   : (1.0 /\ (genDiffInternal zz))
@@ -935,12 +953,12 @@ genCycle = go 0
       zz = 1
     in
       frequency
-        ( NonEmptyList
+        ( wrap
             ( (1.0 /\ (genBranching zz))
                 :| (1.0 /\ (genSimultaneous zz))
                   : (2.0 /\ (genDiffInternal zz))
                   : (4.0 /\ (genSameInternal zz))
-                  : (3.0 /\ genSingleNoteOrRest)
+                  : (3.0 /\ genSingletonOrRest)
                   : Nil
             )
         )
@@ -949,12 +967,12 @@ genCycle = go 0
       zz = 2
     in
       frequency
-        ( NonEmptyList
+        ( wrap
             ( (1.0 /\ (genBranching zz))
                 :| (1.0 /\ (genSimultaneous zz))
                   : (1.0 /\ (genDiffInternal zz))
                   : (4.0 /\ (genSameInternal zz))
-                  : (8.0 /\ genSingleNoteOrRest)
+                  : (8.0 /\ genSingletonOrRest)
                   : Nil
             )
         )
@@ -963,16 +981,16 @@ genCycle = go 0
       zz = 3
     in
       frequency
-        ( NonEmptyList
+        ( wrap
             ( (1.0 /\ (genBranching zz))
                 :| (1.0 /\ genSimultaneous zz)
                   : (1.0 /\ (genDiffInternal zz))
                   : (4.0 /\ (genSameInternal zz))
-                  : (10.0 /\ genSingleNoteOrRest)
+                  : (10.0 /\ genSingletonOrRest)
                   : Nil
             )
         )
-  go _ = genSingleNoteOrRest
+  go _ = genSingletonOrRest
 
 genVoice :: forall event. Number -> CycleDuration -> Gen { cycle :: Cycle (Maybe (Note event)), voice :: Voice event }
 genVoice vol cl = do
@@ -1012,16 +1030,16 @@ instance sString :: S String event where
 instance sCycle :: S (Cycle (Maybe (Note event))) event where
   s = map plainly <<< rend
 
-instance sNit :: S (NonEmptyList (NonEmptyList (NoteInTime (Maybe (Note event))))) event where
+instance sNit :: S (NonEmptyArray (NonEmptyArray (NoteInTime (Maybe (Note event))))) event where
   s = map plainly <<< pure <<< rendNit
 
-instance sNitFT :: S (CycleDuration -> (NonEmptyList (NonEmptyList (NoteInTime (Maybe (Note event)))))) event where
+instance sNitFT :: S (CycleDuration -> (NonEmptyArray (NonEmptyArray (NoteInTime (Maybe (Note event)))))) event where
   s = map plainly <<< map rendNit
 
-instance sNift :: S (NonEmptyList (NoteInFlattenedTime (Note event))) event where
+instance sNift :: S (NonEmptyArray (NoteInFlattenedTime (Note event))) event where
   s = map plainly <<< pure <<< asScore false
 
-instance sNiftFT :: S (CycleDuration -> (NonEmptyList (NoteInFlattenedTime (Note event)))) event where
+instance sNiftFT :: S (CycleDuration -> (NonEmptyArray (NoteInFlattenedTime (Note event)))) event where
   s = map plainly <<< map (asScore false)
 
 instance sNextCycle :: S (NextCycle event) event where

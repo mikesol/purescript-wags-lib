@@ -65,7 +65,7 @@ testEmitter = do
       (intize $ extract r1) `shouldEqual` intize ([])
       (intize $ extract r2) `shouldEqual` intize ([ { offset: 0.02, rest: 1 } ])
       (intize $ extract r3) `shouldEqual` intize ([])
-      (intize $ extract r4) `shouldEqual` intize ([ ])
+      (intize $ extract r4) `shouldEqual` intize ([])
     it "Produces the correct emissions for a function emitter" do
       let
         r0 = fEmitter 1.0 { time: 0.0, headroomInSeconds: 0.02 }

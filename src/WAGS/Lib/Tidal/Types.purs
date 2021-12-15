@@ -2,9 +2,9 @@ module WAGS.Lib.Tidal.Types where
 
 import Prelude
 
+import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Function (on)
 import Data.Generic.Rep (class Generic)
-import Data.List.Types (NonEmptyList)
 import Data.Map (Map)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap, wrap)
@@ -216,7 +216,7 @@ derive instance functorNoteInFlattenedTime :: Functor NoteInFlattenedTime
 
 --
 type AfterMatter
-  = { asInternal :: Maybe (NonEmptyList Unit) }
+  = { asInternal :: Maybe (NonEmptyArray Unit) }
 
 --
 type Tag
