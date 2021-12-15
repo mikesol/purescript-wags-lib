@@ -170,7 +170,7 @@ newtype NoteInTime note
   , startsAt :: Number
   , duration :: Number
   , cycleDuration :: Number
-  , tag :: Maybe String
+  , tag :: Maybe' String
   }
 
 derive instance newtypeNoteInTime :: Newtype (NoteInTime note) _
@@ -198,7 +198,7 @@ newtype NoteInFlattenedTime note
   , duration :: Number
   , bigCycleDuration :: Number
   , littleCycleDuration :: Number
-  , tag :: Maybe String
+  , tag :: Maybe' String
   }
 
 derive instance newtypeNoteInFlattenedTime :: Newtype (NoteInFlattenedTime note) _
@@ -220,7 +220,7 @@ type AfterMatter
 
 --
 type Tag
-  = { tag :: Maybe String }
+  = { tag :: Maybe' String }
 
 --
 type NBuf
@@ -383,8 +383,8 @@ derive instance newtypeTimeIs :: Newtype (TimeIs event) _
 newtype TimeIsAndWas time
   = TimeIsAndWas
   { timeIs :: time
-  , valWas :: Maybe Number
-  , timeWas :: Maybe time
+  , valWas :: Maybe' Number
+  , timeWas :: Maybe' time
   }
 
 derive instance newtypeTimeIsAndWas :: Newtype (TimeIsAndWas time) _

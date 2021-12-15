@@ -36,7 +36,7 @@ import Type.Proxy (Proxy(..))
 import WAGS.Control.Functions.Subgraph as SG
 import WAGS.Create.Optionals (analyser, gain, loopBuf, playBuf, speaker, subgraph, tumult)
 import WAGS.Graph.AudioUnit (_off, _offOn, _on)
-import WAGS.Graph.Parameter (Maybe', ff)
+import WAGS.Graph.Parameter (Maybe', ff, _just, _maybe, _nothing)
 import WAGS.Interpret (bufferDuration)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), CfScoredBufferPool, makeScoredBufferPool)
 import WAGS.Lib.Learn (FullSceneBuilder, usingcr)
@@ -250,12 +250,12 @@ internal1 = emptyLags # SG.loopUsingScene
     }
 
 type CfLag a
-  = Cofree ((->) a) (Maybe a)
+  = Cofree ((->) a) (Maybe' a)
 
 makeLag :: forall a. CfLag a
-makeLag = Nothing :< go
+makeLag = _nothing :< go
   where
-  go old = Just old :< go
+  go old = _just old :< go
 
 _maybe' :: forall a b. (Unit -> b) -> (a -> b) -> Maybe' a -> b
 _maybe' fn fj = unwrap >>> match
