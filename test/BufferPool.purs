@@ -18,14 +18,14 @@ testBufferPool = do
     it "Produces a correct buffer pool" do
       let
         buf = makeBufferPool :: ABufferPool D5
-        b0 = buf { time: 0.0, offsets: [ { offset: 0.0} ] }
+        b0 = buf { time: 0.0, offsets: [ { offset: 0.0 } ] }
         b1 = unwrapCofree b0 { time: 0.3, offsets: [] }
         b2 = unwrapCofree b1 { time: 0.34, offsets: [ { offset: 0.03 } ] }
         b3 = unwrapCofree b2 { time: 0.41, offsets: [] }
-        b4 = unwrapCofree b3 { time: 0.5, offsets: [{offset:0.02}] }
-        b5 = unwrapCofree b4 { time: 0.8, offsets: [{offset:0.00}] }
-        b6 = unwrapCofree b5 { time: 1.0, offsets: [{offset:0.00}] }
-        b7 = unwrapCofree b6 { time: 1.1, offsets: [{offset:0.00}] }
+        b4 = unwrapCofree b3 { time: 0.5, offsets: [ { offset: 0.02 } ] }
+        b5 = unwrapCofree b4 { time: 0.8, offsets: [ { offset: 0.00 } ] }
+        b6 = unwrapCofree b5 { time: 1.0, offsets: [ { offset: 0.00 } ] }
+        b7 = unwrapCofree b6 { time: 1.1, offsets: [ { offset: 0.00 } ] }
       --
       extract b0 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: true, rest: unit, duration: Nothing }) +> Nothing +> Nothing +> Nothing +> Nothing +> V.empty)
       extract b1 `shouldEqual` (Just (Buffy { startTime: 0.0, starting: false, rest: unit, duration: Nothing }) +> Nothing +> Nothing +> Nothing +> Nothing +> V.empty)

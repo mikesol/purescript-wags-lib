@@ -3,33 +3,69 @@ module WAGS.Lib.Tidal.Cycle where
 import Prelude
 
 import Data.Foldable (class Foldable, foldMapDefaultR, foldl, foldr, intercalate)
+import Data.Newtype (class Newtype)
 import Data.FunctorWithIndex (class FunctorWithIndex)
 import Data.Generic.Rep (class Generic)
 import Data.Int (floor)
-import Data.List.NonEmpty (NonEmptyList(..))
-import Data.List.NonEmpty as NEL
-import Data.Maybe (Maybe(..), maybe)
+import Data.Variant (Variant, match, inj)
+import Data.Array.NonEmpty as NEA
 import Data.Newtype (unwrap)
-import Data.NonEmpty ((:|))
 import Data.Show.Generic (genericShow)
 import Data.Traversable (class Traversable, sequenceDefault, traverse)
-import WAGS.Graph.Parameter (Maybe', _just, _nothing)
+import Data.Variant.Maybe (Maybe, just, nothing, maybe)
+import Data.Variant.Either (either, right)
 import WAGS.Lib.Tidal.Samples as S
-import WAGS.Lib.Tidal.Types (DroneNote, Note(..), Sample, _either, _right, unlockSample)
+import WAGS.Lib.Tidal.Types (DroneNote, Note(..), Sample, unlockSample)
+import Type.Proxy (Proxy(..))
 
 type CycleEnv = { weight :: Number, tag :: Maybe String }
 
-data Cycle a
-  = Branching { nel :: NonEmptyList (Cycle a), env :: CycleEnv }
-  | Simultaneous { nel :: NonEmptyList (Cycle a), env :: CycleEnv }
-  | Internal { nel :: NonEmptyList (Cycle a), env :: CycleEnv }
-  | SingleNote { val :: a, env :: CycleEnv }
+type Cycles a =
+  { cycles :: NEA.NonEmptyArray (Cycle a)
+  , env :: CycleEnv
+  }
+
+type Singleton' a = { val :: a, env :: CycleEnv }
+
+branching :: Cycles ~> Cycle
+branching = Cycle <<< inj (Proxy :: _ "branching")
+
+simultaneous :: Cycles ~> Cycle
+simultaneous = Cycle <<< inj (Proxy :: _ "simultaneous")
+
+internal :: Cycles ~> Cycle
+internal = Cycle <<< inj (Proxy :: _ "internal")
+
+singleton :: Singleton' ~> Cycle
+singleton = Cycle <<< inj (Proxy :: _ "singleton")
+
+derive instance newtypeCycle :: Newtype (Cycle a) _
+newtype Cycle a
+  = Cycle
+  ( Variant
+      ( branching ::
+          { cycles :: NEA.NonEmptyArray (Cycle a)
+          , env :: CycleEnv
+          }
+      , simultaneous ::
+          { cycles :: NEA.NonEmptyArray (Cycle a)
+          , env :: CycleEnv
+          }
+      , internal ::
+          { cycles :: NEA.NonEmptyArray (Cycle a)
+          , env :: CycleEnv
+          }
+      , singleton :: { val :: a, env :: CycleEnv }
+      )
+  )
 
 swapEnv :: CycleEnv -> Cycle ~> Cycle
-swapEnv env (Branching { nel }) = Branching { env, nel }
-swapEnv env (Simultaneous { nel }) = Simultaneous { env, nel }
-swapEnv env (Internal { nel }) = Internal { env, nel }
-swapEnv env (SingleNote { val }) = SingleNote { env, val }
+swapEnv env = unwrap >>> match
+  { branching: branching <<< { cycles: _, env } <<< _.cycles
+  , simultaneous: simultaneous <<< { cycles: _, env } <<< _.cycles
+  , internal: internal <<< { cycles: _, env } <<< _.cycles
+  , singleton: singleton <<< { val: _, env } <<< _.val
+  }
 
 derive instance genericCycle :: Generic (Cycle a) _
 derive instance eqCycle :: Eq a => Eq (Cycle a)
@@ -37,35 +73,51 @@ derive instance ordCycle :: Ord a => Ord (Cycle a)
 instance showCycle :: Show a => Show (Cycle a) where
   show xx = genericShow xx
 
-derive instance functorCycle :: Functor Cycle
+instance functorCycle :: Functor Cycle where
+  map f = unwrap >>> match
+    { branching: \{ env, cycles } ->
+        branching $ { env, cycles: (map <<< map) f cycles }
+    , simultaneous: \{ env, cycles } ->
+        simultaneous { env, cycles: (map <<< map) f cycles }
+    , internal: \{ env, cycles } ->
+        internal { env, cycles: (map <<< map) f cycles }
+    , singleton: \{ env, val } ->
+        singleton { env, val: f val }
+    }
 
 instance applyCycle :: Apply Cycle where
   apply = ap
 
 instance applicativeCycle :: Applicative Cycle where
-  pure = SingleNote <<<
-    { env: { weight: 1.0, tag: Nothing }
+  pure = singleton <<<
+    { env: { weight: 1.0, tag: nothing }
     , val: _
     }
 
 instance bindCycle :: Bind Cycle where
-  bind ma faMb = case ma of
-    Branching { env, nel } -> Branching $ { env, nel: map (flip (>>=) faMb) nel }
-    Simultaneous { env, nel } -> Simultaneous { env, nel: map (flip (>>=) faMb) nel }
-    Internal { env, nel } -> Internal { env, nel: map (flip (>>=) faMb) nel }
-    SingleNote { env, val } -> swapEnv env $ faMb val
+  bind (Cycle ma) faMb = ma # match
+    { branching: \{ env, cycles } ->
+        branching $ { env, cycles: map (flip (>>=) faMb) cycles }
+    , simultaneous: \{ env, cycles } ->
+        simultaneous { env, cycles: map (flip (>>=) faMb) cycles }
+    , internal: \{ env, cycles } ->
+        internal { env, cycles: map (flip (>>=) faMb) cycles }
+    , singleton: \{ env, val } ->
+        swapEnv env $ faMb val
+    }
 
 instance monadCycle :: Monad Cycle
 
 instance functorWithIndexCycle :: FunctorWithIndex Int Cycle where
   mapWithIndex fff vvv = (go 0 vvv).val
     where
-    go' ff ii env nel = let folded = foldl (\axc cyc -> axc <> (pure (go (NEL.last axc).i cyc))) (pure (go ii (NEL.head nel))) (NEL.tail nel) in { i: _.i $ NEL.last folded, val: ff { env, nel: map _.val folded } }
-    go ii = case _ of
-      Branching { env, nel } -> go' Branching ii env nel
-      Simultaneous { env, nel } -> go' Simultaneous ii env nel
-      Internal { env, nel } -> go' Internal ii env nel
-      SingleNote { env, val } -> { i: ii + 1, val: SingleNote { env, val: fff ii val } }
+    go' ff ii env cycles = let folded = foldl (\axc cyc -> axc <> (pure (go (NEA.last axc).i cyc))) (pure (go ii (NEA.head cycles))) (NEA.tail cycles) in { i: _.i $ NEA.last folded, val: ff { env, cycles: map _.val folded } }
+    go ii = unwrap >>> match
+      { branching: \{ env, cycles } -> go' branching ii env cycles
+      , simultaneous: \{ env, cycles } -> go' simultaneous ii env cycles
+      , internal: \{ env, cycles } -> go' internal ii env cycles
+      , singleton: \{ env, val } -> { i: ii + 1, val: singleton { env, val: fff ii val } }
+      }
 
 instance foldableCycle :: Foldable Cycle where
   foldl fba aa fbb = foldl fba aa (flattenCycle fbb)
@@ -73,76 +125,94 @@ instance foldableCycle :: Foldable Cycle where
   foldMap = foldMapDefaultR
 
 instance traversableCycle :: Traversable Cycle where
-  traverse ff = case _ of
-    Branching { env, nel } -> Branching <<< { env, nel: _ } <$> (traverse (traverse ff) nel)
-    Simultaneous { env, nel } -> Simultaneous <<< { env, nel: _ } <$> (traverse (traverse ff) nel)
-    Internal { env, nel } -> Internal <<< { env, nel: _ } <$> (traverse (traverse ff) nel)
-    SingleNote { env, val } -> SingleNote <<< { env, val: _ } <$> ff val
+  traverse ff = unwrap >>> match
+    { branching: \{ env, cycles } ->
+        branching <<< { env, cycles: _ } <$> (traverse (traverse ff) cycles)
+    , simultaneous: \{ env, cycles } ->
+        simultaneous <<< { env, cycles: _ } <$> (traverse (traverse ff) cycles)
+    , internal: \{ env, cycles } ->
+        internal <<< { env, cycles: _ } <$> (traverse (traverse ff) cycles)
+    , singleton: \{ env, val } ->
+        singleton <<< { env, val: _ } <$> ff val
+    }
   sequence = sequenceDefault
 
-flattenCycle :: Cycle ~> NonEmptyList
-flattenCycle = case _ of
-  Branching { nel } -> join $ map flattenCycle nel
-  Simultaneous { nel } -> join $ map flattenCycle nel
-  Internal { nel } -> join $ map flattenCycle nel
-  SingleNote { val } -> pure val
+flattenCycle :: Cycle ~> NEA.NonEmptyArray
+flattenCycle = unwrap >>> match
+  { branching: \{ cycles } -> join $ map flattenCycle cycles
+  , simultaneous: \{ cycles } -> join $ map flattenCycle cycles
+  , internal: \{ cycles } -> join $ map flattenCycle cycles
+  , singleton: \{ val } -> pure val
+  }
 
 firstCycle :: forall a. Cycle a -> a
 firstCycle = go
   where
-  go' (NonEmptyList (aa :| _)) = go aa
-  go = case _ of
-    Branching { nel } -> go' nel
-    Simultaneous { nel } -> go' nel
-    Internal { nel } -> go' nel
-    SingleNote { val } -> val
+  go' aa = go (NEA.head aa)
+  go = unwrap >>> match
+    { branching: \{ cycles } -> go' cycles
+    , simultaneous: \{ cycles } -> go' cycles
+    , internal: \{ cycles } -> go' cycles
+    , singleton: \{ val } -> val
+    }
 
 lastCycle :: forall a. Cycle a -> a
 lastCycle = go
   where
-  go' aa = go (NEL.last aa)
-  go = case _ of
-    Branching { nel } -> go' nel
-    Simultaneous { nel } -> go' nel
-    Internal { nel } -> go' nel
-    SingleNote { val } -> val
+  go' aa = go (NEA.last aa)
+  go = unwrap >>> match
+    { branching: \{ cycles } -> go' cycles
+    , simultaneous: \{ cycles } -> go' cycles
+    , internal: \{ cycles } -> go' cycles
+    , singleton: \{ val } -> val
+    }
 
-c2d :: forall event. Cycle (Maybe (Note event)) -> Maybe' (DroneNote event)
-c2d = firstCycle >>> maybe _nothing _just >>> map S.note2drone
+c2d :: forall event. Cycle (Maybe (Note event)) -> Maybe (DroneNote event)
+c2d = firstCycle >>> maybe nothing just >>> map S.note2drone
 
 reverse :: Cycle ~> Cycle
 reverse l = go l
   where
-  go' fff env nel = fff { env, nel: NEL.reverse (map reverse nel) }
-  go = case _ of
-    Branching { env, nel } -> go' Branching env nel
-    Simultaneous { env, nel } -> go' Simultaneous env nel
-    Internal { env, nel } -> go' Internal env nel
-    SingleNote snnn -> SingleNote snnn
+  go' fff env cycles = fff { env, cycles: NEA.reverse (map reverse cycles) }
+  go = unwrap >>> match
+    { branching: \{ env, cycles } -> go' branching env cycles
+    , simultaneous: \{ env, cycles } -> go' simultaneous env cycles
+    , internal: \{ env, cycles } -> go' internal env cycles
+    , singleton: \snnn -> singleton snnn
+    }
 
+-- can't be point free due to let
 cycleLength :: forall a. Cycle a -> Int
-cycleLength (Branching { nel }) = foldr (+) 0 (map cycleLength nel)
-cycleLength (Simultaneous { nel }) = foldr (+) 0 (map cycleLength nel)
-cycleLength (Internal { nel }) = foldr (+) 0 (map cycleLength nel)
-cycleLength (SingleNote _) = 1
+cycleLength (Cycle incyc) =
+  let
+    cycleLength' = foldr (+) 0 <<< map cycleLength <<< _.cycles
+  in
+    incyc # match
+      { branching: cycleLength'
+      , simultaneous: cycleLength'
+      , internal: cycleLength'
+      , singleton: const 1
+      }
 
 cycleToString :: forall event. event -> Cycle (Maybe (Note event)) -> String
 cycleToString event = go
   where
   ws env = if env.weight >= 2.0 then "*" <> show (floor env.weight) else ""
   tg env = maybe "" (append ";") env.tag
-  go (Branching { env, nel }) = "<" <> intercalate " " (map go nel) <> ">" <> ws env <> tg env
-  go (Simultaneous { env, nel }) = (intercalate " , " (map go nel)) <> ws env <> tg env
-  go (Internal { env, nel }) = "[" <> intercalate " " (map go nel) <> "]" <> ws env <> tg env
-  go (SingleNote { env, val }) =
-    ( maybe "~"
-        ( S.sampleToString
-            <<< _either ((#) (unlockSample event)) identity
-            <<< _.sampleFoT
-            <<< unwrap
-        )
-        val
-    ) <> ws env <> tg env
+  go = unwrap >>> match
+    { branching: \{ env, cycles } -> "<" <> intercalate " " (map go cycles) <> ">" <> ws env <> tg env
+    , simultaneous: \{ env, cycles } -> (intercalate " , " (map go cycles)) <> ws env <> tg env
+    , internal: \{ env, cycles } -> "[" <> intercalate " " (map go cycles) <> "]" <> ws env <> tg env
+    , singleton: \{ env, val } ->
+        ( maybe "~"
+            ( S.sampleToString
+                <<< either ((#) (unlockSample event)) identity
+                <<< _.sampleFoT
+                <<< unwrap
+            )
+            val
+        ) <> ws env <> tg env
+    }
 
 noteFromSample :: forall event. Sample -> Note event
 noteFromSample = Note
@@ -153,15 +223,15 @@ noteFromSample = Note
     , bufferOffsetFoT: const 0.0
     , forward: true
     }
-  <<< _right
+  <<< right
 
 noteFromSample_ :: Sample -> Note Unit
 noteFromSample_ = noteFromSample
 
 cycleFromSample' :: forall event. Number -> Sample -> Cycle (Maybe (Note event))
-cycleFromSample' weight sample = SingleNote
-  { env: { weight, tag: Nothing }
-  , val: Just (noteFromSample sample)
+cycleFromSample' weight sample = singleton
+  { env: { weight, tag: nothing }
+  , val: just (noteFromSample sample)
   }
 
 cycleFromSample :: forall event. Sample -> Cycle (Maybe (Note event))
@@ -177,7 +247,7 @@ intentionalSilenceForInternalUseOnly_ :: forall event. Cycle (Maybe (Note event)
 intentionalSilenceForInternalUseOnly_ = cycleFromSample S.intentionalSilenceForInternalUseOnly__Sample
 
 r :: forall event. Cycle (Maybe (Note event))
-r = SingleNote { val: Nothing, env: { weight: 1.0, tag: Nothing } }
+r = singleton { val: nothing, env: { weight: 1.0, tag: nothing } }
 
 kicklinn :: forall event. Cycle (Maybe (Note event))
 kicklinn = cycleFromSample S.kicklinn_0__Sample

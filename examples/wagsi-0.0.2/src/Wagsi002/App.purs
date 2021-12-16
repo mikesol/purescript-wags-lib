@@ -3,6 +3,7 @@ module Wagsi002.App where
 import Prelude
 
 import Control.Comonad (extract)
+import Data.Variant.Maybe (maybe)
 import Control.Comonad.Cofree (Cofree, mkCofree)
 import Control.Parallel (parallel, sequential)
 import Control.Plus (empty)
@@ -40,7 +41,7 @@ import WAGS.Control.Functions.Subgraph as SG
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Create.Optionals (gain, loopBuf, playBuf, speaker, subgraph)
 import WAGS.Graph.AudioUnit (OnOff(..), _off, _offOn, _on)
-import WAGS.Graph.Parameter (AudioParameter_(..), _maybe, ff)
+import WAGS.Graph.Parameter (AudioParameter_(..), ff)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, makeFFIAudioSnapshot)
 import WAGS.Lib.BufferPool (ABufferPool, Buffy(..), BuffyVec, CfBufferPool, MakeBufferPool, makeBufferPool)
 import WAGS.Lib.Cofree (heads, tails)
@@ -160,7 +161,7 @@ actualizer1 (SceneI e'@{ time, headroomInSeconds }) a =
         { time
         , offsets: UF.fromMaybe do
             AudioParameter { param, timeOffset } <- extract room1ClapLatch
-            (First param') <- _maybe Nothing Just param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
+            (First param') <- maybe Nothing Just param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
             _ <- param'
             pure { offset: timeOffset }
         }
@@ -234,7 +235,7 @@ actualizer2 e@(SceneI e'@{ time, headroomInSeconds }) a =
         { time
         , offsets: UF.fromMaybe do
             AudioParameter { param, timeOffset } <- extract room2HiHatLatch
-            (First param') <- _maybe Nothing Just param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
+            (First param') <- maybe Nothing Just param -- Maybe (First (Maybe Boolean)) -> First (Maybe Boolean)
             _ <- param'
             pure { offset: timeOffset }
         }
