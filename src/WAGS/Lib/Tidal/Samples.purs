@@ -2069,6 +2069,7 @@ module WAGS.Lib.Tidal.Samples
 import Prelude
 
 import Data.Map (Map)
+import Data.Variant.Either (either, right)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
@@ -2078,7 +2079,7 @@ import Foreign.Object as Object
 import Safe.Coerce (coerce)
 import Unsafe.Coerce (unsafeCoerce)
 import WAGS.Lib.Tidal.FX (calm)
-import WAGS.Lib.Tidal.Types (BufferUrl(..), ClockTimeIs, DroneNote(..), Note(..), Sample(..), Samples, TimeIs, TimeIsAndWas, UnsampledTimeIs, _either, _right)
+import WAGS.Lib.Tidal.Types (BufferUrl(..), ClockTimeIs, DroneNote(..), Note(..), Sample(..), Samples, TimeIs, TimeIsAndWas, UnsampledTimeIs)
 import WAGS.WebAPI (BrowserAudioBuffer)
 
 unsafeSamples :: Samples ~> Object
@@ -4239,7 +4240,7 @@ sample2drone sample = DroneNote
 
 note2drone :: forall event. Note event -> DroneNote event
 note2drone (Note { sampleFoT, forward }) = DroneNote
-  { sample: _either (const intentionalSilenceForInternalUseOnly__Sample) identity sampleFoT
+  { sample: either (const intentionalSilenceForInternalUseOnly__Sample) identity sampleFoT
   , forward
   -- we wipe out all of the prior functions, keeping just the sample and forward
   , rateFoT: const 1.0
@@ -6296,7 +6297,7 @@ nameToSampleMNO = (map <<< map)
         , forward: true
         , volumeFoT: const 1.0
         }
-      <<< _right
+      <<< right
   )
   nameToSampleMO
 

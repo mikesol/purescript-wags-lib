@@ -16,7 +16,8 @@ import Data.Set as Set
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\), type (/\))
 import Math ((%))
-import WAGS.Graph.Parameter (AudioParameter_(..), _just, _linearRamp)
+import Data.Variant.Maybe (just)
+import WAGS.Graph.Parameter (AudioParameter_(..), _linearRamp)
 import WAGS.Math (calcSlope)
 
 type TimeHeadroom
@@ -101,14 +102,14 @@ makeChunks =
   makeChunks'
     ( \{ time, right } ->
         AudioParameter
-          { param: _just (snd right)
+          { param: just (snd right)
           , timeOffset: (fst right) - time
           , transition: _linearRamp
           }
     )
     \{ time, left, right } ->
       AudioParameter
-        { param: _just (calcSlope (fst left) (snd left) (fst right) (snd right) time)
+        { param: just (calcSlope (fst left) (snd left) (fst right) (snd right) time)
         , timeOffset: 0.0
         , transition: _linearRamp
         }
@@ -118,14 +119,14 @@ makeChunksL =
   makeChunks'
     ( \{ time, left, right } ->
         AudioParameter
-          { param: _just (snd left)
+          { param: just (snd left)
           , timeOffset: (fst right) - time
           , transition: _linearRamp
           }
     )
     \{ left } ->
       AudioParameter
-        { param: _just (snd left)
+        { param: just (snd left)
         , timeOffset: 0.0
         , transition: _linearRamp
         }
@@ -135,14 +136,14 @@ makeChunksR =
   makeChunks'
     ( \{ time, right } ->
         AudioParameter
-          { param: _just (snd right)
+          { param: just (snd right)
           , timeOffset: (fst right) - time
           , transition: _linearRamp
           }
     )
     \{ left } ->
       AudioParameter
-        { param: _just (snd left)
+        { param: just (snd left)
         , timeOffset: 0.0
         , transition: _linearRamp
         }

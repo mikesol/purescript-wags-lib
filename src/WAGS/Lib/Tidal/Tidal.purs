@@ -108,7 +108,7 @@ import Data.Lens.Record (prop)
 import Data.List (List(..), foldMap, foldl, (:))
 import Data.List as L
 import Data.List.Types (NonEmptyList(..))
-import Data.Maybe (Maybe(..), fromMaybe, fromMaybe', maybe)
+import Data.Maybe (Maybe(..), fromMaybe, fromMaybe, maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.NonEmpty ((:|))
 import Data.Profunctor (class Profunctor, lcmap)
@@ -121,6 +121,9 @@ import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D1)
 import Data.Unfoldable (replicate)
+import Data.Variant (match)
+import Data.Variant.Either as VE
+import Data.Variant.Maybe as VM
 import Data.Vec ((+>))
 import Data.Vec as V
 import Foreign.Object (Object)
@@ -138,14 +141,12 @@ import Type.Proxy (Proxy(..))
 import WAGS.Create (class Create)
 import WAGS.Create.Optionals (input)
 import WAGS.Graph.AudioUnit as CTOR
-import WAGS.Graph.Parameter (Maybe', _just, _maybe, _nothing)
 import WAGS.Lib.Tidal.Cycle (Cycle(..), singleton, branching, simultaneous, internal, flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
 import WAGS.Lib.Tidal.FX (WAGSITumult)
 import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, sample2drone)
 import WAGS.Lib.Tidal.Samples as S
-import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, ClockTimeIs, CycleDuration(..), DroneNote(..), EWF, EWF', Either', FoT, Globals(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..), ClockTimeIs', _either, _hush, _left, _right)
-import Data.Variant (match)
+import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, ClockTimeIs, CycleDuration(..), DroneNote(..), EWF, EWF', FoT, Globals(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..), ClockTimeIs')
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -158,7 +159,7 @@ make
   :: forall inRec overfull rest event
    . Union inRec
        ( EWF' (CycleDuration -> Voice event)
-           ( AH' (Maybe' (DroneNote event))
+           ( AH' (VM.Maybe (DroneNote event))
                ( title :: String
                , sounds :: Object BufferUrl
                , preload :: Array Sample
@@ -168,7 +169,7 @@ make
        overfull
   => Nub overfull
        ( EWF' (CycleDuration -> Voice event)
-           ( AH' (Maybe' (DroneNote event))
+           ( AH' (VM.Maybe (DroneNote event))
                ( title :: String
                , sounds :: Object BufferUrl
                , preload :: Array Sample
@@ -206,7 +207,7 @@ make cl rr = TheFuture $ Record.union
       )
       ::
            { | EWF' (CycleDuration -> Voice event)
-               ( AH' (Maybe' (DroneNote event))
+               ( AH' (VM.Maybe (DroneNote event))
                    ( title :: String
                    , sounds :: Object BufferUrl
                    , preload :: Array Sample
@@ -238,11 +239,11 @@ plainly :: NextCycle ~> Voice
 plainly = Voice <<< { globals: Globals { gain: const 1.0, fx: const calm }, next: _ }
 
 --- lenses
-l_j :: forall a. Prism' (Maybe' a) a
-l_j = prism' _just (_maybe Nothing Just)
+l_j :: forall a. Prism' (VM.Maybe a) a
+l_j = prism' VM.just (VM.maybe Nothing Just)
 
-l_r :: forall a b. Prism' (Either' a b) b
-l_r = prism' _right _hush
+l_r :: forall a b. Prism' (VE.Either a b) b
+l_r = prism' VE.right (VM.maybe Nothing Just <<< VE.hush)
 
 lvg :: forall event. Lens' (Voice event) (O'Past event)
 lvg = unto Voice <<< prop (Proxy :: _ "globals") <<< unto Globals <<< prop (Proxy :: _ "gain")
@@ -292,7 +293,7 @@ ltt = unto NoteInTime <<< prop (Proxy :: _ "tag") <<< l_j
 setter' :: forall t163 t170 t171 t172 t175 t176 t177 t178. Traversable t170 => Profunctor t177 => Newtype t178 t175 => ((t163 -> t177 t178 t176) -> t171 -> t172) -> t177 t175 t176 -> t170 t171 -> t170 t172
 setter' len = set (traversed <<< len) <<< lcmap unwrap
 
-lns :: forall event. Lens' (Note event) (Either' (UnsampledTimeIs event -> Sample) Sample)
+lns :: forall event. Lens' (Note event) (VE.Either (UnsampledTimeIs event -> Sample) Sample)
 lns = unto Note <<< prop (Proxy :: _ "sampleFoT")
 
 changeSample
@@ -301,7 +302,7 @@ changeSample
   => Sample
   -> container (Note event)
   -> container (Note event)
-changeSample = set (traversed <<< lns <<< iso (_either Left Right) (either _left _right) <<< _Right)
+changeSample = set (traversed <<< lns <<< iso (VE.either Left Right) (either VE.left VE.right) <<< _Right)
 
 lnr :: forall event. Lens' (Note event) (FoT event)
 lnr = unto Note <<< prop (Proxy :: _ "rateFoT")
@@ -369,7 +370,7 @@ lcw = lens getWeight
       singleton: \ii -> \weight -> singleton $ ii { env = ii.env { weight = weight } }
   })
 
-lct :: forall note. Lens' (Cycle note) (Maybe' String)
+lct :: forall note. Lens' (Cycle note) (VM.Maybe String)
 lct = lens getTag
   ( unwrap >>> match
       { branching: \ii -> \tag -> branching $ ii { env = ii.env { tag = tag } }
@@ -388,38 +389,38 @@ focus :: forall a. (a -> Boolean) -> Prism' a a
 focus = prism' identity <<< maybeBool
 
 ---
-b :: forall event. Cycle (Maybe' (Note event)) -> Array (Cycle (Maybe' (Note event))) -> Cycle (Maybe' (Note event))
-b bx by = branching { env: { weight: 1.0, tag: _nothing }, cycles: NEA.fromNonEmpty (bx :| by) }
+b :: forall event. Cycle (VM.Maybe (Note event)) -> Array (Cycle (VM.Maybe (Note event))) -> Cycle (VM.Maybe (Note event))
+b bx by = branching { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (bx :| by) }
 
-b' :: forall event. Cycle (Maybe' (Note event)) -> Cycle (Maybe' (Note event))
+b' :: forall event. Cycle (VM.Maybe (Note event)) -> Cycle (VM.Maybe (Note event))
 b' bx = b bx []
 
-b_ :: Cycle (Maybe' (Note Unit)) -> Array (Cycle (Maybe' (Note Unit))) -> Cycle (Maybe' (Note Unit))
+b_ :: Cycle (VM.Maybe (Note Unit)) -> Array (Cycle (VM.Maybe (Note Unit))) -> Cycle (VM.Maybe (Note Unit))
 b_ = b
 
-i :: forall event. Cycle (Maybe' (Note event)) -> Array (Cycle (Maybe' (Note event))) -> Cycle (Maybe' (Note event))
-i sx sy = internal { env: { weight: 1.0, tag: _nothing }, cycles: NEA.fromNonEmpty (sx :| sy) }
+i :: forall event. Cycle (VM.Maybe (Note event)) -> Array (Cycle (VM.Maybe (Note event))) -> Cycle (VM.Maybe (Note event))
+i sx sy = internal { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (sx :| sy) }
 
-i' :: forall event. Cycle (Maybe' (Note event)) -> Cycle (Maybe' (Note event))
+i' :: forall event. Cycle (VM.Maybe (Note event)) -> Cycle (VM.Maybe (Note event))
 i' sx = i sx []
 
-i_ :: Cycle (Maybe' (Note Unit)) -> Array (Cycle (Maybe' (Note Unit))) -> Cycle (Maybe' (Note Unit))
+i_ :: Cycle (VM.Maybe (Note Unit)) -> Array (Cycle (VM.Maybe (Note Unit))) -> Cycle (VM.Maybe (Note Unit))
 i_ = i
 
-x :: forall event. Cycle (Maybe' (Note event)) -> Array (Cycle (Maybe' (Note event))) -> Cycle (Maybe' (Note event))
-x xx xy = simultaneous { env: { weight: 1.0, tag: _nothing }, cycles: NEA.fromNonEmpty (xx :| xy) }
+x :: forall event. Cycle (VM.Maybe (Note event)) -> Array (Cycle (VM.Maybe (Note event))) -> Cycle (VM.Maybe (Note event))
+x xx xy = simultaneous { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (xx :| xy) }
 
-x' :: forall event. Cycle (Maybe' (Note event)) -> Cycle (Maybe' (Note event))
+x' :: forall event. Cycle (VM.Maybe (Note event)) -> Cycle (VM.Maybe (Note event))
 x' sx = x sx []
 
-x_ :: Cycle (Maybe' (Note Unit)) -> Array (Cycle (Maybe' (Note Unit))) -> Cycle (Maybe' (Note Unit))
+x_ :: Cycle (VM.Maybe (Note Unit)) -> Array (Cycle (VM.Maybe (Note Unit))) -> Cycle (VM.Maybe (Note Unit))
 x_ = x
 
-u :: Cycle (Maybe' (Note Unit)) -> Cycle (Maybe' (Note Unit))
+u :: Cycle (VM.Maybe (Note Unit)) -> Cycle (VM.Maybe (Note Unit))
 u = identity
 
-drone :: forall event. String -> Maybe' (DroneNote event)
-drone = _just <<< sample2drone <<< Sample
+drone :: forall event. String -> VM.Maybe (DroneNote event)
+drone = VM.just <<< sample2drone <<< Sample
 
 nel2nea :: NonEmptyList ~> NonEmptyArray
 nel2nea (NonEmptyList (aa :| bb)) = NEA.fromNonEmpty (aa :| A.fromFoldable bb)
@@ -436,7 +437,7 @@ whiteSpace1 = do
 afterMatterP :: Parser AfterMatter
 afterMatterP = do
   asInternal <-
-    optionMaybe $
+    map (maybe VM.nothing VM.just) $ optionMaybe $
       ( ( fromString
             <<< CU.fromCharArray
             <<< A.fromFoldable <$> (char '*' *> many anyDigit)
@@ -451,30 +452,30 @@ afterMatterP = do
 tagP :: Parser Tag
 tagP = do
   tag <- optionMaybe (map (CU.fromCharArray <<< A.fromFoldable) (char ';' *> many1 alphaNum))
-  pure { tag: maybe _nothing _just tag }
+  pure { tag: maybe VM.nothing VM.just tag }
 
 weightP :: Parser Number
 weightP = do
   _ <- skipSpaces
   add 1.0 <<< toNumber <<< L.length <$> sepEndBy (char '_') whiteSpace1
 
-sampleP :: forall event. Parser (Maybe' (Note event))
+sampleP :: forall event. Parser (VM.Maybe (Note event))
 sampleP = do
   possiblySample <- sampleName
   -- if it is in our original stock, there may be a level
   -- of indirection. for example, chin and chin:0 are the same sample
   -- otherwise, if it is not in the original stock, we use the name as-is
   case O.lookup possiblySample S.nameToSampleMNO of
-    Nothing -> pure $ _just $ Note
-      { sampleFoT: _right $ Sample possiblySample
+    Nothing -> pure $ VM.just $ Note
+      { sampleFoT: VE.right $ Sample possiblySample
       , bufferOffsetFoT: const 0.0
       , rateFoT: const 1.0
       , forward: true
       , volumeFoT: const 1.0
       }
-    Just foundSample -> pure $ maybe _nothing _just foundSample
+    Just foundSample -> pure $ maybe VM.nothing VM.just foundSample
 
-branchingcyclePInternal :: forall event. Int -> Parser (Cycle (Maybe' (Note event)))
+branchingcyclePInternal :: forall event. Int -> Parser (Cycle (VM.Maybe (Note event)))
 branchingcyclePInternal lvl = branching <$> do
   cycles <- between (skipSpaces *> char '<' *> skipSpaces) (skipSpaces *> char '>' *> skipSpaces) do
     pure unit -- breaks recursion
@@ -490,7 +491,7 @@ branchingcyclePInternal lvl = branching <$> do
 ident ∷ Int → String
 ident lvl = (fold (map (const " ") (0 .. (lvl - 1))))
 
-simultaneouscyclePInternal :: forall event. Int -> Parser (Cycle (Maybe' (Note event)))
+simultaneouscyclePInternal :: forall event. Int -> Parser (Cycle (VM.Maybe (Note event)))
 simultaneouscyclePInternal lvl = simultaneous <$> do
   cycles <- between (skipSpaces *> char '[' *> skipSpaces) (skipSpaces *> char ']' *> skipSpaces) do
     pure unit -- breaks recursion
@@ -502,15 +503,15 @@ simultaneouscyclePInternal lvl = simultaneous <$> do
   --  = spy (ident i <> "simultaneouscyclePInternal got weights " <> show i) true
   pure { cycles, env: { weight, tag } }
 
-sequentialcyclePInternal :: forall event. Int -> Parser (Cycle (Maybe' (Note event)))
+sequentialcyclePInternal :: forall event. Int -> Parser (Cycle (VM.Maybe (Note event)))
 sequentialcyclePInternal lvl = map internal do
   pure unit -- breaks recursion
   --  = spy (ident i <> "rewinding to sequentialcyclePInternal starting many " <> show i) true
   cycles <- skipSpaces *> (map nel2nea $ sepEndBy1 (cyclePInternal (lvl + 1)) skipSpaces)
   --  = spy (ident i <> "rewinding to sequentialcyclePInternal ending many with length " <> (show $ NEA.length cycles) <> " " <> show i) true
-  pure { cycles, env: { weight: 1.0, tag: _nothing } }
+  pure { cycles, env: { weight: 1.0, tag: VM.nothing } }
 
-singleSampleP :: forall event. Int -> Parser (Cycle (Maybe' (Note event)))
+singleSampleP :: forall event. Int -> Parser (Cycle (VM.Maybe (Note event)))
 singleSampleP _ = do
   skipSpaces
   sample <- sampleP
@@ -518,20 +519,18 @@ singleSampleP _ = do
   skipSpaces
   { tag } <- tagP
   weight <- weightP
-  pure $ case afterMatter.asInternal of
-    Nothing -> singleton { env: { weight, tag }, val: sample }
-    Just ntimes -> internal { env: { weight, tag }, cycles: map (const $ singleton { env: { weight: 1.0, tag: _nothing }, val: sample }) ntimes }
+  pure $ VM.maybe' (\_ -> singleton { env: { weight, tag }, val: sample }) (\ntimes -> internal { env: { weight, tag }, cycles: map (const $ singleton { env: { weight: 1.0, tag: VM.nothing }, val: sample }) ntimes }) afterMatter.asInternal
 
-cyclePInternal :: forall event. Int -> Parser (Cycle (Maybe' (Note event)))
+cyclePInternal :: forall event. Int -> Parser (Cycle (VM.Maybe (Note event)))
 cyclePInternal lvl = try (branchingcyclePInternal lvl)
   <|> try (simultaneouscyclePInternal lvl)
   <|> try (singleSampleP lvl)
   <|> fail "Could not parse cycle"
 
-cycleP_ :: Parser (Cycle (Maybe' (Note Unit)))
+cycleP_ :: Parser (Cycle (VM.Maybe (Note Unit)))
 cycleP_ = cycleP
 
-cycleP :: forall event. Parser (Cycle (Maybe' (Note event)))
+cycleP :: forall event. Parser (Cycle (VM.Maybe (Note event)))
 cycleP = go <$> cyclePInternal 0
   where
   c cycles env ctr =
@@ -547,7 +546,7 @@ cycleP = go <$> cyclePInternal 0
     , singleton: \note -> singleton note
     }
 
-flatMap :: forall event. NonEmptyArray (NonEmptyArray (NonEmptyArray (NoteInTime (Maybe' (Note event))))) -> NonEmptyArray (NonEmptyArray (NoteInTime (Maybe' (Note event))))
+flatMap :: forall event. NonEmptyArray (NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note event))))) -> NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note event))))
 flatMap nea =
   let
     aa = NEA.head nea
@@ -569,7 +568,7 @@ getWeight = unwrap >>> match
   , singleton: _.env >>> _.weight
   }
 
-getTag :: forall a. Cycle a -> Maybe' String
+getTag :: forall a. Cycle a -> VM.Maybe String
 getTag = unwrap >>> match
   { branching: _.env >>> _.tag
   , simultaneous: _.env >>> _.tag
@@ -633,7 +632,7 @@ onTag = onTags <<< Set.member
 onTag' :: forall a. String -> (a -> a) -> Cycle a -> Cycle a
 onTag' = onTags' <<< Set.member
 
-cycleToSequence :: forall event. CycleDuration -> Cycle (Maybe' (Note event)) -> NonEmptyArray (NonEmptyArray (NoteInTime (Maybe' (Note event))))
+cycleToSequence :: forall event. CycleDuration -> Cycle (VM.Maybe (Note event)) -> NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note event))))
 cycleToSequence (CycleDuration cycleDuration) = go { currentSubdivision: cycleDuration, currentOffset: 0.0 }
   where
   go state = unwrap >>> match
@@ -671,19 +670,19 @@ cycleToSequence (CycleDuration cycleDuration) = go { currentSubdivision: cycleDu
         (\{ currentSubdivision, currentOffset, vv } -> go { currentSubdivision, currentOffset } vv)
         withStateInfo
 
-unrest :: forall event. NonEmptyArray (NonEmptyArray (NoteInTime (Maybe' (Note event)))) -> Array (Array (NoteInTime (Note event)))
+unrest :: forall event. NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note event)))) -> Array (Array (NoteInTime (Note event)))
 unrest = filter (not <<< A.null) <<< NEA.toArray <<< map go
   where
   go =
     filterMap
       ( \(NoteInTime { startsAt, duration, cycleDuration, tag, note }) ->
-          _maybe Nothing Just  $ map (NoteInTime <<< { startsAt, duration, cycleDuration, tag, note: _ }) note
+          VM.maybe Nothing Just  $ map (NoteInTime <<< { startsAt, duration, cycleDuration, tag, note: _ }) note
       ) <<< NEA.toArray
 
 asScore :: forall event. Boolean -> NonEmptyArray (NoteInFlattenedTime (Note event)) -> NextCycle event
 asScore force flattened = NextCycle
   { force
-  , samples: compact $ NEA.toArray $ map (unwrap >>> _.note >>> unwrap >>> _.sampleFoT >>> _hush) flattened
+  , samples: compact $ NEA.toArray $ map (unwrap >>> _.note >>> unwrap >>> _.sampleFoT >>> VE.hush >>> VM.maybe Nothing Just) flattened
   , func: scoreInput
   }
   where
@@ -766,16 +765,16 @@ openVoices = fromHomogeneous
   $ map
       ( const $ s
           ( intentionalSilenceForInternalUseOnly_
-              :: Cycle (Maybe' (Note event))
+              :: Cycle (VM.Maybe (Note event))
           )
       )
   $ homogeneous (mempty :: { | EWF Unit })
 
-type OpenDrones event = { | AH (Maybe' (DroneNote event)) }
+type OpenDrones event = { | AH (VM.Maybe (DroneNote event)) }
 
 openDrones :: forall event. OpenDrones event
 openDrones = fromHomogeneous
-  $ map (const _nothing)
+  $ map (const VM.nothing)
   $ homogeneous (mempty :: { | AH Unit })
 
 openFuture :: forall event. CycleDuration -> TheFuture event
@@ -785,7 +784,7 @@ openFuture cycleDuration = TheFuture
           $ homogeneous (mempty :: { | EWF Unit })
       )
   $ Record.union
-      ( fromHomogeneous $ map (const _nothing)
+      ( fromHomogeneous $ map (const VM.nothing)
           $ homogeneous (mempty :: { | AH Unit })
       )
       { title: "wagsi @ tidal"
@@ -798,7 +797,7 @@ intentionalSilenceForInternalUseOnly
   :: forall event. CycleDuration -> NoteInFlattenedTime (Note event)
 intentionalSilenceForInternalUseOnly (CycleDuration cl) = NoteInFlattenedTime
   { note: Note
-      { sampleFoT: _right $ S.intentionalSilenceForInternalUseOnly__Sample
+      { sampleFoT: VE.right $ S.intentionalSilenceForInternalUseOnly__Sample
       , rateFoT: const 1.0
       , forward: true
       , volumeFoT: const 1.0
@@ -813,7 +812,7 @@ intentionalSilenceForInternalUseOnly (CycleDuration cl) = NoteInFlattenedTime
   , currentCycle: 0
   , bigCycleDuration: cl
   , littleCycleDuration: cl
-  , tag: _nothing
+  , tag: VM.nothing
   }
 
 parseWithBrackets
@@ -823,17 +822,17 @@ parseWithBrackets
        { error :: String
        , pos :: Int
        }
-       (Cycle (Maybe' (Note event)))
+       (Cycle (VM.Maybe (Note event)))
 parseWithBrackets = runParser cycleP
   <<< ("[ " <> _)
   <<< (_ <> " ]")
 
-parse :: forall event. String -> Cycle (Maybe' (Note event))
+parse :: forall event. String -> Cycle (VM.Maybe (Note event))
 parse = fromMaybe intentionalSilenceForInternalUseOnly_
   <<< hush
   <<< parseWithBrackets
 
-parse_ :: String -> Cycle (Maybe' (Note Unit))
+parse_ :: String -> Cycle (VM.Maybe (Note Unit))
 parse_ = parse
 
 parseInternal :: forall event. String -> CycleDuration -> NextCycle event
@@ -849,7 +848,7 @@ parseInternal str dur = asScore false
   $ hush
   $ parseWithBrackets str
 
-rend :: forall event. Cycle (Maybe' (Note event)) -> CycleDuration -> (NextCycle event)
+rend :: forall event. Cycle (VM.Maybe (Note event)) -> CycleDuration -> (NextCycle event)
 rend cyn dur = asScore false
   $ maybe (pure (intentionalSilenceForInternalUseOnly dur)) flattenScore
   $ NEA.fromArray
@@ -859,18 +858,18 @@ rend cyn dur = asScore false
   $ cycleToSequence dur
   $ cyn
 
-rend_ :: Cycle (Maybe' (Note Unit)) -> CycleDuration -> (NextCycle Unit)
+rend_ :: Cycle (VM.Maybe (Note Unit)) -> CycleDuration -> (NextCycle Unit)
 rend_ = rend
 
-rendNit :: forall event. NonEmptyArray (NonEmptyArray (NoteInTime (Maybe' (Note event)))) -> NextCycle event
+rendNit :: forall event. NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note event)))) -> NextCycle event
 rendNit = asScore false <<< s2f
 
-c2s :: forall event. Cycle (Maybe' (Note event)) -> CycleDuration -> NonEmptyArray (NonEmptyArray (NoteInTime (Maybe' (Note event))))
+c2s :: forall event. Cycle (VM.Maybe (Note event)) -> CycleDuration -> NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note event))))
 c2s = flip cycleToSequence
 
 s2f
   :: forall event
-   . NonEmptyArray (NonEmptyArray (NoteInTime (Maybe' (Note event))))
+   . NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note event))))
   -> NonEmptyArray (NoteInFlattenedTime (Note event))
 s2f = fromMaybe
   <$>
@@ -898,9 +897,9 @@ qcSamples = map fst $ fromMaybe (sampleToDur') $ NEA.fromArray $ NEA.filter ((>)
 genSingleSample :: Gen Sample
 genSingleSample = elements qcSamples
 
-genSingleton :: forall event. Gen (Cycle (Maybe' (Note event)))
+genSingleton :: forall event. Gen (Cycle (VM.Maybe (Note event)))
 genSingleton =
-  singleton <<< { env: { weight: 1.0, tag: _nothing }, val: _ } <<< _just <<< Note
+  singleton <<< { env: { weight: 1.0, tag: VM.nothing }, val: _ } <<< VM.just <<< Note
     <<<
       { rateFoT: const 1.0
       , volumeFoT: const 1.0
@@ -908,15 +907,15 @@ genSingleton =
       , bufferOffsetFoT: const 0.0
       , sampleFoT: _
       }
-    <<< _right <$> genSingleSample
+    <<< VE.right <$> genSingleSample
 
-genRest :: forall event. Gen (Cycle (Maybe' (Note event)))
-genRest = pure $ singleton { env: { weight: 1.0, tag: _nothing }, val: _nothing }
+genRest :: forall event. Gen (Cycle (VM.Maybe (Note event)))
+genRest = pure $ singleton { env: { weight: 1.0, tag: VM.nothing }, val: VM.nothing }
 
-genSingletonOrRest :: forall event. Gen (Cycle (Maybe' (Note event)))
+genSingletonOrRest :: forall event. Gen (Cycle (VM.Maybe (Note event)))
 genSingletonOrRest = frequency (wrap ((7.0 /\ genSingleton) :| (3.0 /\ genRest) : Nil))
 
-genCycle :: forall event. Gen (Cycle (Maybe' (Note event)))
+genCycle :: forall event. Gen (Cycle (VM.Maybe (Note event)))
 genCycle = go 0
   where
   genSameInternal nn = do
@@ -925,7 +924,7 @@ genCycle = go 0
       0 -> elements $ NEA.fromNonEmpty (2 :| [ 3, 4, 5, 6 ])
       1 -> elements $ NEA.fromNonEmpty (2 :| [ 3, 4, 6 ])
       _ -> elements $ NEA.fromNonEmpty (2 :| [ 3, 4 ])
-    pure $ internal { env: { weight: 1.0, tag: _nothing }, cycles: NEA.fromNonEmpty (sn :| A.replicate (ii - 1) sn) }
+    pure $ internal { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (sn :| A.replicate (ii - 1) sn) }
   genDiffInternal nn = do
     let gg = go (nn + 1)
     ii <- case nn of
@@ -933,9 +932,9 @@ genCycle = go 0
       1 -> elements $ NEA.fromNonEmpty (2 :| [ 4 ])
       _ -> elements $ NEA.fromNonEmpty (2 :| [])
     cycles <- sequence $ NEA.fromNonEmpty (gg :| A.replicate (ii - 1) gg)
-    pure $ internal { env: { weight: 1.0, tag: _nothing }, cycles }
-  genBranching nn = resize 3 (branching <<< { env: { weight: 1.0, tag: _nothing }, cycles: _ } <$> arrayOf1 (go (nn + 1)))
-  genSimultaneous nn = resize 3 (simultaneous <<< { env: { weight: 1.0, tag: _nothing }, cycles: _ } <$> arrayOf1 (go (nn + 1)))
+    pure $ internal { env: { weight: 1.0, tag: VM.nothing }, cycles }
+  genBranching nn = resize 3 (branching <<< { env: { weight: 1.0, tag: VM.nothing }, cycles: _ } <$> arrayOf1 (go (nn + 1)))
+  genSimultaneous nn = resize 3 (simultaneous <<< { env: { weight: 1.0, tag: VM.nothing }, cycles: _ } <$> arrayOf1 (go (nn + 1)))
   go 0 =
     let
       zz = 0
@@ -992,14 +991,14 @@ genCycle = go 0
         )
   go _ = genSingletonOrRest
 
-genVoice :: forall event. Number -> CycleDuration -> Gen { cycle :: Cycle (Maybe' (Note event)), voice :: Voice event }
+genVoice :: forall event. Number -> CycleDuration -> Gen { cycle :: Cycle (VM.Maybe (Note event)), voice :: Voice event }
 genVoice vol cl = do
   let globals = Globals { gain: const vol, fx: const calm }
   cycle <- genCycle
   let next = asScore false $ s2f $ c2s cycle cl
   pure $ { cycle, voice: Voice { globals, next } }
 
-djQuickCheck :: forall event. Gen { cycle :: Cycle (Maybe' (Note event)), future :: TheFuture event }
+djQuickCheck :: forall event. Gen { cycle :: Cycle (VM.Maybe (Note event)), future :: TheFuture event }
 djQuickCheck = do
   cl' <- arbitrary
   let cycleDuration = CycleDuration (1.0 + 3.0 * cl')
@@ -1012,8 +1011,8 @@ djQuickCheck = do
         { earth
         , wind
         , fire
-        , air: _nothing
-        , heart: _nothing
+        , air: VM.nothing
+        , heart: VM.nothing
         , title: "d j q u i c k c h e c k"
         , sounds: Object.empty
         , preload: []
@@ -1027,13 +1026,13 @@ class S s event where
 instance sString :: S String event where
   s = map plainly <<< parseInternal
 
-instance sCycle :: S (Cycle (Maybe' (Note event))) event where
+instance sCycle :: S (Cycle (VM.Maybe (Note event))) event where
   s = map plainly <<< rend
 
-instance sNit :: S (NonEmptyArray (NonEmptyArray (NoteInTime (Maybe' (Note event))))) event where
+instance sNit :: S (NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note event))))) event where
   s = map plainly <<< pure <<< rendNit
 
-instance sNitFT :: S (CycleDuration -> (NonEmptyArray (NonEmptyArray (NoteInTime (Maybe' (Note event)))))) event where
+instance sNitFT :: S (CycleDuration -> (NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note event)))))) event where
   s = map plainly <<< map rendNit
 
 instance sNift :: S (NonEmptyArray (NoteInFlattenedTime (Note event))) event where

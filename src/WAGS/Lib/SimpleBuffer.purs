@@ -15,7 +15,8 @@ import Data.Semigroup.First (First(..))
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\))
 import Data.Unfoldable as UF
-import WAGS.Graph.Parameter (AudioParameter_(..), _maybe)
+import Data.Variant.Maybe as VM
+import WAGS.Graph.Parameter (AudioParameter_(..))
 import WAGS.Lib.BufferPool (ABufferPool, BuffyVec, CfBufferPool, TimeOffsets)
 import WAGS.Lib.Latch (ALatchAP, CfLatchAP, LatchAP)
 import WAGS.Lib.Piecewise (makeLoopingTerracedR)
@@ -93,7 +94,7 @@ actualizeSimpleBuffer nea' end'' = go
           { time
           , offsets: UF.fromMaybe do
               AudioParameter { param, timeOffset } <- extract latch
-              (First param') <- _maybe Nothing Just param
+              (First param') <- VM.maybe Nothing Just param
               _ <- param'
               pure { offset: timeOffset }
           }
