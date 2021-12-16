@@ -142,6 +142,7 @@ let additions =
           , "effect"
           , "either"
           , "event"
+          , "everythings-better-with-variants"
           , "foldable-traversable"
           , "foreign"
           , "foreign-object"
@@ -170,7 +171,20 @@ let additions =
           , "simple-json"
           ]
         , repo = "https://github.com/mikesol/purescript-wags.git"
-        , version = "v0.6.2"
+        , version = "v0.6.3"
+        }
+      , everythings-better-with-variants =
+        { dependencies =
+          [ "control"
+          , "foldable-traversable"
+          , "invariant"
+          , "newtype"
+          , "prelude"
+          , "psci-support"
+          , "variant"
+          ]
+        , repo = "https://github.com/mikesol/purescript-everythings-better-with-variants.git"
+        , version = "v0.0.0"
         }
       , free =
         { dependencies =
