@@ -110,18 +110,27 @@ newtype Globals event
 
 derive instance newtypeGlobals :: Newtype (Globals event) _
 
--- for now, do not rewind clock time
--- perhaps come up with a different version of time
--- to represent concatenation
 combineGlobals :: forall event. CycleDuration -> Globals event -> Globals event -> Globals event
 combineGlobals (CycleDuration breakpoint) (Globals a) (Globals b) = Globals
   { gain:
-      \ipt@(TimeIsAndWas { timeIs: (ClockTimeIs ti) }) ->
+      \ipt@
+         ( TimeIsAndWas
+             { timeIs: timeIs@(ClockTimeIs ti)
+             , valWas
+             , timeWas
+             }
+         ) ->
         if ti.clockTime < breakpoint then a.gain ipt
-        else b.gain ipt
+        else b.gain
+          ( TimeIsAndWas
+              { timeIs: turnBackTime breakpoint timeIs
+              , valWas
+              , timeWas: map (turnBackTime breakpoint) timeWas
+              }
+          )
   , fx: \ipt@(ClockTimeIs timeIs) ->
       if timeIs.clockTime < breakpoint then a.fx ipt
-      else b.fx ipt
+      else b.fx (turnBackTime breakpoint ipt)
   }
 
 newtype Voice event
