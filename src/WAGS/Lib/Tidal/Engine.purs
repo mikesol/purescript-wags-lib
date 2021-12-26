@@ -121,12 +121,7 @@ internal0 = { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0.5, sam
               , bigCycleDuration
               }
           }
-      ) ->
-      if either (const false) ((eq silenceSample) || (maybe true (\{ buffer: { forward: fwd } } -> startTime + bufferDuration fwd < time) <<< (flip Map.lookup buffers))) sampleFoT then
-        { control: { initialEntropies: initialEntropiesOld }
-        , scene: { singleton: gain 0.0 (playBuf { onOff: _off } silence) }
-        }
-      else { newSeed: mkSeed seed, size: globalSize } # evalGen do
+      ) -> { newSeed: mkSeed seed, size: globalSize } # evalGen do
         volumeEntropy <- arbitrary
         rateEntropy <- arbitrary
         offsetEntropy <- arbitrary
