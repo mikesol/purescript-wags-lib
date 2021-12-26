@@ -112,7 +112,7 @@ instance semigroupNextCycle :: Semigroup (NextCycle event) where
                                     yy { time: zz.time, headroomInSeconds: zz.headroomInSeconds, input: { next: nx } }
                                 )
                             )
-                            a.func
+                            b.func
                         }
                     }
                 }
