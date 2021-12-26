@@ -44,7 +44,7 @@ import WAGS.Lib.Learn (FullSceneBuilder, usingcr)
 import WAGS.Lib.Tidal.Download (downloadSilence, initialBuffers)
 import WAGS.Lib.Tidal.FX (calm)
 import WAGS.Lib.Tidal.Tidal (asScore, intentionalSilenceForInternalUseOnly, openFuture)
-import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleDuration(..), CycleInfo, DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, Sample, SampleCache, TheFuture, TidalRes, TimeIs(..), UnsampledTimeIs(..), h2v')
+import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleDuration(..), CycleInfo, DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, Sample(..), SampleCache, TheFuture, TidalRes, TimeIs(..), UnsampledTimeIs(..), h2v')
 import WAGS.Lib.Tidal.Util (r2b)
 import WAGS.Run (SceneI(..))
 import WAGS.Subgraph (SubSceneSig)
@@ -78,6 +78,8 @@ sampleF
 sampleF sample forward silence =
   maybe silence
     (if forward then _.buffer.forward else _.buffer.backwards) <<< Map.lookup sample
+
+silenceSample = Sample "intentionalSilenceForInternalUseOnly" :: Sample
 
 internal0
   :: forall event
@@ -120,82 +122,82 @@ internal0 = { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0.5, sam
               }
           }
       ) -> { newSeed: mkSeed seed, size: globalSize } # evalGen do
-      volumeEntropy <- arbitrary
-      rateEntropy <- arbitrary
-      offsetEntropy <- arbitrary
-      sampleEntropy <- arbitrary
-      initialEntropies <-
-        if starting then { volume: _, rate: _, sample: _, bufferOffset: _ }
-          <$> arbitrary
-          <*> arbitrary
-          <*> arbitrary
-          <*> arbitrary
-        else pure initialEntropiesOld
-      let
-        sampleTime = time - startTime
-        bigCycleTime = time - cycleStartsAt
-        littleCycleTime = time - (cycleStartsAt + (toNumber currentCycle * littleCycleDuration))
-        normalizedBigCycleTime = bigCycleTime / bigCycleDuration
-        normalizedLittleCycleTime = littleCycleTime / littleCycleDuration
-        normalizedClockTime = 0.0 -- cuz it's infinite :-P
-        thisIsUnsampledTime initialEntropy' entropy' =
-          UnsampledTimeIs
-            { bigCycleTime
-            , littleCycleTime
-            , event
-            , clockTime: time
-            , normalizedClockTime
-            , normalizedBigCycleTime
-            , normalizedLittleCycleTime
-            , littleCycleDuration
-            , bigCycleDuration
-            , initialEntropy: initialEntropy'
-            , entropy: entropy'
-            }
-        buf = sampleF (either ((#) (thisIsUnsampledTime initialEntropies.sample sampleEntropy)) identity sampleFoT)
-          forward
-          silence
-          buffers
-        normalizedSampleTime = sampleTime / duration
-        thisIsTime initialEntropy' entropy' =
-          TimeIs
-            { sampleTime
-            , event
-            , bigCycleTime
-            , littleCycleTime
-            , clockTime: time
-            , normalizedClockTime
-            , normalizedSampleTime
-            , normalizedBigCycleTime
-            , normalizedLittleCycleTime
-            , littleCycleDuration
-            , bigCycleDuration
-            , bufferDuration: bufferDuration buf
-            , initialEntropy: initialEntropy'
-            , entropy: entropy'
-            }
-        vol = ff globalFF $ pure $ volumeFoT (thisIsTime initialEntropies.volume volumeEntropy)
-      pure
-        { control: { initialEntropies }
-        , scene:
-            { singleton:
-                gain
-                  vol
-                  ( playBuf
-                      { onOff:
-                          ff globalFF
-                            $
-                              if starting then
-                                ff (max 0.0 (startTime - time)) (pure _offOn)
-                              else
-                                pure _on
-                      , bufferOffset: bufferOffsetFoT (thisIsTime initialEntropies.bufferOffset offsetEntropy)
-                      , playbackRate: ff globalFF $ pure $ rateFoT (thisIsTime initialEntropies.rate rateEntropy)
-                      }
-                      buf
-                  )
-            }
-        }
+        volumeEntropy <- arbitrary
+        rateEntropy <- arbitrary
+        offsetEntropy <- arbitrary
+        sampleEntropy <- arbitrary
+        initialEntropies <-
+          if starting then { volume: _, rate: _, sample: _, bufferOffset: _ }
+            <$> arbitrary
+            <*> arbitrary
+            <*> arbitrary
+            <*> arbitrary
+          else pure initialEntropiesOld
+        let
+          sampleTime = time - startTime
+          bigCycleTime = time - cycleStartsAt
+          littleCycleTime = time - (cycleStartsAt + (toNumber currentCycle * littleCycleDuration))
+          normalizedBigCycleTime = bigCycleTime / bigCycleDuration
+          normalizedLittleCycleTime = littleCycleTime / littleCycleDuration
+          normalizedClockTime = 0.0 -- cuz it's infinite :-P
+          thisIsUnsampledTime initialEntropy' entropy' =
+            UnsampledTimeIs
+              { bigCycleTime
+              , littleCycleTime
+              , event
+              , clockTime: time
+              , normalizedClockTime
+              , normalizedBigCycleTime
+              , normalizedLittleCycleTime
+              , littleCycleDuration
+              , bigCycleDuration
+              , initialEntropy: initialEntropy'
+              , entropy: entropy'
+              }
+          buf = sampleF (either ((#) (thisIsUnsampledTime initialEntropies.sample sampleEntropy)) identity sampleFoT)
+            forward
+            silence
+            buffers
+          normalizedSampleTime = sampleTime / duration
+          thisIsTime initialEntropy' entropy' =
+            TimeIs
+              { sampleTime
+              , event
+              , bigCycleTime
+              , littleCycleTime
+              , clockTime: time
+              , normalizedClockTime
+              , normalizedSampleTime
+              , normalizedBigCycleTime
+              , normalizedLittleCycleTime
+              , littleCycleDuration
+              , bigCycleDuration
+              , bufferDuration: bufferDuration buf
+              , initialEntropy: initialEntropy'
+              , entropy: entropy'
+              }
+          vol = ff globalFF $ pure $ volumeFoT (thisIsTime initialEntropies.volume volumeEntropy)
+        pure
+          { control: { initialEntropies }
+          , scene:
+              { singleton:
+                  gain
+                    vol
+                    ( playBuf
+                        { onOff:
+                            ff globalFF
+                              $
+                                if starting then
+                                  ff (max 0.0 (startTime - time)) (pure _offOn)
+                                else
+                                  pure _on
+                        , bufferOffset: bufferOffsetFoT (thisIsTime initialEntropies.bufferOffset offsetEntropy)
+                        , playbackRate: ff globalFF $ pure $ rateFoT (thisIsTime initialEntropies.rate rateEntropy)
+                        }
+                        buf
+                    )
+              }
+          }
 
 internal1
   :: forall event
@@ -491,7 +493,7 @@ engine dmo evt bsc = usingcr
     let
       event = maybe control.justInCaseTheLastEvent ({ isFresh: true, value: _ } <<< _.interactivity) trigger
       theFuture = theFutureFromWorld event { clockTime: time' }
-      ewf = let { earth, wind, fire } = unwrap theFuture in { earth, wind, fire }
+      ewf = let { earth, wind, fire, lambert, hendricks, ross, peter, paul, mary } = unwrap theFuture in { earth, wind, fire, lambert, hendricks, ross, peter, paul, mary }
       -- to actualize is the next cycle, which could be the current cycle
       toActualize =
         map

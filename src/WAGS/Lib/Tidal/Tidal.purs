@@ -185,6 +185,12 @@ make cl rr = TheFuture $ Record.union
       { earth: z.earth
       , wind: z.wind
       , fire: z.fire
+      , lambert: z.lambert
+      , hendricks: z.hendricks
+      , ross: z.ross
+      , peter: z.peter
+      , paul: z.paul
+      , mary: z.mary
       }
   )
   { air: z.air
@@ -1005,12 +1011,19 @@ djQuickCheck = do
   { cycle, voice: earth } <- genVoice 1.0 cycleDuration
   wind <- pure (openVoice cycleDuration)
   fire <- pure (openVoice cycleDuration)
+  lambert <- pure (openVoice cycleDuration)
+  hendricks <- pure (openVoice cycleDuration)
+  ross <- pure (openVoice cycleDuration)
+  peter <- pure (openVoice cycleDuration)
+  paul <- pure (openVoice cycleDuration)
+  mary <- pure (openVoice cycleDuration)
   pure $
     { cycle
     , future: TheFuture
         { earth
         , wind
         , fire
+        , lambert, hendricks, ross, peter, paul, mary
         , air: VM.nothing
         , heart: VM.nothing
         , title: "d j q u i c k c h e c k"
