@@ -17,7 +17,6 @@ import Data.Traversable (sequence)
 import Data.Tuple (uncurry)
 import Data.Tuple.Nested (type (/\), (/\))
 import Data.Typelevel.Num (class Pos)
-import Data.Variant (match)
 import Data.Variant.Either (either)
 import Data.Variant.Maybe as VM
 import Data.Vec ((+>))
@@ -218,7 +217,12 @@ internal1 = emptyLags # SG.loopUsingScene
     let
       prevTime = extract timeLag
       prevVolume = extract volumeLag
-      thisIsTime = wrap { clockTime: time, event, entropy: volumeEntropy }
+      thisIsTime = wrap
+        { clockTime: time
+        , adulteratedClockTime: time
+        , event
+        , entropy: volumeEntropy
+        }
       volumeNow = (unwrap globals).gain $ wrap { timeWas: prevTime, timeIs: thisIsTime, valWas: prevVolume }
     pure
       { control:
@@ -231,6 +235,7 @@ internal1 = emptyLags # SG.loopUsingScene
                   ( (unwrap globals).fx
                       ( wrap
                           { clockTime: time
+                          , adulteratedClockTime: time
                           , event
                           , entropy: tumultEntropy
                           }
@@ -301,7 +306,12 @@ droneSg = emptyLags
               rateEntropy <- arbitrary
               tumultEntropy <- arbitrary
               let
-                thisIsTime entropy' = wrap { clockTime: time', event, entropy: entropy' }
+                thisIsTime entropy' = wrap
+                  { clockTime: time'
+                  , adulteratedClockTime: time'
+                  , event
+                  , entropy: entropy'
+                  }
                 buf = sampleF sample forward silence buffers
                 prevTime = extract timeLag
                 prevVolume = extract volumeLag

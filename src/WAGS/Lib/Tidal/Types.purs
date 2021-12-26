@@ -120,7 +120,7 @@ combineGlobals (CycleDuration breakpoint) (Globals a) (Globals b) = Globals
              , timeWas
              }
          ) ->
-        if ti.clockTime < breakpoint then a.gain ipt
+        if ti.adulteratedClockTime < breakpoint then a.gain ipt
         else b.gain
           ( TimeIsAndWas
               { timeIs: turnBackTime breakpoint timeIs
@@ -129,7 +129,7 @@ combineGlobals (CycleDuration breakpoint) (Globals a) (Globals b) = Globals
               }
           )
   , fx: \ipt@(ClockTimeIs timeIs) ->
-      if timeIs.clockTime < breakpoint then a.fx ipt
+      if timeIs.adulteratedClockTime < breakpoint then a.fx ipt
       else b.fx (turnBackTime breakpoint ipt)
   }
 
@@ -366,6 +366,7 @@ instance sampleShow :: Show Sample where
 
 type ClockTimeIs' event =
   { clockTime :: Number
+  , adulteratedClockTime :: Number
   , event :: IsFresh event
   , entropy :: Number
   }
@@ -377,8 +378,21 @@ turnBackTime
    . Number
   -> ClockTimeIs event
   -> ClockTimeIs event
-turnBackTime n (ClockTimeIs { clockTime, event, entropy }) =
-  ClockTimeIs { clockTime: clockTime - n, event, entropy }
+turnBackTime
+  n
+  ( ClockTimeIs
+      { clockTime
+      , adulteratedClockTime
+      , event
+      , entropy
+      }
+  ) =
+  ClockTimeIs
+    { clockTime
+    , adulteratedClockTime: adulteratedClockTime - n
+    , event
+    , entropy
+    }
 
 derive instance newtypeClockTimeIs :: Newtype (ClockTimeIs event) _
 

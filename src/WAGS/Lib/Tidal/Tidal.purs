@@ -108,7 +108,7 @@ import Data.Lens.Record (prop)
 import Data.List (List(..), foldMap, foldl, (:))
 import Data.List as L
 import Data.List.Types (NonEmptyList(..))
-import Data.Maybe (Maybe(..), fromMaybe, fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.NonEmpty ((:|))
 import Data.Profunctor (class Profunctor, lcmap)
