@@ -70,7 +70,7 @@ doDownloads' audioContext { read, write } push lock key = do
   let
     sets = Set.fromFoldable
       ( preload
-          <> fold (map v2s [ earth, wind, fire ])
+          <> fold (map v2s [ earth, wind, fire, lambert, hendricks, ross, peter, paul, mary ])
           <> (compact $ (map (maybe Nothing Just)) $ ((map <<< map) d2s [ air, heart ]))
       )
     samplesToUrl = Set.toMap sets # Map.mapMaybeWithKey \samp@(Sample k) _ -> Object.lookup (unwrap samp) sounds <|> do
@@ -82,4 +82,4 @@ doDownloads' audioContext { read, write } push lock key = do
     write newMap
     push key
   where
-  TheFuture { earth, wind, fire, air, heart, sounds, preload } = lock key
+  TheFuture { earth, wind, fire, lambert, hendricks, ross, peter, paul, mary, air, heart, sounds, preload } = lock key
