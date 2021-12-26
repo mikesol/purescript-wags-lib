@@ -49,7 +49,13 @@ data Action
   | Freqz (Array String)
 
 wag :: AFuture
-wag =
+wag = wag0 <> wag1
+
+wag1 :: AFuture
+wag1 = make 2.0 { earth: s "hh hh hh hh" }
+
+wag0 :: AFuture
+wag0 =
   make (m2 * 2.0)
     { earth: s
         $ set (traversed <<< traversed <<< lnr)
@@ -70,7 +76,7 @@ wag =
           $ onTag "print" (changeVolume \{ normalizedSampleTime: _ } -> 0.2)
           $ onTag "pk" (changeRate \{ normalizedSampleTime: t } -> 0.7 - t * 0.2)
           $ onTag "kt" (changeRate \{ normalizedSampleTime: t } -> min 1.0 (0.6 + t * 0.8))
-          $ parse_ "psr:3 ~ [~ chin*4] ~ ~ [psr:3;ph psr:3;ph ~ ] _ _ , [~ ~ ~ <psr:1;print kurt:0;print> ] kurt:5;kt , ~ ~ pluck:1;pk ~ ~ ~ ~ ~ "
+          $ parse_ "psr:3 ~ [~ chin*4] ~ [psr:3;ph psr:3;ph ~ ] , [~ ~ ~ <psr:1;print kurt:0;print> ] kurt:5;kt , ~ ~ pluck:1;pk ~ ~ ~ ~ ~ "
     , fire:
         map
           ( set lvt

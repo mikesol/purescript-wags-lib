@@ -2,23 +2,26 @@ module WAGS.Lib.Tidal.Types where
 
 import Prelude
 
+import Control.Alt ((<|>))
+import Control.Comonad.Cofree (hoistCofree)
+import Data.Array as Array
 import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Function (on)
-import Data.Variant.Either (either, Either)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
-import Data.Newtype (class Newtype, unwrap, wrap)
+import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
 import Data.Symbol (class IsSymbol)
 import Data.Typelevel.Num (class Nat, class Succ, D0, D1, D8)
-import Data.Variant (Variant, inj, match)
+import Data.Variant.Either (either, Either)
+import Data.Variant.Maybe (Maybe)
 import Data.Vec as V
 import Foreign.Object (Object)
+import Foreign.Object as Object
 import Prim.Row as Row
 import Prim.RowList as RL
 import Record as Record
 import Type.Proxy (Proxy(..))
-import Data.Variant.Maybe (Maybe)
 import WAGS.Lib.BufferPool (AScoredBufferPool)
 import WAGS.Lib.Score (CfNoteStream')
 import WAGS.Tumult (Tumultuous)
@@ -90,6 +93,13 @@ newtype NextCycle event
       -> CfNoteStream' (RBuf event) (Next event)
   }
 
+instance semigroupNextCycle :: Semigroup (NextCycle event) where
+  append (NextCycle a) next@(NextCycle b) = NextCycle
+    { force: a.force || b.force
+    , samples: Array.nub (a.samples <> b.samples)
+    , func: map (hoistCofree (\y { time, headroomInSeconds } -> y { time, headroomInSeconds, input: { next } })) a.func
+    }
+
 derive instance newtypeNextCycle :: Newtype (NextCycle event) _
 
 newtype Globals event
@@ -100,10 +110,30 @@ newtype Globals event
 
 derive instance newtypeGlobals :: Newtype (Globals event) _
 
+-- for now, do not rewind clock time
+-- perhaps come up with a different version of time
+-- to represent concatenation
+combineGlobals :: forall event. CycleDuration -> Globals event -> Globals event -> Globals event
+combineGlobals (CycleDuration breakpoint) (Globals a) (Globals b) = Globals
+  { gain:
+      \ipt@(TimeIsAndWas { timeIs: (ClockTimeIs ti) }) ->
+        if ti.clockTime < breakpoint then a.gain ipt
+        else b.gain ipt
+  , fx: \ipt@(ClockTimeIs timeIs) ->
+      if timeIs.clockTime < breakpoint then a.fx ipt
+      else b.fx ipt
+  }
+
 newtype Voice event
   = Voice { globals :: Globals event, next :: NextCycle event }
 
 derive instance newtypeVoice :: Newtype (Voice event) _
+
+combineVoices :: forall event. CycleDuration -> Voice event -> Voice event -> Voice event
+combineVoices breakpoint (Voice a) (Voice b) = Voice
+  { globals: combineGlobals breakpoint a.globals b.globals
+  , next: a.next <> b.next
+  }
 
 type EWF' (v :: Type) r
   = (earth :: v, wind :: v, fire :: v | r)
@@ -130,6 +160,19 @@ newtype TheFuture event
       )
   }
 
+instance semigroupTheFuture :: Semigroup (TheFuture event) where
+  append (TheFuture a) (TheFuture b) = TheFuture
+    { earth: combineVoices a.cycleDuration a.earth b.earth
+    , wind: combineVoices a.cycleDuration a.wind b.wind
+    , fire: combineVoices a.cycleDuration a.fire b.fire
+    , air: a.air <|> b.air
+    , heart: a.heart <|> b.heart
+    , sounds: Object.union a.sounds b.sounds
+    , title: a.title <> " <> " <> b.title
+    , preload: a.preload <> b.preload
+    , cycleDuration: a.cycleDuration + b.cycleDuration
+    }
+
 derive instance newtypeTheFuture :: Newtype (TheFuture event) _
 
 --- @@ ---
@@ -141,6 +184,8 @@ derive instance newtypeCycleDuration :: Newtype CycleDuration _
 derive instance eqCycleDuration :: Eq CycleDuration
 
 derive instance ordCycleDuration :: Ord CycleDuration
+
+derive newtype instance semiringCycleDuration :: Semiring CycleDuration
 
 newtype NoteInTime note
   = NoteInTime
@@ -317,6 +362,14 @@ type ClockTimeIs' event =
   }
 
 newtype ClockTimeIs event = ClockTimeIs (ClockTimeIs' event)
+
+turnBackTime
+  :: forall event
+   . Number
+  -> ClockTimeIs event
+  -> ClockTimeIs event
+turnBackTime n (ClockTimeIs { clockTime, event, entropy }) =
+  ClockTimeIs { clockTime: clockTime - n, event, entropy }
 
 derive instance newtypeClockTimeIs :: Newtype (ClockTimeIs event) _
 
