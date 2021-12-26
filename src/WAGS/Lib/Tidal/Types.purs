@@ -94,10 +94,31 @@ newtype NextCycle event
   }
 
 instance semigroupNextCycle :: Semigroup (NextCycle event) where
-  append (NextCycle a) next@(NextCycle b) = NextCycle
-    { force: a.force || b.force
+  append (NextCycle a) (NextCycle b) = NextCycle
+    { force: a.force
     , samples: Array.nub (a.samples <> b.samples)
-    , func: map (hoistCofree (\y { time, headroomInSeconds } -> y { time, headroomInSeconds, input: { next } })) a.func
+    , func: map
+        ( hoistCofree
+            ( \y { time, headroomInSeconds, input: { next: nx } } -> y
+                { time
+                , headroomInSeconds
+                , input:
+                    { next: NextCycle
+                        { force: b.force
+                        , samples: b.samples
+                        , func: map
+                            ( hoistCofree
+                                ( \yy zz ->
+                                    yy { time: zz.time, headroomInSeconds: zz.headroomInSeconds, input: { next: nx } }
+                                )
+                            )
+                            a.func
+                        }
+                    }
+                }
+            )
+        )
+        a.func
     }
 
 derive instance newtypeNextCycle :: Newtype (NextCycle event) _
