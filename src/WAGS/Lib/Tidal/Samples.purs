@@ -2068,9 +2068,7 @@ module WAGS.Lib.Tidal.Samples
 
 import Prelude
 
-import Data.Map (Map)
 import Data.Variant.Either (either, right)
-import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
 import Data.Tuple.Nested ((/\), type (/\))
@@ -2079,7 +2077,7 @@ import Foreign.Object as Object
 import Safe.Coerce (coerce)
 import Unsafe.Coerce (unsafeCoerce)
 import WAGS.Lib.Tidal.FX (calm)
-import WAGS.Lib.Tidal.Types (BufferUrl(..), ClockTimeIs, DroneNote(..), Note(..), Sample(..), Samples, TimeIs, TimeIsAndWas, UnsampledTimeIs)
+import WAGS.Lib.Tidal.Types (BufferUrl(..), ClockTimeIs, FXInput, DroneNote(..), Note(..), Sample(..), Samples, TimeIs, TimeIsAndWas, UnsampledTimeIs)
 import WAGS.WebAPI (BrowserAudioBuffer)
 
 unsafeSamples :: Samples ~> Object
@@ -4082,6 +4080,9 @@ instance entropyTimeIsAndWas :: Entropy (TimeIsAndWas (TimeIs event)) where
 instance entropyClockTimeIs :: Entropy (ClockTimeIs event) where
   entropy = unwrap >>> _.entropy
 
+instance entropyFXInput:: Entropy (FXInput event) where
+  entropy = unwrap >>> _.entropy
+
 instance entropyClockTimeIsAndWas :: Entropy (TimeIsAndWas (ClockTimeIs event)) where
   entropy = unwrap >>> _.timeIs >>> unwrap >>> _.entropy
 
@@ -4098,6 +4099,9 @@ instance clockTimeTimeIsAndWas :: ClockTime (TimeIsAndWas (TimeIs event)) where
   clockTime = unwrap >>> _.timeIs >>> unwrap >>> _.clockTime
 
 instance clockTimeClockTimeIs :: ClockTime (ClockTimeIs event) where
+  clockTime = unwrap >>> _.clockTime
+
+instance clockTimeFXInput :: ClockTime (FXInput event) where
   clockTime = unwrap >>> _.clockTime
 
 instance clockTimeClockTimeIsAndWas :: ClockTime (TimeIsAndWas (ClockTimeIs event)) where
@@ -8560,5 +8564,5 @@ nameToSample =
 
 type ForwardBackwards = { forward :: BrowserAudioBuffer, backwards :: BrowserAudioBuffer }
 
-sampleToUrls :: Map Sample BufferUrl
-sampleToUrls = Map.fromFoldable $ map (\(a /\ b) -> Sample a /\ BufferUrl b) $ (Object.toUnfoldable :: _ -> Array _) $ unsafeSamples urls
+sampleToUrls :: Object BufferUrl
+sampleToUrls = Object.fromFoldable $ map (\(a /\ b) -> a /\ BufferUrl b) $ (Object.toUnfoldable :: _ -> Array _) $ unsafeSamples urls

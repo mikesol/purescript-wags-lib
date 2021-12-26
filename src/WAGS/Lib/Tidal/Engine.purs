@@ -3,6 +3,7 @@ module WAGS.Lib.Tidal.Engine where
 import Prelude
 
 import Control.Comonad (extract)
+import Foreign.Object as Object
 import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Data.Compactable (compact)
@@ -10,7 +11,6 @@ import Data.Either (Either)
 import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
 import Data.Int (toNumber)
 import Data.Lens (_1, over)
-import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (unwrap, wrap)
 import Data.Traversable (sequence)
@@ -27,6 +27,7 @@ import Effect.Random (randomInt)
 import Effect.Ref as Ref
 import FRP.Behavior (Behavior, behavior)
 import FRP.Event (Event, makeEvent, subscribe)
+import Foreign.Object (Object)
 import Prim.Row (class Lacks)
 import Prim.RowList (class RowToList)
 import Random.LCG (mkSeed)
@@ -67,7 +68,7 @@ sampleF
   :: Sample
   -> Boolean
   -> BrowserAudioBuffer
-  -> Map.Map Sample
+  -> Object
        { buffer ::
            { backwards :: BrowserAudioBuffer
            , forward :: BrowserAudioBuffer
@@ -77,7 +78,7 @@ sampleF
   -> BrowserAudioBuffer
 sampleF sample forward silence =
   maybe silence
-    (if forward then _.buffer.forward else _.buffer.backwards) <<< Map.lookup sample
+    (if forward then _.buffer.forward else _.buffer.backwards) <<< Object.lookup (unwrap sample)
 
 silenceSample = Sample "intentionalSilenceForInternalUseOnly" :: Sample
 
@@ -122,82 +123,82 @@ internal0 = { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0.5, sam
               }
           }
       ) -> { newSeed: mkSeed seed, size: globalSize } # evalGen do
-        volumeEntropy <- arbitrary
-        rateEntropy <- arbitrary
-        offsetEntropy <- arbitrary
-        sampleEntropy <- arbitrary
-        initialEntropies <-
-          if starting then { volume: _, rate: _, sample: _, bufferOffset: _ }
-            <$> arbitrary
-            <*> arbitrary
-            <*> arbitrary
-            <*> arbitrary
-          else pure initialEntropiesOld
-        let
-          sampleTime = time - startTime
-          bigCycleTime = time - cycleStartsAt
-          littleCycleTime = time - (cycleStartsAt + (toNumber currentCycle * littleCycleDuration))
-          normalizedBigCycleTime = bigCycleTime / bigCycleDuration
-          normalizedLittleCycleTime = littleCycleTime / littleCycleDuration
-          normalizedClockTime = 0.0 -- cuz it's infinite :-P
-          thisIsUnsampledTime initialEntropy' entropy' =
-            UnsampledTimeIs
-              { bigCycleTime
-              , littleCycleTime
-              , event
-              , clockTime: time
-              , normalizedClockTime
-              , normalizedBigCycleTime
-              , normalizedLittleCycleTime
-              , littleCycleDuration
-              , bigCycleDuration
-              , initialEntropy: initialEntropy'
-              , entropy: entropy'
-              }
-          buf = sampleF (either ((#) (thisIsUnsampledTime initialEntropies.sample sampleEntropy)) identity sampleFoT)
-            forward
-            silence
-            buffers
-          normalizedSampleTime = sampleTime / duration
-          thisIsTime initialEntropy' entropy' =
-            TimeIs
-              { sampleTime
-              , event
-              , bigCycleTime
-              , littleCycleTime
-              , clockTime: time
-              , normalizedClockTime
-              , normalizedSampleTime
-              , normalizedBigCycleTime
-              , normalizedLittleCycleTime
-              , littleCycleDuration
-              , bigCycleDuration
-              , bufferDuration: bufferDuration buf
-              , initialEntropy: initialEntropy'
-              , entropy: entropy'
-              }
-          vol = ff globalFF $ pure $ volumeFoT (thisIsTime initialEntropies.volume volumeEntropy)
-        pure
-          { control: { initialEntropies }
-          , scene:
-              { singleton:
-                  gain
-                    vol
-                    ( playBuf
-                        { onOff:
-                            ff globalFF
-                              $
-                                if starting then
-                                  ff (max 0.0 (startTime - time)) (pure _offOn)
-                                else
-                                  pure _on
-                        , bufferOffset: bufferOffsetFoT (thisIsTime initialEntropies.bufferOffset offsetEntropy)
-                        , playbackRate: ff globalFF $ pure $ rateFoT (thisIsTime initialEntropies.rate rateEntropy)
-                        }
-                        buf
-                    )
-              }
-          }
+      volumeEntropy <- arbitrary
+      rateEntropy <- arbitrary
+      offsetEntropy <- arbitrary
+      sampleEntropy <- arbitrary
+      initialEntropies <-
+        if starting then { volume: _, rate: _, sample: _, bufferOffset: _ }
+          <$> arbitrary
+          <*> arbitrary
+          <*> arbitrary
+          <*> arbitrary
+        else pure initialEntropiesOld
+      let
+        sampleTime = time - startTime
+        bigCycleTime = time - cycleStartsAt
+        littleCycleTime = time - (cycleStartsAt + (toNumber currentCycle * littleCycleDuration))
+        normalizedBigCycleTime = bigCycleTime / bigCycleDuration
+        normalizedLittleCycleTime = littleCycleTime / littleCycleDuration
+        normalizedClockTime = 0.0 -- cuz it's infinite :-P
+        thisIsUnsampledTime initialEntropy' entropy' =
+          UnsampledTimeIs
+            { bigCycleTime
+            , littleCycleTime
+            , event
+            , clockTime: time
+            , normalizedClockTime
+            , normalizedBigCycleTime
+            , normalizedLittleCycleTime
+            , littleCycleDuration
+            , bigCycleDuration
+            , initialEntropy: initialEntropy'
+            , entropy: entropy'
+            }
+        buf = sampleF (either ((#) (thisIsUnsampledTime initialEntropies.sample sampleEntropy)) identity sampleFoT)
+          forward
+          silence
+          buffers
+        normalizedSampleTime = sampleTime / duration
+        thisIsTime initialEntropy' entropy' =
+          TimeIs
+            { sampleTime
+            , event
+            , bigCycleTime
+            , littleCycleTime
+            , clockTime: time
+            , normalizedClockTime
+            , normalizedSampleTime
+            , normalizedBigCycleTime
+            , normalizedLittleCycleTime
+            , littleCycleDuration
+            , bigCycleDuration
+            , bufferDuration: bufferDuration buf
+            , initialEntropy: initialEntropy'
+            , entropy: entropy'
+            }
+        vol = ff globalFF $ pure $ volumeFoT (thisIsTime initialEntropies.volume volumeEntropy)
+      pure
+        { control: { initialEntropies }
+        , scene:
+            { singleton:
+                gain
+                  vol
+                  ( playBuf
+                      { onOff:
+                          ff globalFF
+                            $
+                              if starting then
+                                ff (max 0.0 (startTime - time)) (pure _offOn)
+                              else
+                                pure _on
+                      , bufferOffset: bufferOffsetFoT (thisIsTime initialEntropies.bufferOffset offsetEntropy)
+                      , playbackRate: ff globalFF $ pure $ rateFoT (thisIsTime initialEntropies.rate rateEntropy)
+                      }
+                      buf
+                  )
+            }
+        }
 
 internal1
   :: forall event
@@ -239,6 +240,8 @@ internal1 = emptyLags # SG.loopUsingScene
                           { clockTime: time
                           , adulteratedClockTime: time
                           , event
+                          , buffers
+                          , silence
                           , entropy: tumultEntropy
                           }
                       )
@@ -308,7 +311,7 @@ droneSg = emptyLags
               rateEntropy <- arbitrary
               tumultEntropy <- arbitrary
               let
-                thisIsTime entropy' = wrap
+                thisIsTime entropy' =
                   { clockTime: time'
                   , adulteratedClockTime: time'
                   , event
@@ -319,25 +322,25 @@ droneSg = emptyLags
                 prevVolume = extract volumeLag
                 volumeNow = volumeFoT $ wrap
                   { timeWas: prevTime
-                  , timeIs: thisIsTime volumeEntropy
+                  , timeIs: wrap $ thisIsTime volumeEntropy
                   , valWas: prevVolume
                   }
                 prevLoopStart = extract loopStartLag
                 loopStartNow = loopStartFoT $ wrap
                   { timeWas: prevTime
-                  , timeIs: thisIsTime loopStartEntropy
+                  , timeIs: wrap $ thisIsTime loopStartEntropy
                   , valWas: prevLoopStart
                   }
                 prevLoopEnd = extract loopEndLag
                 loopEndNow = loopEndFoT $ wrap
                   { timeWas: prevTime
-                  , timeIs: thisIsTime loopEndEntropy
+                  , timeIs: wrap $ thisIsTime loopEndEntropy
                   , valWas: prevLoopEnd
                   }
                 prevRate = extract rateLag
                 rateNow = rateFoT $ wrap
                   { timeWas: prevTime
-                  , timeIs: thisIsTime rateEntropy
+                  , timeIs: wrap $ thisIsTime rateEntropy
                   , valWas: prevRate
                   }
                 vol = ff globalFF $ pure $ volumeNow
@@ -349,12 +352,12 @@ droneSg = emptyLags
                     , loopEndLag: unwrapCofree loopEndLag loopEndNow
                     -- for now, the previous time gets no entropy
                     -- we can refactor to change this later (slightly more computationally expensive)
-                    , timeLag: unwrapCofree timeLag (thisIsTime 0.0)
+                    , timeLag: unwrapCofree timeLag (wrap $ thisIsTime 0.0)
                     }
                 , scene:
                     { singleton:
                         gain vol
-                          { dronetmlt: tumult (tumultFoT (thisIsTime tumultEntropy))
+                          { dronetmlt: tumult (tumultFoT (wrap $ Record.union { buffers, silence } (thisIsTime tumultEntropy)))
                               { voice: loopBuf
                                   { onOff: ff globalFF $ pure _on
                                   , loopStart: loopStartNow

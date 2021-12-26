@@ -146,7 +146,7 @@ import WAGS.Lib.Tidal.FX (WAGSITumult)
 import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, sample2drone)
 import WAGS.Lib.Tidal.Samples as S
-import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, ClockTimeIs, CycleDuration(..), DroneNote(..), EWF, EWF', FoT, Globals(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..), ClockTimeIs')
+import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..))
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -254,14 +254,12 @@ l_r = prism' VE.right (VM.maybe Nothing Just <<< VE.hush)
 lvg :: forall event. Lens' (Voice event) (O'Past event)
 lvg = unto Voice <<< prop (Proxy :: _ "globals") <<< unto Globals <<< prop (Proxy :: _ "gain")
 
-lvt :: forall event. Lens' (Voice event) (ClockTimeIs event -> Tumultuous D1 "output" (voice :: Unit))
+lvt :: forall event. Lens' (Voice event) (FXInput event -> Tumultuous D1 "output" (voice :: Unit))
 lvt = unto Voice <<< prop (Proxy :: _ "globals") <<< unto Globals <<< prop (Proxy :: _ "fx")
 
 addEffect
   :: forall event
-   . ( ClockTimeIs' event
-       -> Tumultuous D1 "output" (voice :: Unit)
-     )
+   . (FXInput' event -> Tumultuous D1 "output" (voice :: Unit))
   -> Voice event
   -> Voice event
 addEffect = set lvt <<< lcmap unwrap
@@ -364,17 +362,18 @@ ldf = unto DroneNote <<< prop (Proxy :: _ "forward")
 ldv :: forall event. Lens' (DroneNote event) (O'Past event)
 ldv = unto DroneNote <<< prop (Proxy :: _ "volumeFoT")
 
-ldt :: forall event. Lens' (DroneNote event) (ClockTimeIs event -> WAGSITumult)
+ldt :: forall event. Lens' (DroneNote event) (FXInput event -> WAGSITumult)
 ldt = unto DroneNote <<< prop (Proxy :: _ "tumultFoT")
 
 lcw :: forall note. Lens' (Cycle note) Number
 lcw = lens getWeight
-  ( unwrap >>> match {
-      branching: \ii -> \weight -> branching $ ii { env = ii.env { weight = weight } },
-      simultaneous: \ii -> \weight -> simultaneous $ ii { env = ii.env { weight = weight } },
-      internal: \ii -> \weight -> internal $ ii { env = ii.env { weight = weight } },
-      singleton: \ii -> \weight -> singleton $ ii { env = ii.env { weight = weight } }
-  })
+  ( unwrap >>> match
+      { branching: \ii -> \weight -> branching $ ii { env = ii.env { weight = weight } }
+      , simultaneous: \ii -> \weight -> simultaneous $ ii { env = ii.env { weight = weight } }
+      , internal: \ii -> \weight -> internal $ ii { env = ii.env { weight = weight } }
+      , singleton: \ii -> \weight -> singleton $ ii { env = ii.env { weight = weight } }
+      }
+  )
 
 lct :: forall note. Lens' (Cycle note) (VM.Maybe String)
 lct = lens getTag
@@ -682,7 +681,7 @@ unrest = filter (not <<< A.null) <<< NEA.toArray <<< map go
   go =
     filterMap
       ( \(NoteInTime { startsAt, duration, cycleDuration, tag, note }) ->
-          VM.maybe Nothing Just  $ map (NoteInTime <<< { startsAt, duration, cycleDuration, tag, note: _ }) note
+          VM.maybe Nothing Just $ map (NoteInTime <<< { startsAt, duration, cycleDuration, tag, note: _ }) note
       ) <<< NEA.toArray
 
 asScore :: forall event. Boolean -> NonEmptyArray (NoteInFlattenedTime (Note event)) -> NextCycle event
@@ -1023,7 +1022,12 @@ djQuickCheck = do
         { earth
         , wind
         , fire
-        , lambert, hendricks, ross, peter, paul, mary
+        , lambert
+        , hendricks
+        , ross
+        , peter
+        , paul
+        , mary
         , air: VM.nothing
         , heart: VM.nothing
         , title: "d j q u i c k c h e c k"
@@ -1073,7 +1077,7 @@ betwixt mn' mx' n = if n < mn then mn else if n > mx then mx else n
   mx = max mn' mx'
 
 derivative :: forall a. ClockTime a => (TimeIsAndWas a -> Number) -> Number -> TimeIsAndWas a -> Number
-derivative f y v = match {just: \a->a, nothing: \_ -> f v} $ unwrap do
+derivative f y v = match { just: \a -> a, nothing: \_ -> f v } $ unwrap do
   let v' = unwrap v
   let ti = v'.timeIs
   mti' <- v'.timeWas

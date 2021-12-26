@@ -6,6 +6,7 @@ import Data.Array as A
 import Data.Either (Either(..), either)
 import Data.Int (toNumber)
 import Data.Map (Map)
+import WAGS.Lib.Tidal.ObjectHack as OH
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Newtype (wrap)
@@ -18,6 +19,7 @@ import Effect.Class (liftEffect)
 import Effect.Class.Console as Log
 import FRP.Behavior (Behavior)
 import FRP.Event (Event)
+import Foreign.Object as Object
 import Prim.Row (class Lacks)
 import Prim.Row as Row
 import Prim.RowList (class RowToList, RowList)
@@ -25,8 +27,8 @@ import Prim.RowList as RL
 import Record as Record
 import Type.Proxy (Proxy(..))
 import WAGS.Interpret (decodeAudioDataFromUri)
-import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 import WAGS.Lib.Tidal.Types (BufferUrl(..), ForwardBackwards, Sample, SampleCache)
+import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
 data ArrayBuffer
 
@@ -52,26 +54,30 @@ mapped audioCtx url@(BufferUrl bf) = backoff do
   backwards <- liftEffect $ reverseAudioBuffer audioCtx forward
   pure { url, buffer: { forward, backwards } }
 
+
 getBuffersUsingCache
-  :: Map Sample BufferUrl
+  :: Object.Object BufferUrl
   -> AudioContext
-  -> Map Sample { url :: BufferUrl, buffer :: ForwardBackwards }
-  -> Aff (Map Sample { url :: BufferUrl, buffer :: ForwardBackwards })
+  -> Object.Object { url :: BufferUrl, buffer :: ForwardBackwards }
+  -> Aff (Object.Object { url :: BufferUrl, buffer :: ForwardBackwards })
 getBuffersUsingCache nameToUrl audioCtx alreadyDownloaded = do
-  res <- Map.union <$> newBuffers <*> pure alreadyDownloaded
+  res <- Object.union <$> newBuffers <*> pure alreadyDownloaded
   pure res
   where
-  toDownload :: Map Sample BufferUrl
-  toDownload = nameToUrl # Map.mapMaybeWithKey \k v -> case Map.lookup k alreadyDownloaded of
-    Nothing -> Just v
-    Just { url } -> if url == v then Nothing else Just v
+  toDownload :: Object.Object BufferUrl
+  toDownload = OH.catMaybes $ Object.mapWithKey
+    ( \k v -> case Object.lookup k alreadyDownloaded of
+        Nothing -> Just v
+        Just { url } -> if url == v then Nothing else Just v
+    )
+    nameToUrl
 
-  toDownloadArr :: Array (Sample /\ BufferUrl)
-  toDownloadArr = Map.toUnfoldable toDownload
+  toDownloadArr :: Array (String /\ BufferUrl)
+  toDownloadArr = Object.toUnfoldable toDownload
 
-  traversed :: Array (Sample /\ BufferUrl) -> ParAff (Array (Sample /\ { url :: BufferUrl, buffer :: ForwardBackwards }))
+  traversed :: Array (String /\ BufferUrl) -> ParAff (Array (String /\ { url :: BufferUrl, buffer :: ForwardBackwards }))
   traversed = traverse \(k /\ v) -> parallel $ backoff $ ((/\) k <$> mapped audioCtx v)
-  newBuffers = map (Map.fromFoldable <<< join) $ (traverse (sequential <<< traversed) (chunks 100 toDownloadArr))
+  newBuffers = map (Object.fromFoldable <<< join) $ (traverse (sequential <<< traversed) (chunks 100 toDownloadArr))
 
 backoff :: Aff ~> Aff
 backoff aff = go 0

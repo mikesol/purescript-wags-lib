@@ -3,9 +3,9 @@ module WAGS.Lib.Tidal where
 import Prelude
 
 import Data.Either (Either(..))
-import Data.Map as Map
 import Effect.Class (liftEffect)
 import Effect.Ref as Ref
+import Foreign.Object as Object
 import WAGS.Lib.Learn (FullSceneBuilder)
 import WAGS.Lib.Tidal.Engine (engine)
 import WAGS.Lib.Tidal.Types (IsFresh, SampleCache, TheFuture, TidalRes)
@@ -48,6 +48,6 @@ tdlx
        )
        TidalRes
 tdlx aFuture = engine (pure unit) (pure $ const aFuture) $ Right \ac -> do
-  rf <- liftEffect $ Ref.new Map.empty
+  rf <- liftEffect $ Ref.new Object.empty
   doDownloads ac rf (const $ pure unit) ((#) { clockTime: 0.0 }) aFuture
   liftEffect $ Ref.read rf

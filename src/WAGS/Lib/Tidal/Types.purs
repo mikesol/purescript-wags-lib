@@ -8,7 +8,8 @@ import Data.Array as Array
 import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Function (on)
 import Data.Generic.Rep (class Generic)
-import Data.Map (Map)
+import Data.Lens (over)
+import Data.Lens.Iso.Newtype (unto)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
 import Data.Symbol (class IsSymbol)
@@ -47,8 +48,10 @@ derive instance ordBufferUrl :: Ord BufferUrl
 instance showBufferUrl :: Show BufferUrl where
   show (BufferUrl s) = "BufferUrl <" <> s <> ">"
 
+type SampleInfo = { url :: BufferUrl, buffer :: ForwardBackwards }
+
 type SampleCache
-  = Map Sample { url :: BufferUrl, buffer :: ForwardBackwards }
+  = Object SampleInfo
 
 --- @@ ---
 type RBuf event
@@ -126,7 +129,7 @@ derive instance newtypeNextCycle :: Newtype (NextCycle event) _
 newtype Globals event
   = Globals
   { gain :: O'Past event
-  , fx :: ClockTimeIs event -> Tumultuous D1 "output" (voice :: Unit)
+  , fx :: FXInput event -> Tumultuous D1 "output" (voice :: Unit)
   }
 
 derive instance newtypeGlobals :: Newtype (Globals event) _
@@ -144,14 +147,14 @@ combineGlobals (CycleDuration breakpoint) (Globals a) (Globals b) = Globals
         if ti.adulteratedClockTime < breakpoint then a.gain ipt
         else b.gain
           ( TimeIsAndWas
-              { timeIs: turnBackTime breakpoint timeIs
+              { timeIs: over (unto ClockTimeIs) (turnBackTime breakpoint) timeIs
               , valWas
-              , timeWas: map (turnBackTime breakpoint) timeWas
+              , timeWas: map (over (unto ClockTimeIs) (turnBackTime breakpoint)) timeWas
               }
           )
-  , fx: \ipt@(ClockTimeIs timeIs) ->
+  , fx: \ipt@(FXInput timeIs) ->
       if timeIs.adulteratedClockTime < breakpoint then a.fx ipt
-      else b.fx (turnBackTime breakpoint ipt)
+      else b.fx (over (unto FXInput) (turnBackTime breakpoint) ipt)
   }
 
 newtype Voice event
@@ -334,7 +337,7 @@ newtype DroneNote event
   , loopStartFoT :: O'Past event
   , loopEndFoT :: O'Past event
   , volumeFoT :: O'Past event
-  , tumultFoT :: ClockTimeIs event -> Tumultuous D1 "output" (voice :: Unit)
+  , tumultFoT :: FXInput event -> Tumultuous D1 "output" (voice :: Unit)
   }
 
 derive instance newtypeDroneNote :: Newtype (DroneNote event) _
@@ -402,6 +405,29 @@ derive instance sampleOrd :: Ord Sample
 instance sampleShow :: Show Sample where
   show (Sample i) = "Sample <" <> show i <> ">"
 
+turnBackTime
+  :: forall r
+   . Number
+  -> { adulteratedClockTime :: Number | r }
+  -> { adulteratedClockTime :: Number | r }
+turnBackTime n r = r
+  { adulteratedClockTime = r.adulteratedClockTime - n
+  }
+
+type FXInput' event =
+  { clockTime :: Number
+  , adulteratedClockTime :: Number
+  , event :: IsFresh event
+  , entropy :: Number
+  , buffers :: SampleCache
+  , silence :: BrowserAudioBuffer
+  }
+
+newtype FXInput event = FXInput (FXInput' event)
+
+derive instance newtypeFXInput :: Newtype (FXInput event) _
+
+
 type ClockTimeIs' event =
   { clockTime :: Number
   , adulteratedClockTime :: Number
@@ -410,27 +436,6 @@ type ClockTimeIs' event =
   }
 
 newtype ClockTimeIs event = ClockTimeIs (ClockTimeIs' event)
-
-turnBackTime
-  :: forall event
-   . Number
-  -> ClockTimeIs event
-  -> ClockTimeIs event
-turnBackTime
-  n
-  ( ClockTimeIs
-      { clockTime
-      , adulteratedClockTime
-      , event
-      , entropy
-      }
-  ) =
-  ClockTimeIs
-    { clockTime
-    , adulteratedClockTime: adulteratedClockTime - n
-    , event
-    , entropy
-    }
 
 derive instance newtypeClockTimeIs :: Newtype (ClockTimeIs event) _
 
