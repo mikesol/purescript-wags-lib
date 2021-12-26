@@ -166,7 +166,18 @@ combineVoices breakpoint (Voice a) (Voice b) = Voice
   }
 
 type EWF' (v :: Type) r
-  = (earth :: v, wind :: v, fire :: v | r)
+  =
+  ( earth :: v
+  , wind :: v
+  , fire :: v
+  , lambert :: v
+  , hendricks :: v
+  , ross :: v
+  , peter :: v
+  , paul :: v
+  , mary :: v
+  | r
+  )
 
 type EWF (v :: Type)
   = EWF' v ()
@@ -195,6 +206,12 @@ instance semigroupTheFuture :: Semigroup (TheFuture event) where
     { earth: combineVoices a.cycleDuration a.earth b.earth
     , wind: combineVoices a.cycleDuration a.wind b.wind
     , fire: combineVoices a.cycleDuration a.fire b.fire
+    , lambert: combineVoices a.cycleDuration a.lambert b.lambert
+    , hendricks: combineVoices a.cycleDuration a.hendricks b.hendricks
+    , ross: combineVoices a.cycleDuration a.ross b.ross
+    , peter: combineVoices a.cycleDuration a.peter b.peter
+    , paul: combineVoices a.cycleDuration a.paul b.paul
+    , mary: combineVoices a.cycleDuration a.mary b.mary
     , air: a.air <|> b.air
     , heart: a.heart <|> b.heart
     , sounds: Object.union a.sounds b.sounds
