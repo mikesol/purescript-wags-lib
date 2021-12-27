@@ -176,9 +176,6 @@ type EWF' (v :: Type) r
   , lambert :: v
   , hendricks :: v
   , ross :: v
-  , peter :: v
-  , paul :: v
-  , mary :: v
   | r
   )
 
@@ -212,9 +209,6 @@ instance semigroupTheFuture :: Semigroup (TheFuture event) where
     , lambert: combineVoices a.cycleDuration a.lambert b.lambert
     , hendricks: combineVoices a.cycleDuration a.hendricks b.hendricks
     , ross: combineVoices a.cycleDuration a.ross b.ross
-    , peter: combineVoices a.cycleDuration a.peter b.peter
-    , paul: combineVoices a.cycleDuration a.paul b.paul
-    , mary: combineVoices a.cycleDuration a.mary b.mary
     , air: a.air <|> b.air
     , heart: a.heart <|> b.heart
     , sounds: Object.union a.sounds b.sounds

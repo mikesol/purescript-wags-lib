@@ -188,9 +188,6 @@ make cl rr = TheFuture $ Record.union
       , lambert: z.lambert
       , hendricks: z.hendricks
       , ross: z.ross
-      , peter: z.peter
-      , paul: z.paul
-      , mary: z.mary
       }
   )
   { air: z.air
@@ -1013,9 +1010,6 @@ djQuickCheck = do
   lambert <- pure (openVoice cycleDuration)
   hendricks <- pure (openVoice cycleDuration)
   ross <- pure (openVoice cycleDuration)
-  peter <- pure (openVoice cycleDuration)
-  paul <- pure (openVoice cycleDuration)
-  mary <- pure (openVoice cycleDuration)
   pure $
     { cycle
     , future: TheFuture
@@ -1025,9 +1019,6 @@ djQuickCheck = do
         , lambert
         , hendricks
         , ross
-        , peter
-        , paul
-        , mary
         , air: VM.nothing
         , heart: VM.nothing
         , title: "d j q u i c k c h e c k"

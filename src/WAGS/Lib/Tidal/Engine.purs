@@ -496,7 +496,7 @@ engine dmo evt bsc = usingcr
     let
       event = maybe control.justInCaseTheLastEvent ({ isFresh: true, value: _ } <<< _.interactivity) trigger
       theFuture = theFutureFromWorld event { clockTime: time' }
-      ewf = let { earth, wind, fire, lambert, hendricks, ross, peter, paul, mary } = unwrap theFuture in { earth, wind, fire, lambert, hendricks, ross, peter, paul, mary }
+      ewf = let { earth, wind, fire, lambert, hendricks, ross } = unwrap theFuture in { earth, wind, fire, lambert, hendricks, ross }
       -- to actualize is the next cycle, which could be the current cycle
       toActualize =
         map
