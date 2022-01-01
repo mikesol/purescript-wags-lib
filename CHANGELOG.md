@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.76] - 2021-12-27
+
+- uses a behavior for the next cycle instead of an event. This allows for behaviors to preload before a work begins, which improves throughput on start.
+
 ## [0.0.75] - 2021-12-27
 
 - drops down to six voices after more extensive testing & out of abundance of caution to decrease the possibility of underflow. more extensive testing is needed to see if the additional voices are in fact the culprit or if it is something else.
