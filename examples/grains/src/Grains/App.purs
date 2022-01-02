@@ -53,7 +53,7 @@ piece =
   startUsingWithHint
     scene
     { microphone: Nothing, mediaElement: Nothing }
-    acc
+    (const acc)
     ( iloop \(SceneI { time, headroomInSeconds, world: { entropy, buffers: { bells } } }) (a :: Acc) ->
         let
           actualized = { hbp: a.hbp { time, headroomInSeconds, freq: 12.0 * (entropy `pow` 6.0) } }

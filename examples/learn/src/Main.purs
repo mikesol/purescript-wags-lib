@@ -91,7 +91,7 @@ stories = Object.fromFoldable
       ( proxy
           ( parent "Change on emit"
               ( component
-                  $ usingc (buffers { loopy: "https://freesound.org/data/previews/110/110212_1751865-hq.mp3" }) (makeEmitter { startsAt: 0.0 })
+                  $ usingc (buffers { loopy: "https://freesound.org/data/previews/110/110212_1751865-hq.mp3" }) (const $ makeEmitter { startsAt: 0.0 })
                       \( SceneI
                            { world: { buffers: { loopy } }
                            , time

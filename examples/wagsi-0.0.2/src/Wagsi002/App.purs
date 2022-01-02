@@ -387,13 +387,13 @@ piece =
   startUsingWithHint
     scene
     { microphone: empty, mediaElement: empty }
-    acc
+    (const acc)
     ( iloop
         ( \e a ->
             let
-              acc /\ graph = scene e a
+              ax /\ graph = scene e a
             in
-              ichange graph $> acc
+              ichange graph $> ax
         )
     )
 
