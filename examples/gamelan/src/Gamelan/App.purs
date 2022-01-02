@@ -265,7 +265,7 @@ piece =
   startUsingWithHint
     scene
     { microphone: empty, mediaElement: empty }
-    acc
+    (const acc)
     ( iloop
         ( \e@(SceneI e') a ->
             let
