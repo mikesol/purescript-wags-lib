@@ -150,8 +150,8 @@ keyBufGraph (SceneI { world }) { keyBufs, rate } =
           }
       | SubgraphWorld
       }
-    internal0 = mempty # SG.loopUsingScene \{ time, ipt, ntp, chg, bufz } _ ->
-      { control: mempty
+    internal0 = (const unit) # SG.loopUsingScene \{ time, ipt, ntp, chg, bufz } _ ->
+      { control: unit
       , scene:
           { singleton:
               subgraph ipt.buffers (const $ const internal1)
@@ -173,8 +173,8 @@ keyBufGraph (SceneI { world }) { keyBufs, rate } =
       , browserBuf :: BrowserAudioBuffer
       | SubgraphWorld
       }
-    internal1 = mempty # SG.loopUsingScene \{ time, buf, browserBuf, chg, ntp, bufz } _ ->
-      { control: mempty
+    internal1 = (const unit) # SG.loopUsingScene \{ time, buf, browserBuf, chg, ntp, bufz } _ ->
+      { control: unit
       , scene:
           { singleton: case buf of
               Just (Buffy { starting, startTime }) ->

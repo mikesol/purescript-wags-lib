@@ -68,7 +68,7 @@ piece =
     , entropy :: Number
     , i :: Int
     }
-  internal0 = unit # SG.loopUsingScene \{ i, time, bells, entropy, gor } _ ->
+  internal0 = (const unit) # SG.loopUsingScene \{ i, time, bells, entropy, gor } _ ->
     { control: unit
     , scene:
         { singleton: gain 0.5

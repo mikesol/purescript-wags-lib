@@ -113,7 +113,7 @@ graph0 (SceneI { time: time', world }) { room0KickBuf: { buffers } } =
       { buf :: Maybe (Buffy Unit)
       , time :: Number
       }
-    internal0 = unit # SG.loopUsingScene \{ time, buf } _ ->
+    internal0 = (const unit) # SG.loopUsingScene \{ time, buf } _ ->
       { control: unit
       , scene:
           { singleton: case buf of
@@ -187,7 +187,7 @@ graph1 (SceneI { time: time', world }) { room1ClapBuffers } =
       { buf :: Maybe (Buffy Unit)
       , time :: Number
       }
-    internal0 = unit # SG.loopUsingScene \{ time, buf } _ ->
+    internal0 = (const unit) # SG.loopUsingScene \{ time, buf } _ ->
       { control: unit
       , scene:
           { singleton: case buf of
@@ -264,7 +264,7 @@ graph2 (SceneI { time: time', world }) { room2HiHatBuffers } =
       { buf :: Maybe (Buffy Unit)
       , time :: Number
       }
-    internal0 = unit # SG.loopUsingScene \{ time, buf } _ ->
+    internal0 = (const unit) # SG.loopUsingScene \{ time, buf } _ ->
       { control: unit
       , scene:
           { singleton: case buf of
