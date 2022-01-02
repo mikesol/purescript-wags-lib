@@ -101,7 +101,7 @@ nothing =
   makeFullScene
     $ FullScene
         { triggerWorld: defaultTriggerWorld
-        , piece: loopUsingScene (const $ const $ { control: unit, scene: speaker { c: constant 0.0 } }) unit
+        , piece: loopUsingScene (const $ const $ { control: unit, scene: speaker { c: constant 0.0 } }) mempty
         }
 
 makePitch
@@ -347,7 +347,7 @@ makeCofreeSequencedNote notes' =
                        . AudioInterpret audio engine
                       => SubScene "singleton" () { time :: Number, buf :: Maybe (Buffy ({ note :: Note volumeF durationF pitchF, pw :: APFofT Number })) } audio engine Frame0 Unit
                     internal =
-                      unit
+                      mempty
                         # SG.loopUsingScene \{ time, buf } _ ->
                             { control: unit
                             , scene:
@@ -368,7 +368,7 @@ makeCofreeSequencedNote notes' =
                           }
                     }
               )
-              { oscSimple: emitter }
+              (const { oscSimple: emitter })
         }
   where
   pwl dr v = ((0.0 /\ 0.0) :| ((min (dr * 0.3) 0.1) /\ v) : ((min (dr * 0.45) 0.3) /\ v * 0.3) : (dr /\ 0.0) : Nil)
@@ -401,7 +401,7 @@ makeLoop scene =
   makeFullScene
     $ FullScene
         { triggerWorld: defaultTriggerWorld
-        , piece: loopUsingScene (const $ const $ { control: unit, scene }) unit
+        , piece: loopUsingScene (const $ const $ { control: unit, scene }) mempty
         }
 
 instance toSceneLoop ::
@@ -423,7 +423,7 @@ makeFunctionOfTimeLoop scene =
   makeFullScene
     $ FullScene
         { triggerWorld: defaultTriggerWorld
-        , piece: loopUsingScene (\(SceneI { time }) -> const $ { control: unit, scene: scene time }) unit
+        , piece: loopUsingScene (\(SceneI { time }) -> const $ { control: unit, scene: scene time }) mempty
         }
 
 instance toSceneFunctionOfTimeLoop ::
@@ -454,7 +454,7 @@ makeFunctionOfTimeAndControlLoop (WithControl (control /\ scene)) =
   makeFullScene
     $ FullScene
         { triggerWorld: defaultTriggerWorld
-        , piece: loopUsingScene (\(SceneI { time }) -> scene time) control
+        , piece: loopUsingScene (\(SceneI { time }) -> scene time) (const control)
         }
 
 instance toSceneFunctionOfTimeAndControlLoop ::
@@ -478,7 +478,7 @@ makeString url =
               ( \(SceneI { world: { buffer } }) ->
                   const $ { control: unit, scene: speaker { b: playBuf buffer } }
               )
-              unit
+              mempty
         }
 
 instance toSceneString :: ToScene String Unit where
@@ -532,7 +532,7 @@ using
      )
   -> (SceneI { | trigger } { | world } AnalysersCb -> { | scene })
   -> FullSceneBuilder trigger world Unit
-using triggerWorld = usingc triggerWorld unit <<< map (const <<< { control: unit, scene: _ })
+using triggerWorld = usingc triggerWorld mempty <<< map (const <<< { control: unit, scene: _ })
 
 usingc
   :: forall trigger world scene graph control
@@ -542,7 +542,7 @@ usingc
   => ( AudioContext /\ Aff (Event {} /\ Behavior {})
        -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
      )
-  -> control
+  -> (SceneI { | trigger } { | world } AnalysersCb -> control)
   -> (SceneI { | trigger } { | world } AnalysersCb -> control -> { scene :: { | scene }, control :: control })
   -> FullSceneBuilder trigger world Unit
 usingc triggerWorld control piece = FullSceneBuilder { triggerWorld, piece: loopUsingScene piece control }
@@ -556,7 +556,7 @@ usingcr
   => ( AudioContext /\ Aff (Event {} /\ Behavior {})
        -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
      )
-  -> control
+  -> (SceneI { | trigger } { | world } AnalysersCb -> control)
   -> (SceneI { | trigger } { | world } AnalysersCb -> control -> { scene :: { | scene }, control :: control, res :: res })
   -> FullSceneBuilder trigger world res
 usingcr triggerWorld control piece = FullSceneBuilder { triggerWorld, piece: loopUsingSceneWithRes piece control }

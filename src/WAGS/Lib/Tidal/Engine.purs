@@ -3,7 +3,6 @@ module WAGS.Lib.Tidal.Engine where
 import Prelude
 
 import Control.Comonad (extract)
-import Foreign.Object as Object
 import Control.Comonad.Cofree (Cofree, (:<))
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Data.Compactable (compact)
@@ -26,6 +25,7 @@ import Effect.Random (randomInt)
 import FRP.Behavior (Behavior, behavior)
 import FRP.Event (Event, makeEvent, subscribe)
 import Foreign.Object (Object)
+import Foreign.Object as Object
 import Prim.Row (class Lacks)
 import Prim.RowList (class RowToList)
 import Random.LCG (mkSeed)
@@ -39,11 +39,10 @@ import WAGS.Graph.AudioUnit (_off, _offOn, _on)
 import WAGS.Graph.Parameter (ff)
 import WAGS.Interpret (bufferDuration)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), CfScoredBufferPool, makeScoredBufferPool)
-import WAGS.Lib.Learn (FullSceneBuilder, usingcr)
+import WAGS.Lib.Learn (FullSceneBuilder, AnalysersCb, usingcr)
 import WAGS.Lib.Tidal.Download (downloadSilence, initialBuffers)
 import WAGS.Lib.Tidal.FX (calm)
-import WAGS.Lib.Tidal.Tidal (asScore, intentionalSilenceForInternalUseOnly)
-import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleDuration(..), CycleInfo, DroneNote(..), EWF, Globals, IsFresh, NBuf, Next, RBuf, Sample(..), SampleCache, TheFuture, TidalRes, TimeIs(..), UnsampledTimeIs(..), h2v')
+import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleInfo, DroneNote(..), Globals, IsFresh, NBuf, Next, NextCycle, RBuf, Sample(..), SampleCache, TheFuture, TidalRes, TimeIs(..), UnsampledTimeIs(..), h2v')
 import WAGS.Run (SceneI(..))
 import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
@@ -51,15 +50,32 @@ import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 globalFF = 0.03 :: Number
 globalSize = 5 :: Int
 
-acc :: forall event. Monoid event => Acc event
-acc =
+acc
+  :: forall event
+   . Monoid event
+  => SceneI
+       { interactivity :: event
+       }
+       { buffers :: SampleCache
+       , entropy :: Int
+       , theFuture ::
+           IsFresh event
+           -> { clockTime :: Number }
+           -> TheFuture event
+       , silence :: BrowserAudioBuffer
+       }
+       AnalysersCb
+  -> Acc event
+acc (SceneI { time: time', trigger, world: {  theFuture: theFutureFromWorld } }) =
   { buffers: fromHomogeneous
-      $ map (const (emptyPool cycleDuration))
-      $ homogeneous (mempty :: { | EWF Unit })
-  , justInCaseTheLastEvent: { isFresh: false, value: mempty }
+      $ map (emptyPool <<< _.next <<< unwrap) $ homogeneous ewf
+  , justInCaseTheLastEvent
   }
   where
-  cycleDuration = CycleDuration 1.0
+  justInCaseTheLastEvent = { isFresh: false, value: mempty }
+  event = maybe justInCaseTheLastEvent ({ isFresh: true, value: _ } <<< _.interactivity) trigger
+  theFuture = theFutureFromWorld event { clockTime: time' }
+  ewf = let { earth, wind, fire, lambert, hendricks, ross } = unwrap theFuture in { earth, wind, fire, lambert, hendricks, ross }
 
 sampleF
   :: Sample
@@ -89,7 +105,7 @@ internal0
        , buffers :: SampleCache
        , time :: Number
        }
-internal0 = { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0.5, sample: 0.5 } } # SG.loopUsingScene
+internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0.5, sample: 0.5 } }) # SG.loopUsingScene
   \{ time
    , silence
    , buffers
@@ -206,7 +222,7 @@ internal1
        , silence :: BrowserAudioBuffer
        , time :: Number
        }
-internal1 = emptyLags # SG.loopUsingScene
+internal1 = (const emptyLags) # SG.loopUsingScene
   \{ time, buffers, event, silence, fng: { future, globals, seed } }
    { timeLag
    , volumeLag
@@ -276,7 +292,7 @@ droneSg
        , seed :: Int
        , time :: Number
        }
-droneSg = emptyLags
+droneSg = (const emptyLags)
   # SG.loopUsingScene
       \{ time: time'
        , silence
@@ -408,17 +424,18 @@ interactivity ev = (map <<< map) (over _1 (\e -> Record.insert (Proxy :: _ "inte
 h2v :: forall r rl n a. RowToList r rl => HomogenousToVec rl r n a => { | r } -> V.Vec n a
 h2v = h2v' (Proxy :: _ rl)
 
-emptyPool :: forall event n. Pos n => CycleDuration -> AScoredBufferPool (Next event) n (RBuf event)
-emptyPool cycleDuration = makeScoredBufferPool
+emptyPool :: forall event n. Pos n => NextCycle event -> AScoredBufferPool (Next event) n (RBuf event)
+emptyPool nc = makeScoredBufferPool
   { startsAt: 0.0
-  , noteStream: \_ ->
-      ( (#)
+  , noteStream: \{ time, headroomInSeconds } ->
+      ( ( _.func $ unwrap
+            $ nc
+        )
           { currentCount: 0.0
           , prevCycleEnded: 0.0
-          , time: 0.0
-          , headroomInSeconds: 0.03
-          } $ _.func $ unwrap
-          $ asScore false (pure (intentionalSilenceForInternalUseOnly cycleDuration))
+          , time
+          , headroomInSeconds
+          }
       ) # map \{ startsAfter, rest } ->
         { startsAfter
         , rest:
@@ -427,7 +444,6 @@ emptyPool cycleDuration = makeScoredBufferPool
             }
         }
   }
-
 ntropi :: Behavior Int
 ntropi =
   behavior \e ->
