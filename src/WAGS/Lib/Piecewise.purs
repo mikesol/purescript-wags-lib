@@ -15,8 +15,8 @@ import Data.Set (Set, toMap)
 import Data.Set as Set
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\), type (/\))
-import Math ((%))
 import Data.Variant.Maybe (just)
+import Math ((%))
 import WAGS.Graph.Parameter (AudioParameter_(..), _linearRamp)
 import WAGS.Math (calcSlope)
 
@@ -182,3 +182,17 @@ makeTerracedR = makePiecewise' makeChunksR
 
 makeLoopingTerracedR :: forall v. MakePiecewise v
 makeLoopingTerracedR = makeLoopingPiecewise' makeTerracedR
+
+simplePiecewise :: Array (Number /\ Number) -> Number -> Number
+simplePiecewise arr n = val
+  where
+  asMap = Map.fromFoldable arr
+  lb = Map.lookupLE n asMap
+  ub = Map.lookupGE n asMap
+  val = case lb of
+    Nothing -> case ub of
+      Nothing ->  0.0
+      Just x -> x.value
+    Just llb -> case ub of
+      Nothing -> llb.value
+      Just uub -> calcSlope llb.key llb.value uub.key uub.value n
