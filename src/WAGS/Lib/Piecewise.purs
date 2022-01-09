@@ -184,15 +184,17 @@ makeLoopingTerracedR :: forall v. MakePiecewise v
 makeLoopingTerracedR = makeLoopingPiecewise' makeTerracedR
 
 simplePiecewise :: Array (Number /\ Number) -> Number -> Number
-simplePiecewise arr n = val
+simplePiecewise arr = f
   where
   asMap = Map.fromFoldable arr
-  lb = Map.lookupLE n asMap
-  ub = Map.lookupGE n asMap
-  val = case lb of
-    Nothing -> case ub of
-      Nothing ->  0.0
-      Just x -> x.value
-    Just llb -> case ub of
-      Nothing -> llb.value
-      Just uub -> calcSlope llb.key llb.value uub.key uub.value n
+  f n = val
+    where
+    lb = Map.lookupLE n asMap
+    ub = Map.lookupGE n asMap
+    val = case lb of
+      Nothing -> case ub of
+        Nothing ->  0.0
+        Just x -> x.value
+      Just llb -> case ub of
+        Nothing -> llb.value
+        Just uub -> calcSlope llb.key llb.value uub.key uub.value n
