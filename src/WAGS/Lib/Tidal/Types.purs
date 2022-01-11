@@ -13,7 +13,7 @@ import Data.Lens.Iso.Newtype (unto)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
 import Data.Symbol (class IsSymbol)
-import Data.Typelevel.Num (class Nat, class Succ, D0, D1, D8)
+import Data.Typelevel.Num (class Nat, class Succ, type (:*), D0, D1, D2, D4, D8)
 import Data.Variant.Either (either, Either)
 import Data.Variant.Maybe (Maybe)
 import Data.Vec as V
@@ -24,6 +24,7 @@ import Prim.RowList as RL
 import Record as Record
 import Type.Proxy (Proxy(..))
 import WAGS.Lib.BufferPool (AScoredBufferPool)
+import WAGS.Lib.Learn (FullSceneBuilder)
 import WAGS.Lib.Score (CfNoteStream')
 import WAGS.Tumult (Tumultuous)
 import WAGS.WebAPI (BrowserAudioBuffer)
@@ -253,6 +254,8 @@ instance showNoteInTime :: Show note => Show (NoteInTime note) where
 
 derive instance functorNoteInTime :: Functor NoteInTime
 
+type ExternalControl = { floats :: (V.Vec (((D1 :* D0) :* D2) :* D4) Number) }
+
 newtype NoteInFlattenedTime note
   = NoteInFlattenedTime
   { note :: note
@@ -357,10 +360,11 @@ newtype Note event
   , volumeFoT :: FoT event
   }
 
-unlockSample :: forall event. event -> UnsampledTimeIs event
-unlockSample event =
+unlockSample :: forall event. event -> ExternalControl -> UnsampledTimeIs event
+unlockSample event externalControl =
   UnsampledTimeIs
     { clockTime: 0.0
+    , externalControl
     , event: { isFresh: true, value: event }
     , bigCycleTime: 0.0
     , littleCycleTime: 0.0
@@ -378,13 +382,16 @@ derive instance newtypeNote :: Newtype (Note event) _
 derive instance genericNote :: Generic (Note event) _
 
 instance eqNote :: Monoid event => Eq (Note event) where
-  eq = eq `on` (unwrap >>> _.sampleFoT >>> either ((#) (unlockSample mempty)) identity)
+  eq = eq `on` (unwrap >>> _.sampleFoT >>> either ((#) (unlockSample mempty emptyCtrl)) identity)
+
+emptyCtrl :: ∀ (n ∷ Type). Nat n ⇒ { floats ∷ V.Vec n Number }
+emptyCtrl = { floats: V.fill (const 0.0) }
 
 instance ordNote :: Monoid event => Ord (Note event) where
-  compare = compare `on` (unwrap >>> _.sampleFoT >>> (either ((#) (unlockSample mempty)) identity))
+  compare = compare `on` (unwrap >>> _.sampleFoT >>> (either ((#) (unlockSample mempty emptyCtrl)) identity))
 
 instance showNote :: Monoid event => Show (Note event) where
-  show (Note { sampleFoT }) = "Note <" <> show (either ((#) (unlockSample mempty)) identity sampleFoT) <> ">"
+  show (Note { sampleFoT }) = "Note <" <> show (either ((#) (unlockSample mempty emptyCtrl)) identity sampleFoT) <> ">"
 
 ----------------------------------
 newtype Sample
@@ -411,6 +418,7 @@ turnBackTime n r = r
 type FXInput' event =
   { clockTime :: Number
   , adulteratedClockTime :: Number
+  , externalControl :: ExternalControl
   , event :: IsFresh event
   , entropy :: Number
   , buffers :: SampleCache
@@ -421,10 +429,10 @@ newtype FXInput event = FXInput (FXInput' event)
 
 derive instance newtypeFXInput :: Newtype (FXInput event) _
 
-
 type ClockTimeIs' event =
   { clockTime :: Number
   , adulteratedClockTime :: Number
+  , externalControl :: ExternalControl
   , event :: IsFresh event
   , entropy :: Number
   }
@@ -438,6 +446,8 @@ newtype UnsampledTimeIs event
   { event :: IsFresh event
   , clockTime :: Number
   , bigCycleTime :: Number
+  , externalControl :: ExternalControl
+
   , littleCycleTime :: Number
   , normalizedClockTime :: Number
   , normalizedBigCycleTime :: Number
@@ -452,6 +462,7 @@ derive instance newtypeUnsampledTimeIs :: Newtype (UnsampledTimeIs event) _
 
 type TimeIs' event =
   { event :: IsFresh event
+  , externalControl :: ExternalControl
   , clockTime :: Number
   , sampleTime :: Number
   , bigCycleTime :: Number
@@ -494,3 +505,18 @@ type FoP event
 
 type Samples a
   = Object a
+
+type AFuture = TheFuture Unit
+
+type TidalFSB = FullSceneBuilder
+  ( interactivity :: Unit
+  )
+  ( buffers :: SampleCache
+  , externalControl :: ExternalControl
+  , entropy :: Int
+  , theFuture ::
+      IsFresh Unit
+      -> { clockTime :: Number }
+      -> AFuture
+  , silence :: BrowserAudioBuffer
+  ) TidalRes

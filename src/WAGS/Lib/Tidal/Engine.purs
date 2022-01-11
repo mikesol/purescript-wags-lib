@@ -42,7 +42,7 @@ import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), CfScoredBufferPool, ma
 import WAGS.Lib.Learn (FullSceneBuilder, AnalysersCb, usingcr)
 import WAGS.Lib.Tidal.Download (downloadSilence, initialBuffers)
 import WAGS.Lib.Tidal.FX (calm)
-import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleInfo, DroneNote(..), Globals, IsFresh, NBuf, Next, NextCycle, RBuf, Sample(..), SampleCache, TheFuture, TidalRes, TimeIs(..), UnsampledTimeIs(..), h2v')
+import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleInfo, DroneNote(..), Globals, IsFresh, NBuf, Next, NextCycle, RBuf, Sample(..), SampleCache, TheFuture, TidalRes, TimeIs(..), UnsampledTimeIs(..), ExternalControl, h2v')
 import WAGS.Run (SceneI(..))
 import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
@@ -58,6 +58,7 @@ acc
        }
        { buffers :: SampleCache
        , entropy :: Int
+       , externalControl :: ExternalControl
        , theFuture ::
            IsFresh event
            -> { clockTime :: Number }
@@ -66,9 +67,10 @@ acc
        }
        AnalysersCb
   -> Acc event
-acc (SceneI { time: time', trigger, world: {  theFuture: theFutureFromWorld } }) =
+acc (SceneI { time: time', trigger, world: { theFuture: theFutureFromWorld } }) =
   { buffers: fromHomogeneous
-      $ map (emptyPool <<< _.next <<< unwrap) $ homogeneous ewf
+      $ map (emptyPool <<< _.next <<< unwrap)
+      $ homogeneous ewf
   , justInCaseTheLastEvent
   }
   where
@@ -102,6 +104,7 @@ internal0
        , seed :: Int
        , event :: IsFresh event
        , silence :: BrowserAudioBuffer
+       , externalControl :: ExternalControl
        , buffers :: SampleCache
        , time :: Number
        }
@@ -109,6 +112,7 @@ internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0
   \{ time
    , silence
    , buffers
+   , externalControl
    , event
    , seed
    , buf: buf'
@@ -159,6 +163,7 @@ internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0
             { bigCycleTime
             , littleCycleTime
             , event
+            , externalControl
             , clockTime: time
             , normalizedClockTime
             , normalizedBigCycleTime
@@ -177,6 +182,7 @@ internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0
           TimeIs
             { sampleTime
             , event
+            , externalControl
             , bigCycleTime
             , littleCycleTime
             , clockTime: time
@@ -217,13 +223,14 @@ internal1
   :: forall event
    . SubSceneSig "singleton" ()
        { fng :: { future :: CfScoredBufferPool (Next event) NBuf (RBuf event), globals :: Globals event, seed :: Int }
+       , externalControl :: ExternalControl
        , buffers :: SampleCache
        , event :: IsFresh event
        , silence :: BrowserAudioBuffer
        , time :: Number
        }
 internal1 = (const emptyLags) # SG.loopUsingScene
-  \{ time, buffers, event, silence, fng: { future, globals, seed } }
+  \{ time, buffers, event, externalControl, silence, fng: { future, globals, seed } }
    { timeLag
    , volumeLag
    } -> { newSeed: mkSeed seed, size: globalSize } # evalGen do
@@ -236,6 +243,7 @@ internal1 = (const emptyLags) # SG.loopUsingScene
       thisIsTime = wrap
         { clockTime: time
         , adulteratedClockTime: time
+        , externalControl
         , event
         , entropy: volumeEntropy
         }
@@ -253,6 +261,7 @@ internal1 = (const emptyLags) # SG.loopUsingScene
                           { clockTime: time
                           , adulteratedClockTime: time
                           , event
+                          , externalControl
                           , buffers
                           , silence
                           , entropy: tumultEntropy
@@ -262,7 +271,7 @@ internal1 = (const emptyLags) # SG.loopUsingScene
                   { voice: subgraph
                       (V.zipWithE (/\) seeds (extract future))
                       (const $ const $ internal0)
-                      (const $ uncurry { time, buffers, event, silence, seed: _, buf: _ })
+                      (const $ uncurry { time, buffers, event, externalControl, silence, seed: _, buf: _ })
                       {}
                   }
               }
@@ -289,6 +298,7 @@ droneSg
        , silence :: BrowserAudioBuffer
        , buffers :: SampleCache
        , event :: IsFresh event
+       , externalControl :: ExternalControl
        , seed :: Int
        , time :: Number
        }
@@ -298,6 +308,7 @@ droneSg = (const emptyLags)
        , silence
        , buffers
        , event
+       , externalControl
        , seed
        , buf: buf'
        }
@@ -327,6 +338,7 @@ droneSg = (const emptyLags)
                 thisIsTime entropy' =
                   { clockTime: time'
                   , adulteratedClockTime: time'
+                  , externalControl
                   , event
                   , entropy: entropy'
                   }
@@ -444,6 +456,7 @@ emptyPool nc = makeScoredBufferPool
             }
         }
   }
+
 ntropi :: Behavior Int
 ntropi =
   behavior \e ->
@@ -458,6 +471,16 @@ addEntropy
 addEntropy (ac /\ aff) = ac /\ do
   trigger /\ world <- aff
   pure (trigger /\ (Record.insert (Proxy :: _ "entropy") <$> ntropi <*> world))
+
+makeExternalCtrl
+  :: forall trigger world
+   . Lacks "externalControl" world
+  => Behavior ExternalControl
+  -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
+  -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { externalControl :: ExternalControl | world })
+makeExternalCtrl externalControl (ac /\ aff) = ac /\ do
+  trigger /\ world <- aff
+  pure (trigger /\ (Record.insert (Proxy :: _ "externalControl") <$> externalControl <*> world))
 
 extractCycleInfo :: forall event. RBuf event -> CycleInfo
 extractCycleInfo
@@ -483,11 +506,13 @@ engine
    . Monoid event
   => Event event
   -> Behavior (IsFresh event -> { clockTime :: Number } -> TheFuture event)
+  -> Behavior ExternalControl
   -> Either (Behavior SampleCache) (AudioContext -> Aff SampleCache)
   -> FullSceneBuilder
        ( interactivity :: event
        )
        ( buffers :: SampleCache
+       , externalControl :: ExternalControl
        , entropy :: Int
        , theFuture ::
            IsFresh event
@@ -496,10 +521,30 @@ engine
        , silence :: BrowserAudioBuffer
        )
        TidalRes
-engine dmo evt bsc = usingcr
-  (interactivity dmo <<< thePresent evt <<< initialBuffers bsc <<< addEntropy <<< downloadSilence)
+engine dmo evt ctrl bsc = usingcr
+  ( interactivity dmo
+      <<< thePresent evt
+      <<< makeExternalCtrl ctrl
+      <<< initialBuffers bsc
+      <<< addEntropy
+      <<< downloadSilence
+  )
   acc
-  \(SceneI { time: time', headroomInSeconds, trigger, world: { buffers, theFuture: theFutureFromWorld, silence, entropy: entropy' }, analyserCallbacks: { myAnalyser } }) control ->
+  \( SceneI
+       { time: time'
+       , headroomInSeconds
+       , trigger
+       , world:
+           { buffers
+           , externalControl
+           , theFuture: theFutureFromWorld
+           , silence
+           , entropy: entropy'
+           }
+       , analyserCallbacks: { myAnalyser }
+       }
+   )
+   control ->
     let
       event = maybe control.justInCaseTheLastEvent ({ isFresh: true, value: _ } <<< _.interactivity) trigger
       theFuture = theFutureFromWorld event { clockTime: time' }
@@ -546,6 +591,7 @@ engine dmo evt bsc = usingcr
                             { time: time'
                             , buffers
                             , event
+                            , externalControl
                             , silence
                             , fng: _
                             }
@@ -559,6 +605,7 @@ engine dmo evt bsc = usingcr
                             , buffers
                             , silence
                             , event
+                            , externalControl
                             , seed: _
                             , buf: _
                             }

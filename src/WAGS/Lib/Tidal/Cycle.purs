@@ -3,19 +3,18 @@ module WAGS.Lib.Tidal.Cycle where
 import Prelude
 
 import Data.Foldable (class Foldable, foldMapDefaultR, foldl, foldr, intercalate)
-import Data.Newtype (class Newtype)
+import Data.Newtype (class Newtype, unwrap)
 import Data.FunctorWithIndex (class FunctorWithIndex)
 import Data.Generic.Rep (class Generic)
 import Data.Int (floor)
 import Data.Variant (Variant, match, inj)
 import Data.Array.NonEmpty as NEA
-import Data.Newtype (unwrap)
 import Data.Show.Generic (genericShow)
 import Data.Traversable (class Traversable, sequenceDefault, traverse)
 import Data.Variant.Maybe (Maybe, just, nothing, maybe)
 import Data.Variant.Either (either, right)
 import WAGS.Lib.Tidal.Samples as S
-import WAGS.Lib.Tidal.Types (DroneNote, Note(..), Sample, unlockSample)
+import WAGS.Lib.Tidal.Types (DroneNote, Note(..), Sample, unlockSample, emptyCtrl)
 import Type.Proxy (Proxy(..))
 
 type CycleEnv = { weight :: Number, tag :: Maybe String }
@@ -206,7 +205,7 @@ cycleToString event = go
     , singleton: \{ env, val } ->
         ( maybe "~"
             ( S.sampleToString
-                <<< either ((#) (unlockSample event)) identity
+                <<< either ((#) (unlockSample event emptyCtrl)) identity
                 <<< _.sampleFoT
                 <<< unwrap
             )
