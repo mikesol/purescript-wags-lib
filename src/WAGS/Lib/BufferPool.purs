@@ -199,9 +199,20 @@ makeBufferPoolWithRest' _ = go (V.fill (const Nothing))
         v
       else
         map _.val
+          -- TODO
+          -- The reason we sort back is because each oscillator it's mapping to retains a memory
+          -- For example, we may attribute 3 and 4 to incoming sounds 0 and 1, but they will still
+          -- get rendered in slots 3 and 4. So, when we sort for attribution, 3 and 4 get mapped to
+          -- 0 & 1 for attribution and then back to 3 and 4 for rendering. This results in a double
+          -- sorting that can likely be simplified.
           $ V.sortBy (\a b -> compare a.orig b.orig)
           $ mapWithIndex (maybeBufferToGainOnOff tht)
           $ V.sortBy sortForAttribution
+          -- TODO
+          -- Sorting for attribution everytime is expensive, but by the design, the duration
+          -- could change at each iteratoin, so we call durationF every time.
+          -- However, in all real-world cases I've seen, the duration never actually changes.
+          -- Is this overkill?
           $ mapWithIndex
               ( \orig a ->
                   { orig
