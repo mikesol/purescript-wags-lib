@@ -1,21 +1,28 @@
 module WAGS.Lib.Tidal.Tidal
-  ( asScore
+  ( addEffect
+  , asScore
   , b
   , b'
   , b_
   , betwixt
   , c2s
+  , changeBufferOffset
+  , changeForward
+  , changeRate
+  , changeSample
+  , changeVolume
   , class S
   , cycleP
   , cycleP_
   , derivative
   , djQuickCheck
+  , drone
   , focus
   , i
   , i'
   , i_
+  , ident
   , impatient
-  , drone
   , intentionalSilenceForInternalUseOnly
   , l_j
   , l_r
@@ -35,24 +42,21 @@ module WAGS.Lib.Tidal.Tidal
   , lfn
   , lft
   , lnbo
-  , changeBufferOffset
   , lnf
-  , changeForward
   , lnr
-  , changeRate
   , lns
-  , changeSample
   , lnv
-  , changeVolume
   , ltd
   , ltn
   , lts
   , ltt
   , lvg
   , lvt
-  , addEffect
   , make
   , module WAGS.Lib.Tidal.Cycle
+  , mseq
+  , smpl
+  , n
   , onTag
   , onTag'
   , onTagWithIndex
@@ -68,12 +72,12 @@ module WAGS.Lib.Tidal.Tidal
   , openFuture
   , openVoice
   , parse
+  , parseWithBrackets
   , parse_
   , plainly
   , rend
   , rendNit
   , rend_
-  , mseq
   , s
   , s2f
   , sequentialcyclePInternal
@@ -83,9 +87,6 @@ module WAGS.Lib.Tidal.Tidal
   , x
   , x'
   , x_
-  ----- internal
-  , parseWithBrackets
-  , ident
   ) where
 
 import Prelude hiding (between)
@@ -123,6 +124,7 @@ import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D1)
 import Data.Unfoldable (replicate)
 import Data.Variant (match)
+import Data.Variant.Either (right)
 import Data.Variant.Either as VE
 import Data.Variant.Maybe (nothing)
 import Data.Variant.Maybe as VM
@@ -148,7 +150,7 @@ import WAGS.Lib.Tidal.FX (WAGSITumult)
 import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, sample2drone)
 import WAGS.Lib.Tidal.Samples as S
-import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..))
+import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..), Note')
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -871,6 +873,18 @@ rendNit = asScore false <<< s2f
 c2s :: forall event. Cycle (VM.Maybe (Note event)) -> CycleDuration -> NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note event))))
 c2s = flip cycleToSequence
 
+smpl :: forall a l b. Newtype a b => b -> VE.Either l a
+smpl = right <<< wrap
+
+n :: forall event. (Note' event -> Note' event) -> Note event
+n f = Note $ f
+  { sampleFoT: right S.intentionalSilenceForInternalUseOnly__Sample
+  , forward: true
+  , rateFoT: pure 1.0
+  , bufferOffsetFoT: pure 0.0
+  , volumeFoT: pure 1.0
+  }
+
 mseq :: forall event. Number -> NonEmpty Array (Number /\ Note event) -> NonEmptyArray (NoteInFlattenedTime (Note event))
 mseq dur ii' = oo
   where
@@ -1091,7 +1105,7 @@ instance sVoiceFT :: S (CycleDuration -> (Voice event)) event where
   s = identity
 
 betwixt :: forall n. Ord n => n -> n -> n -> n
-betwixt mn' mx' n = if n < mn then mn else if n > mx then mx else n
+betwixt mn' mx' nn = if nn < mn then mn else if nn > mx then mx else nn
   where
   mn = min mn' mx'
   mx = max mn' mx'

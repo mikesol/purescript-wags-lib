@@ -351,14 +351,17 @@ instance showDroneNote :: Show (DroneNote event) where
   show (DroneNote { sample }) = "DroneNote <" <> show sample <> ">"
 
 ----
-newtype Note event
-  = Note
+
+type Note' event =
   { sampleFoT :: Either (UnsampledTimeIs event -> Sample) Sample
   , forward :: Boolean
   , rateFoT :: FoT event
   , bufferOffsetFoT :: FoT event
   , volumeFoT :: FoT event
   }
+
+newtype Note event
+  = Note (Note' event)
 
 unlockSample :: forall event. event -> ExternalControl -> UnsampledTimeIs event
 unlockSample event externalControl =
@@ -500,8 +503,12 @@ type O'Past event
 type FoT event
   = TimeIs event -> Number
 
+type FoT_ = FoT Unit
+
 type FoP event
   = TimeIsAndWas (TimeIs event) -> Number
+
+type FoP_ = FoP Unit
 
 type Samples a
   = Object a
@@ -520,4 +527,5 @@ type TidalFSB = FullSceneBuilder
       -> { clockTime :: Number }
       -> AFuture
   , silence :: BrowserAudioBuffer
-  ) TidalRes
+  )
+  TidalRes
