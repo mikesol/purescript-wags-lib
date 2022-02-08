@@ -34,7 +34,7 @@ import Test.QuickCheck (arbitrary)
 import Test.QuickCheck.Gen (evalGen)
 import Type.Proxy (Proxy(..))
 import WAGS.Control.Functions.Subgraph as SG
-import WAGS.Create.Optionals (analyser, gain, loopBuf, playBuf, speaker, subgraph, tumult)
+import WAGS.Create.Optionals (analyser, gain, loopBuf, playBuf, recorder, speaker, subgraph, tumult)
 import WAGS.Graph.AudioUnit (_off, _offOn, _on)
 import WAGS.Graph.Parameter (ff)
 import WAGS.Interpret (bufferDuration)
@@ -45,7 +45,7 @@ import WAGS.Lib.Tidal.FX (calm)
 import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleInfo, DroneNote(..), Globals, IsFresh, NBuf, Next, NextCycle, RBuf, Sample(..), SampleCache, TheFuture, TidalRes, TimeIs(..), UnsampledTimeIs(..), ExternalControl, h2v')
 import WAGS.Run (SceneI(..))
 import WAGS.Subgraph (SubSceneSig)
-import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
+import WAGS.WebAPI (AudioContext, BrowserAudioBuffer, MediaRecorderCb)
 
 globalFF = 0.03 :: Number
 globalSize = 5 :: Int
@@ -59,6 +59,7 @@ acc
        { buffers :: SampleCache
        , entropy :: Int
        , externalControl :: ExternalControl
+       , rcdr :: MediaRecorderCb
        , theFuture ::
            IsFresh event
            -> { clockTime :: Number }
@@ -482,6 +483,16 @@ makeExternalCtrl externalControl (ac /\ aff) = ac /\ do
   trigger /\ world <- aff
   pure (trigger /\ (Record.insert (Proxy :: _ "externalControl") <$> externalControl <*> world))
 
+makeRecorder
+  :: forall trigger world
+   . Lacks "rcdr" world
+  => Behavior MediaRecorderCb
+  -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
+  -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { rcdr :: MediaRecorderCb | world })
+makeRecorder recorder (ac /\ aff) = ac /\ do
+  trigger /\ world <- aff
+  pure (trigger /\ (Record.insert (Proxy :: _ "rcdr") <$> recorder <*> world))
+
 extractCycleInfo :: forall event. RBuf event -> CycleInfo
 extractCycleInfo
   { cycleStartsAt
@@ -507,11 +518,13 @@ engine
   => Event event
   -> Behavior (IsFresh event -> { clockTime :: Number } -> TheFuture event)
   -> Behavior ExternalControl
+  -> Behavior MediaRecorderCb
   -> Either (Behavior SampleCache) (AudioContext -> Aff SampleCache)
   -> FullSceneBuilder
        ( interactivity :: event
        )
        ( buffers :: SampleCache
+       , rcdr :: MediaRecorderCb
        , externalControl :: ExternalControl
        , entropy :: Int
        , theFuture ::
@@ -521,10 +534,11 @@ engine
        , silence :: BrowserAudioBuffer
        )
        TidalRes
-engine dmo evt ctrl bsc = usingcr
+engine dmo evt ctrl mrc bsc = usingcr
   ( interactivity dmo
       <<< thePresent evt
       <<< makeExternalCtrl ctrl
+      <<< makeRecorder mrc
       <<< initialBuffers bsc
       <<< addEntropy
       <<< downloadSilence
@@ -539,6 +553,7 @@ engine dmo evt ctrl bsc = usingcr
            , externalControl
            , theFuture: theFutureFromWorld
            , silence
+           , rcdr
            , entropy: entropy'
            }
        , analyserCallbacks: { myAnalyser }
@@ -584,33 +599,35 @@ engine dmo evt ctrl bsc = usingcr
           seedsDrone <- sequence (V.fill (const arbitrary))
           let vec = V.zipWithE Record.union forTemplate seeds
           pure $ speaker
-            { analyse: analyser myAnalyser
-                { analysed: gain 1.0
-                    { subs: subgraph vec (const $ const $ internal1)
-                        ( const $
-                            { time: time'
-                            , buffers
-                            , event
-                            , externalControl
-                            , silence
-                            , fng: _
-                            }
-                        )
-                        {}
-                    , drones: subgraph
-                        (V.zipWithE (/\) seedsDrone ((unwrap theFuture).air +> (unwrap theFuture).heart +> V.empty))
-                        (const $ const $ droneSg)
-                        ( const $ uncurry
-                            { time: time'
-                            , buffers
-                            , silence
-                            , event
-                            , externalControl
-                            , seed: _
-                            , buf: _
-                            }
-                        )
-                        {}
+            { recorder: recorder rcdr
+                { analyse: analyser myAnalyser
+                    { analysed: gain 1.0
+                        { subs: subgraph vec (const $ const $ internal1)
+                            ( const $
+                                { time: time'
+                                , buffers
+                                , event
+                                , externalControl
+                                , silence
+                                , fng: _
+                                }
+                            )
+                            {}
+                        , drones: subgraph
+                            (V.zipWithE (/\) seedsDrone ((unwrap theFuture).air +> (unwrap theFuture).heart +> V.empty))
+                            (const $ const $ droneSg)
+                            ( const $ uncurry
+                                { time: time'
+                                , buffers
+                                , silence
+                                , event
+                                , externalControl
+                                , seed: _
+                                , buf: _
+                                }
+                            )
+                            {}
+                        }
                     }
                 }
             }

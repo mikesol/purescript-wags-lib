@@ -73,6 +73,7 @@ module WAGS.Lib.Tidal.Tidal
   , rend
   , rendNit
   , rend_
+  , mseq
   , s
   , s2f
   , sequentialcyclePInternal
@@ -110,7 +111,7 @@ import Data.List as L
 import Data.List.Types (NonEmptyList(..))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
-import Data.NonEmpty ((:|))
+import Data.NonEmpty (NonEmpty, (:|))
 import Data.Profunctor (class Profunctor, lcmap)
 import Data.Profunctor.Choice (class Choice)
 import Data.Profunctor.Strong (class Strong)
@@ -123,6 +124,7 @@ import Data.Typelevel.Num (D1)
 import Data.Unfoldable (replicate)
 import Data.Variant (match)
 import Data.Variant.Either as VE
+import Data.Variant.Maybe (nothing)
 import Data.Variant.Maybe as VM
 import Data.Vec ((+>))
 import Data.Vec as V
@@ -868,6 +870,33 @@ rendNit = asScore false <<< s2f
 
 c2s :: forall event. Cycle (VM.Maybe (Note event)) -> CycleDuration -> NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note event))))
 c2s = flip cycleToSequence
+
+mseq :: forall event. Number -> NonEmpty Array (Number /\ Note event) -> NonEmptyArray (NoteInFlattenedTime (Note event))
+mseq dur ii' = oo
+  where
+  ii = NEA.fromNonEmpty ii'
+  lenny = NEA.length ii
+  sorted = NEA.sortBy (compare `on` fst) ii
+  dury = max dur (0.1 + (fst $ NEA.last sorted))
+  d0 = map fst sorted
+  d1 = maybe (NEA.fromNonEmpty (dury :| [])) (flip NEA.snoc dury) (NEA.fromArray (NEA.drop 1 d0))
+  diffs = NEA.zipWith sub d1 d0
+  oo = mapWithIndex
+    ( \iii ((dd /\ nn) /\ dff) -> NoteInFlattenedTime
+        { note: nn
+        , bigStartsAt: dd
+        , littleStartsAt: dd
+        , currentCycle: 0
+        , positionInCycle: iii
+        , elementsInCycle: lenny
+        , nCycles: 1
+        , duration: dff
+        , bigCycleDuration: dury
+        , littleCycleDuration: dury
+        , tag: nothing
+        }
+    )
+    (NEA.zipWith (/\) sorted diffs)
 
 s2f
   :: forall event

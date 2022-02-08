@@ -171,7 +171,7 @@ let additions =
           , "simple-json"
           ]
         , repo = "https://github.com/mikesol/purescript-wags.git"
-        , version = "v0.6.3"
+        , version = "v0.6.5"
         }
       , everythings-better-with-variants =
         { dependencies =

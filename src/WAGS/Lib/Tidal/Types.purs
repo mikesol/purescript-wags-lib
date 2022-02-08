@@ -27,7 +27,7 @@ import WAGS.Lib.BufferPool (AScoredBufferPool)
 import WAGS.Lib.Learn (FullSceneBuilder)
 import WAGS.Lib.Score (CfNoteStream')
 import WAGS.Tumult (Tumultuous)
-import WAGS.WebAPI (BrowserAudioBuffer)
+import WAGS.WebAPI (BrowserAudioBuffer, MediaRecorderCb)
 
 --
 type IsFresh val
@@ -512,6 +512,7 @@ type TidalFSB = FullSceneBuilder
   ( interactivity :: Unit
   )
   ( buffers :: SampleCache
+  , rcdr :: MediaRecorderCb
   , externalControl :: ExternalControl
   , entropy :: Int
   , theFuture ::

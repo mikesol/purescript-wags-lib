@@ -73,15 +73,15 @@ instance showCycle :: Show a => Show (Cycle a) where
   show xx = genericShow xx
 
 instance functorCycle :: Functor Cycle where
-  map f = unwrap >>> match
+  map ff = unwrap >>> match
     { branching: \{ env, cycles } ->
-        branching $ { env, cycles: (map <<< map) f cycles }
+        branching $ { env, cycles: (map <<< map) ff cycles }
     , simultaneous: \{ env, cycles } ->
-        simultaneous { env, cycles: (map <<< map) f cycles }
+        simultaneous { env, cycles: (map <<< map) ff cycles }
     , internal: \{ env, cycles } ->
-        internal { env, cycles: (map <<< map) f cycles }
+        internal { env, cycles: (map <<< map) ff cycles }
     , singleton: \{ env, val } ->
-        singleton { env, val: f val }
+        singleton { env, val: ff val }
     }
 
 instance applyCycle :: Apply Cycle where

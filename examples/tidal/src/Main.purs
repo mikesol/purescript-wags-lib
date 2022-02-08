@@ -5,11 +5,13 @@ import Prelude
 import CSS as CSS
 import Data.Array (fold)
 import Data.Array as Array
+import Data.Array.NonEmpty as NEA
 import Data.ArrayBuffer.Typed (toArray)
 import Data.Foldable (for_)
 import Data.Lens (set, traversed)
+import Data.Tuple.Nested ((/\))
 import Data.Maybe (Maybe(..))
-import Data.Newtype (unwrap)
+import Data.Newtype (unwrap, wrap)
 import Data.NonEmpty ((:|))
 import Data.Profunctor (lcmap)
 import Data.UInt (toInt)
@@ -33,10 +35,11 @@ import WAGS.Create.Optionals (highpass, pan)
 import WAGS.Interpret (close, getByteFrequencyData)
 import WAGS.Lib.Learn (class ToScene, Analysers, State', WagsState(..), bStyle, initialState, toScene)
 import WAGS.Lib.Learn.Oscillator (lfo)
-import WAGS.Lib.Tidal (AFuture, tdl)
+import WAGS.Lib.Tidal (tdl)
+import WAGS.Lib.Tidal.Cycle (noteFromSample_)
 import WAGS.Lib.Tidal.FX (fx, goodbye, hello)
-import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, lnr, lnv, lvt, make, onTag, parse_, s)
-import WAGS.Lib.Tidal.Types (TidalRes)
+import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, lnr, lnv, lvt, make, mseq, onTag, parse_, s)
+import WAGS.Lib.Tidal.Types (AFuture, TidalRes)
 import WAGS.Run (Run)
 import WAGS.WebAPI (AudioContext)
 
@@ -49,10 +52,26 @@ data Action
   | Freqz (Array String)
 
 wag :: AFuture
-wag = wag0 <> wag1
+wag = wag0 <> wag1 <> wag2
 
 wag1 :: AFuture
 wag1 = make 2.0 { earth: s "hh hh hh hh" }
+
+wag2 :: AFuture
+wag2 = make 2.0
+  { earth: s
+      $ mseq 2.0
+          ( 0.0 /\ noteFromSample_ (wrap "bd")
+              :|
+                [ 0.33 /\ noteFromSample_ (wrap "hh")
+                , 0.66 /\ noteFromSample_ (wrap "chin")
+                , 1.0 /\ noteFromSample_ (wrap "tabla")
+                , 1.33 /\ noteFromSample_ (wrap "psr:3")
+                , 1.66 /\ noteFromSample_ (wrap "hh:3")
+                ]
+          )
+
+  }
 
 wag0 :: AFuture
 wag0 =
@@ -76,7 +95,7 @@ wag0 =
           $ onTag "print" (changeVolume \{ normalizedSampleTime: _ } -> 0.2)
           $ onTag "pk" (changeRate \{ normalizedSampleTime: t } -> 0.7 - t * 0.2)
           $ onTag "kt" (changeRate \{ normalizedSampleTime: t } -> min 1.0 (0.6 + t * 0.8))
-          $ parse_ "psr:3 ~ [~ chin*4] ~ [psr:3;ph psr:3;ph ~ ] , [~ ~ ~ <psr:1;print kurt:0;print> ] kurt:5;kt , ~ ~ pluck:1;pk ~ ~ ~ ~ ~ "
+          $ parse_ "psr:3 ~ [~ chin*4] ~ [psr:3;ph psr:3;ph ~ ] , [~ ~ ~ psr:1;print] kurt:5;kt , ~ ~ pluck:1;pk ~ ~ ~ ~ ~ "
     , fire:
         map
           ( set lvt
