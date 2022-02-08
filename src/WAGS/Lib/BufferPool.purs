@@ -130,24 +130,26 @@ makeBufferPoolWithRest'
   -> ABufferPool' n r
 makeBufferPoolWithRest' _ = go (V.fill (const Nothing))
   where
+  performAttribution time offset rest duration orig =
+    let
+      startTime = time + (max 0.0 offset)
+      tag = rest startTime
+      curried = duration startTime
+    in
+      { orig
+      , val: Just $
+          { durationF: curried false
+          , buf: Buffy { startTime, starting: true, rest: tag, duration: curried true time }
+          }
+      }
+
   maybeBufferToGainOnOff
     :: TimeOffsetsRestDuration r
     -> Int
     -> { orig :: Int, val :: Maybe { durationF :: Number -> Maybe Number, buf :: Buffy r } }
     -> { orig :: Int, val :: Maybe { durationF :: Number -> Maybe Number, buf :: Buffy r } }
   maybeBufferToGainOnOff { time, offsets } myPos i@{ orig, val: Nothing }
-    | Just { offset, rest, duration } <- A.index offsets myPos =
-        let
-          startTime = time + (max 0.0 offset)
-          tag = rest startTime
-          curried = duration startTime
-        in
-          { orig
-          , val: Just $
-              { durationF: curried false
-              , buf: Buffy { startTime, starting: true, rest: tag, duration: curried true time }
-              }
-          }
+    | Just { offset, rest, duration } <- A.index offsets myPos = performAttribution time offset rest duration orig
     | otherwise = i
 
   maybeBufferToGainOnOff
@@ -156,18 +158,7 @@ makeBufferPoolWithRest' _ = go (V.fill (const Nothing))
     { orig
     , val: Just { durationF, buf: Buffy b }
     }
-    | Just { offset, rest, duration } <- A.index offsets myPos =
-        let
-          startTime = time + (max 0.0 offset)
-          tag = rest startTime
-          curried = duration startTime
-        in
-          { orig
-          , val: Just $
-              { durationF: curried false
-              , buf: Buffy { startTime, starting: true, rest: tag, duration: curried true time }
-              }
-          }
+    | Just { offset, rest, duration } <- A.index offsets myPos = performAttribution time offset rest duration orig
     | otherwise =
         { orig
         , val: Just $
