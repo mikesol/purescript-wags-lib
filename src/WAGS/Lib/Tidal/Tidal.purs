@@ -54,9 +54,9 @@ module WAGS.Lib.Tidal.Tidal
   , lvt
   , make
   , module WAGS.Lib.Tidal.Cycle
-  , mseq
-  , smpl
   , n
+  , nl
+  , mseq
   , onTag
   , onTag'
   , onTagWithIndex
@@ -113,7 +113,7 @@ import Data.List.Types (NonEmptyList(..))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.NonEmpty (NonEmpty, (:|))
-import Data.Profunctor (class Profunctor, lcmap)
+import Data.Profunctor (class Profunctor, dimap, lcmap)
 import Data.Profunctor.Choice (class Choice)
 import Data.Profunctor.Strong (class Strong)
 import Data.Set as Set
@@ -150,7 +150,7 @@ import WAGS.Lib.Tidal.FX (WAGSITumult)
 import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, sample2drone)
 import WAGS.Lib.Tidal.Samples as S
-import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..), Note')
+import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..), NoteLazy')
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -873,9 +873,6 @@ rendNit = asScore false <<< s2f
 c2s :: forall event. Cycle (VM.Maybe (Note event)) -> CycleDuration -> NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note event))))
 c2s = flip cycleToSequence
 
-smpl :: forall a l b. Newtype a b => b -> VE.Either l a
-smpl = right <<< wrap
-
 n :: forall event. (Note' event -> Note' event) -> Note event
 n f = Note $ f
   { sampleFoT: right S.intentionalSilenceForInternalUseOnly__Sample
@@ -884,6 +881,25 @@ n f = Note $ f
   , bufferOffsetFoT: pure 0.0
   , volumeFoT: pure 1.0
   }
+
+nl :: forall event. (NoteLazy' event -> NoteLazy' event) -> Note event
+nl = n <<< dimap
+  ( \iii ->
+      { s: "intentionalSilenceForInternalUseOnly"
+      , f: iii.forward
+      , r: iii.rateFoT
+      , b: iii.bufferOffsetFoT
+      , v: iii.volumeFoT
+      }
+  )
+  ( \iii ->
+      { sampleFoT: right $ wrap iii.s
+      , forward: iii.f
+      , rateFoT: iii.r
+      , bufferOffsetFoT: iii.b
+      , volumeFoT: iii.v
+      }
+  )
 
 mseq :: forall event. Number -> NonEmpty Array (Number /\ Note event) -> NonEmptyArray (NoteInFlattenedTime (Note event))
 mseq dur ii' = oo

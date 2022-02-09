@@ -360,6 +360,14 @@ type Note' event =
   , volumeFoT :: FoT event
   }
 
+type NoteLazy' event =
+  { s :: String
+  , f :: Boolean
+  , r :: FoT event
+  , b :: FoT event
+  , v :: FoT event
+  }
+
 newtype Note event
   = Note (Note' event)
 
