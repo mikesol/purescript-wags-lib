@@ -39,7 +39,7 @@ import WAGS.Lib.Learn.Oscillator (lfo)
 import WAGS.Lib.Tidal (tdl)
 import WAGS.Lib.Tidal.Cycle (noteFromSample_)
 import WAGS.Lib.Tidal.FX (fx, goodbye, hello)
-import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, lnr, lnv, lvt, make, mseq, n, onTag, parse_, s, smpl)
+import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, lnr, lnv, lvt, make, mseq, nl, onTag, parse_, s)
 import WAGS.Lib.Tidal.Types (AFuture, FoT, TidalRes, FoT_)
 import WAGS.Run (Run)
 import WAGS.WebAPI (AudioContext)
@@ -64,11 +64,11 @@ wag2 = make 2.0
       $ mseq 2.0
           ( 0.0 /\ noteFromSample_ (wrap "bd")
               :|
-                [ 0.33 /\ n (_ { sampleFoT = smpl "hh" })
-                , 0.66 /\ n (_ { sampleFoT = smpl "hh:3", volumeFoT = const 0.5 })
-                , 1.0 /\ n (_ { sampleFoT = smpl "future" })
-                , 1.33 /\ n (_ { sampleFoT = smpl "chin" })
-                , 1.66 /\ n (_ { sampleFoT = smpl "hh:4" })
+                [ 0.33 /\ nl (_ { s = "hh" })
+                , 0.66 /\ nl (_ { s = "hh:3", v = const 0.5 })
+                , 1.0 /\ nl (_ { s = "future" })
+                , 1.33 /\ nl (_ { s = "chin" })
+                , 1.66 /\ nl (_ { s = "hh:4" })
                 ]
           )
 
