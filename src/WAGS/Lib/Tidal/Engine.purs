@@ -109,7 +109,7 @@ internal0
        , buffers :: SampleCache
        , time :: Number
        }
-internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0.5, sample: 0.5 } }) # SG.loopUsingScene
+internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0.5, sample: 0.5, forward: 0.5 } }) # SG.loopUsingScene
   \{ time
    , silence
    , buffers
@@ -129,7 +129,7 @@ internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0
           , startTime
           , rest:
               { sampleFoT
-              , forward
+              , forwardFoT
               , rateFoT
               , bufferOffsetFoT
               , volumeFoT
@@ -145,9 +145,11 @@ internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0
       rateEntropy <- arbitrary
       offsetEntropy <- arbitrary
       sampleEntropy <- arbitrary
+      forwardEntropy <- arbitrary
       initialEntropies <-
-        if starting then { volume: _, rate: _, sample: _, bufferOffset: _ }
+        if starting then { volume: _, rate: _, sample: _, bufferOffset: _, forward: _ }
           <$> arbitrary
+          <*> arbitrary
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
@@ -174,6 +176,7 @@ internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0
             , initialEntropy: initialEntropy'
             , entropy: entropy'
             }
+        forward = forwardFoT (thisIsUnsampledTime initialEntropies.forward forwardEntropy)
         buf = sampleF (either ((#) (thisIsUnsampledTime initialEntropies.sample sampleEntropy)) identity sampleFoT)
           forward
           silence

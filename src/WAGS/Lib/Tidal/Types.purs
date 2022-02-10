@@ -58,7 +58,7 @@ type SampleCache
 type RBuf event
   =
   { sampleFoT :: Either (UnsampledTimeIs event -> Sample) Sample
-  , forward :: Boolean
+  , forwardFoT :: BFoT event
   , rateFoT :: FoT event
   , bufferOffsetFoT :: FoT event
   , volumeFoT :: FoT event
@@ -354,7 +354,7 @@ instance showDroneNote :: Show (DroneNote event) where
 
 type Note' event =
   { sampleFoT :: Either (UnsampledTimeIs event -> Sample) Sample
-  , forward :: Boolean
+  , forwardFoT :: BFoT event
   , rateFoT :: FoT event
   , bufferOffsetFoT :: FoT event
   , volumeFoT :: FoT event
@@ -362,7 +362,7 @@ type Note' event =
 
 type NoteLazy' event =
   { s :: String
-  , f :: Boolean
+  , f :: BFoT event
   , r :: FoT event
   , b :: FoT event
   , v :: FoT event
@@ -510,6 +510,9 @@ type O'Past event
 
 type FoT event
   = TimeIs event -> Number
+
+type BFoT event
+  = UnsampledTimeIs event -> Boolean
 
 type FoT_ = FoT Unit
 

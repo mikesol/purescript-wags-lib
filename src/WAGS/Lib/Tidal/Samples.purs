@@ -4243,9 +4243,9 @@ sample2drone sample = DroneNote
   }
 
 note2drone :: forall event. Note event -> DroneNote event
-note2drone (Note { sampleFoT, forward }) = DroneNote
+note2drone (Note { sampleFoT }) = DroneNote
   { sample: either (const intentionalSilenceForInternalUseOnly__Sample) identity sampleFoT
-  , forward
+  , forward: true
   -- we wipe out all of the prior functions, keeping just the sample and forward
   , rateFoT: const 1.0
   , volumeFoT: const 1.0
@@ -6298,7 +6298,7 @@ nameToSampleMNO = (map <<< map)
         { sampleFoT: _
         , bufferOffsetFoT: const 0.0
         , rateFoT: const 1.0
-        , forward: true
+        , forwardFoT: const true
         , volumeFoT: const 1.0
         }
       <<< right

@@ -220,7 +220,7 @@ noteFromSample = Note
     , rateFoT: const 1.0
     , volumeFoT: const 1.0
     , bufferOffsetFoT: const 0.0
-    , forward: true
+    , forwardFoT: const true
     }
   <<< right
 

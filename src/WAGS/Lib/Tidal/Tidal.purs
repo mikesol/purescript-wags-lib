@@ -80,6 +80,7 @@ module WAGS.Lib.Tidal.Tidal
   , rendNit
   , rend_
   , s
+  , s_
   , s2f
   , sequentialcyclePInternal
   , u
@@ -153,7 +154,7 @@ import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, sample2drone)
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.TLP (class MiniNotation)
-import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..), NoteLazy')
+import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..), BFoT)
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -331,13 +332,13 @@ lnbo = unto Note <<< prop (Proxy :: _ "bufferOffsetFoT")
 changeBufferOffset :: ChangeSig
 changeBufferOffset = setter' lnbo
 
-lnf :: forall event. Lens' (Note event) Boolean
-lnf = unto Note <<< prop (Proxy :: _ "forward")
+lnf :: forall event. Lens' (Note event) (BFoT event)
+lnf = unto Note <<< prop (Proxy :: _ "forwardFoT")
 
 changeForward
   :: forall container event
    . Traversable container
-  => Boolean
+  => BFoT event
   -> container (Note event)
   -> container (Note event)
 changeForward = set (traversed <<< lnf)
@@ -479,7 +480,7 @@ sampleP = do
       { sampleFoT: VE.right $ Sample possiblySample
       , bufferOffsetFoT: const 0.0
       , rateFoT: const 1.0
-      , forward: true
+      , forwardFoT: const true
       , volumeFoT: const 1.0
       }
     Just foundSample -> pure $ maybe VM.nothing VM.just foundSample
@@ -704,7 +705,7 @@ asScore force flattened = NextCycle
       { startsAfter: st - currentCount
       , rest:
           { sampleFoT: (unwrap aa.note).sampleFoT
-          , forward: (unwrap aa.note).forward
+          , forwardFoT: (unwrap aa.note).forwardFoT
           , cycleStartsAt: prevCycleEnded
           , rateFoT: (unwrap aa.note).rateFoT
           , bufferOffsetFoT: (unwrap aa.note).bufferOffsetFoT
@@ -808,7 +809,7 @@ intentionalSilenceForInternalUseOnly (CycleDuration cl) = NoteInFlattenedTime
   { note: Note
       { sampleFoT: VE.right $ S.intentionalSilenceForInternalUseOnly__Sample
       , rateFoT: const 1.0
-      , forward: true
+      , forwardFoT: const true
       , volumeFoT: const 1.0
       , bufferOffsetFoT: const 0.0
       }
@@ -889,7 +890,7 @@ c2s = flip cycleToSequence
 n :: forall event. (Note' event -> Note' event) -> Note event
 n f = Note $ f
   { sampleFoT: right S.intentionalSilenceForInternalUseOnly__Sample
-  , forward: true
+  , forwardFoT: const true
   , rateFoT: pure 1.0
   , bufferOffsetFoT: pure 0.0
   , volumeFoT: pure 1.0
@@ -899,7 +900,7 @@ nl :: forall event. (NoteLazy' event -> NoteLazy' event) -> Note event
 nl = n <<< dimap
   ( \iii ->
       { s: "intentionalSilenceForInternalUseOnly"
-      , f: iii.forward
+      , f: iii.forwardFoT
       , r: iii.rateFoT
       , b: iii.bufferOffsetFoT
       , v: iii.volumeFoT
@@ -907,7 +908,7 @@ nl = n <<< dimap
   )
   ( \iii ->
       { sampleFoT: right $ wrap iii.s
-      , forward: iii.f
+      , forwardFoT: iii.f
       , rateFoT: iii.r
       , bufferOffsetFoT: iii.b
       , volumeFoT: iii.v
@@ -977,7 +978,7 @@ genSingleton =
     <<<
       { rateFoT: const 1.0
       , volumeFoT: const 1.0
-      , forward: true
+      , forwardFoT: const true
       , bufferOffsetFoT: const 0.0
       , sampleFoT: _
       }
@@ -1099,6 +1100,9 @@ djQuickCheck = do
         , cycleDuration
         }
     }
+
+s_ :: forall s. S s Unit => s -> CycleDuration -> Voice Unit
+s_ = s
 
 class S s event where
   s :: s -> CycleDuration -> Voice event
