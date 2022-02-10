@@ -12,6 +12,7 @@ import Data.Lens (set, traversed)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap, wrap)
 import Data.NonEmpty ((:|))
+import Type.Proxy (Proxy(..))
 import Data.Profunctor (lcmap)
 import Data.Tuple.Nested ((/\))
 import Data.UInt (toInt)
@@ -80,7 +81,7 @@ wag0 =
     { earth: s
         $ set (traversed <<< traversed <<< lnr)
             (lcmap unwrap \{ normalizedLittleCycleTime: t } -> 1.0 + t * 0.1)
-        $ parse_ "tink:1;t0 tink:2;t1 tink:3;t2 tink:0;t3 tink:4;t4 tink:2;t5 tink:3;t6 tink:1;t7 tink:2;t8 tink:0;t9 tink:3;t10 "
+        $ parse_ (Proxy :: _ "tink:1;t0 tink:2;t1 tink:3;t2 tink:0;t3 tink:4;t4 tink:2;t5 tink:3;t6 tink:1;t7 tink:2;t8 tink:0;t9 tink:3;t10 ")
     , wind:
         map
           ( set lvt

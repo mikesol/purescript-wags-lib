@@ -71,6 +71,7 @@ module WAGS.Lib.Tidal.Tidal
   , onTagsWithIndex'
   , openFuture
   , openVoice
+  , class ParseToCycle
   , parse
   , parseWithBrackets
   , parse_
@@ -835,12 +836,22 @@ parseWithBrackets = runParser cycleP
   <<< ("[ " <> _)
   <<< (_ <> " ]")
 
-parse :: forall event. String -> Cycle (VM.Maybe (Note event))
-parse = fromMaybe intentionalSilenceForInternalUseOnly_
-  <<< hush
-  <<< parseWithBrackets
+class ParseToCycle s where
+  parse :: forall event. s -> Cycle (VM.Maybe (Note event))
 
-parse_ :: String -> Cycle (VM.Maybe (Note Unit))
+instance parseToCycleString :: ParseToCycle String where
+  parse = fromMaybe intentionalSilenceForInternalUseOnly_
+    <<< hush
+    <<< parseWithBrackets
+
+instance parseToCycleProxy :: (IsSymbol sym, MiniNotation sym) => ParseToCycle (Proxy sym) where
+  parse = parse <<< reflectSymbol
+
+parse_
+  :: forall s
+   . ParseToCycle s
+  => s
+  -> Cycle (VM.Maybe (Note Unit))
 parse_ = parse
 
 parseInternal :: forall event. String -> CycleDuration -> NextCycle event
