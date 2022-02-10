@@ -40,7 +40,7 @@ import WAGS.Lib.Learn.Oscillator (lfo)
 import WAGS.Lib.Tidal (tdl)
 import WAGS.Lib.Tidal.Cycle (noteFromSample_)
 import WAGS.Lib.Tidal.FX (fx, goodbye, hello)
-import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, lnr, lnv, lvt, make, mseq, nl, onTag, parse_, s)
+import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, lnr, lnv, lvt, make, mseq, nl, onTag, parse, s)
 import WAGS.Lib.Tidal.Types (AFuture, FoT, TidalRes, FoT_)
 import WAGS.Run (Run)
 import WAGS.WebAPI (AudioContext)
@@ -81,7 +81,7 @@ wag0 =
     { earth: s
         $ set (traversed <<< traversed <<< lnr)
             (lcmap unwrap \{ normalizedLittleCycleTime: t } -> 1.0 + t * 0.1)
-        $ parse_ (Proxy :: _ "tink:1;t0 tink:2;t1 tink:3;t2 tink:0;t3 tink:4;t4 tink:2;t5 tink:3;t6 tink:1;t7 tink:2;t8 tink:0;t9 tink:3;t10 ")
+        $ parse (Proxy :: _ "tink:1;t0 tink:2;t1 tink:3;t2 tink:0;t3 tink:4;t4 tink:2;t5 tink:3;t6 tink:1;t7 tink:2;t8 tink:0;t9 tink:3;t10 ")
     , wind:
         map
           ( set lvt
@@ -97,7 +97,7 @@ wag0 =
           $ onTag "print" (changeVolume \{ normalizedSampleTime: _ } -> 0.2)
           $ onTag "pk" (changeRate \{ normalizedSampleTime: t } -> 0.7 - t * 0.2)
           $ onTag "kt" (changeRate \{ normalizedSampleTime: t } -> min 1.0 (0.6 + t * 0.8))
-          $ parse_ "psr:3 ~ [~ chin*4] ~ [psr:3;ph psr:3;ph ~ ] , [~ ~ ~ psr:1;print] kurt:5;kt , ~ ~ pluck:1;pk ~ ~ ~ ~ ~ "
+          $ parse "psr:3 ~ [~ chin*4] ~ [psr:3;ph psr:3;ph ~ ] , [~ ~ ~ psr:1;print] kurt:5;kt , ~ ~ pluck:1;pk ~ ~ ~ ~ ~ "
     , fire:
         map
           ( set lvt

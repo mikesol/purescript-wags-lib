@@ -14,7 +14,6 @@ module WAGS.Lib.Tidal.Tidal
   , changeVolume
   , class S
   , cycleP
-  , cycleP_
   , derivative
   , djQuickCheck
   , drone
@@ -75,13 +74,10 @@ module WAGS.Lib.Tidal.Tidal
   , class ParseToCycle
   , parse
   , parseWithBrackets
-  , parse_
   , plainly
   , rend
   , rendNit
-  , rend_
   , s
-  , s_
   , s2f
   , sequentialcyclePInternal
   , u
@@ -145,7 +141,9 @@ import Test.QuickCheck.Gen (Gen, arrayOf1, elements, frequency, resize)
 import Text.Parsing.StringParser (Parser, fail, runParser, try)
 import Text.Parsing.StringParser.CodeUnits (alphaNum, anyDigit, char, oneOf, satisfy, skipSpaces)
 import Text.Parsing.StringParser.Combinators (between, many, many1, optionMaybe, sepBy1, sepEndBy, sepEndBy1)
+import Type.Equality (class TypeEquals)
 import Type.Proxy (Proxy(..))
+import Unsafe.Coerce (unsafeCoerce)
 import WAGS.Create (class Create)
 import WAGS.Create.Optionals (input)
 import WAGS.Graph.AudioUnit as CTOR
@@ -155,7 +153,7 @@ import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, sample2drone)
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.TLP (class MiniNotation)
-import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..), BFoT)
+import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas(..), UnsampledTimeIs, Voice(..), BFoT)
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -545,9 +543,6 @@ cyclePInternal lvl = try (branchingcyclePInternal lvl)
   <|> try (simultaneouscyclePInternal lvl)
   <|> try (singleSampleP lvl)
   <|> fail "Could not parse cycle"
-
-cycleP_ :: Parser (Cycle (VM.Maybe (Note Unit)))
-cycleP_ = cycleP
 
 cycleP :: forall event. Parser (Cycle (VM.Maybe (Note event)))
 cycleP = go <$> cyclePInternal 0
@@ -1120,34 +1115,34 @@ instance sProxy :: (IsSymbol sym, MiniNotation sym) => S (Proxy sym) event where
   s = s <<< reflectSymbol
 
 instance sString :: S String event where
-  s = map plainly <<< parseInternal
+  s = s <<< parse
 
-instance sCycle :: S (Cycle (VM.Maybe (Note event))) event where
-  s = map plainly <<< rend
+instance sCycle :: TypeEquals eventIn eventOut => S (Cycle (VM.Maybe (Note eventIn))) eventOut where
+  s = s <<< rend
 
-instance sNit :: S (NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note event))))) event where
-  s = map plainly <<< pure <<< rendNit
+instance sNit :: TypeEquals eventIn eventOut => S (NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note eventIn))))) eventOut where
+  s = s <<< rendNit
 
-instance sNitFT :: S (CycleDuration -> (NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note event)))))) event where
-  s = map plainly <<< map rendNit
+instance sNitFT :: TypeEquals eventIn eventOut => S (CycleDuration -> (NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note eventIn)))))) eventOut where
+  s = s <<< map rendNit
 
-instance sNift :: S (NonEmptyArray (NoteInFlattenedTime (Note event))) event where
-  s = map plainly <<< pure <<< asScore false
+instance sNift :: TypeEquals eventIn eventOut => S (NonEmptyArray (NoteInFlattenedTime (Note eventIn))) eventOut where
+  s = s <<< asScore false
 
-instance sNiftFT :: S (CycleDuration -> (NonEmptyArray (NoteInFlattenedTime (Note event)))) event where
-  s = map plainly <<< map (asScore false)
+instance sNiftFT :: TypeEquals eventIn eventOut => S (CycleDuration -> (NonEmptyArray (NoteInFlattenedTime (Note eventIn)))) eventOut where
+  s = s <<< map (asScore false)
 
-instance sNextCycle :: S (NextCycle event) event where
-  s = map plainly <<< pure
+instance sNextCycle :: TypeEquals eventIn eventOut => S (NextCycle eventIn) eventOut where
+  s = s <<< (const :: NextCycle eventIn -> CycleDuration -> NextCycle eventIn)
 
-instance sNextCycleFT :: S (CycleDuration -> NextCycle event) event where
-  s = map plainly
+instance sNextCycleFT :: TypeEquals eventIn eventOut => S (CycleDuration -> NextCycle eventIn) eventOut where
+  s = s <<< map plainly
 
-instance sVoice :: S (Voice event) event where
-  s = const
+instance sVoice :: TypeEquals eventIn eventOut => S (Voice eventIn) eventOut where
+  s = s <<< (const :: Voice eventIn -> CycleDuration -> Voice eventIn)
 
-instance sVoiceFT :: S (CycleDuration -> (Voice event)) event where
-  s = identity
+instance sVoiceFT :: TypeEquals eventIn eventOut => S (CycleDuration -> (Voice eventIn)) eventOut where
+  s = unsafeCoerce
 
 betwixt :: forall n. Ord n => n -> n -> n -> n
 betwixt mn' mx' nn = if nn < mn then mn else if nn > mx then mx else nn

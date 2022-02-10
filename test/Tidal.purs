@@ -14,7 +14,7 @@ import Text.Parsing.StringParser (runParser)
 import WAGS.Lib.Tidal.Cycle (Cycle(..), cycleFromSample, cycleFromSample')
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.Cycle (internal, simultaneous, branching, singleton)
-import WAGS.Lib.Tidal.Tidal (c2s, cycleP_, parseWithBrackets, unrest)
+import WAGS.Lib.Tidal.Tidal (c2s, parseWithBrackets, unrest)
 import WAGS.Lib.Tidal.Types (Note(..), NoteInTime(..))
 import Data.Variant.Either (right)
 

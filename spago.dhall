@@ -48,6 +48,7 @@
   , "tailrec"
   , "transformers"
   , "tuples"
+  , "type-equality"
   , "typelevel"
   , "unfoldable"
   , "unsafe-coerce"
