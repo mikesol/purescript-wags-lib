@@ -118,6 +118,7 @@ import Data.Profunctor.Choice (class Choice)
 import Data.Profunctor.Strong (class Strong)
 import Data.Set as Set
 import Data.String.CodeUnits as CU
+import Data.Symbol (class IsSymbol, reflectSymbol)
 import Data.Traversable (class Traversable, sequence, traverse)
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\), type (/\))
@@ -150,6 +151,7 @@ import WAGS.Lib.Tidal.FX (WAGSITumult)
 import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, sample2drone)
 import WAGS.Lib.Tidal.Samples as S
+import WAGS.Lib.Tidal.TLP (class MiniNotation)
 import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..), NoteLazy')
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
@@ -1089,6 +1091,9 @@ djQuickCheck = do
 
 class S s event where
   s :: s -> CycleDuration -> Voice event
+
+instance sProxy :: (IsSymbol sym, MiniNotation sym) => S (Proxy sym) event where
+  s = s <<< reflectSymbol
 
 instance sString :: S String event where
   s = map plainly <<< parseInternal
