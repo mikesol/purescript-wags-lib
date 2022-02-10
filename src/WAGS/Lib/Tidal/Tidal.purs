@@ -10,6 +10,7 @@ module WAGS.Lib.Tidal.Tidal
   , changeForward
   , changeRate
   , changeSample
+  , changeSampleF
   , changeVolume
   , class S
   , cycleP
@@ -106,7 +107,7 @@ import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
 import Data.Int (fromString, toNumber)
-import Data.Lens (Lens', Prism', _Right, iso, lens, over, prism', set, traversed)
+import Data.Lens (Lens', Prism', _Right, _Left, iso, lens, over, prism', set, traversed)
 import Data.Lens.Iso.Newtype (unto)
 import Data.Lens.Record (prop)
 import Data.List (List(..), foldMap, foldl, (:))
@@ -312,6 +313,14 @@ changeSample
   -> container (Note event)
   -> container (Note event)
 changeSample = set (traversed <<< lns <<< iso (VE.either Left Right) (either VE.left VE.right) <<< _Right)
+
+changeSampleF
+  :: forall container event
+   . Traversable container
+  => (UnsampledTimeIs event -> Sample)
+  -> container (Note event)
+  -> container (Note event)
+changeSampleF = set (traversed <<< lns <<< iso (VE.either Left Right) (either VE.left VE.right) <<< _Left)
 
 lnr :: forall event. Lens' (Note event) (FoT event)
 lnr = unto Note <<< prop (Proxy :: _ "rateFoT")
