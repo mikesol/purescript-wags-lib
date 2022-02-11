@@ -3,7 +3,6 @@ module WAGS.Lib.Tidal.Tidal
   , asScore
   , b
   , b'
-  , b_
   , betwixt
   , c2s
   , changeBufferOffset
@@ -20,7 +19,6 @@ module WAGS.Lib.Tidal.Tidal
   , focus
   , i
   , i'
-  , i_
   , ident
   , impatient
   , intentionalSilenceForInternalUseOnly
@@ -80,12 +78,10 @@ module WAGS.Lib.Tidal.Tidal
   , s
   , s2f
   , sequentialcyclePInternal
-  , u
   , unrest
   , when_
   , x
   , x'
-  , x_
   ) where
 
 import Prelude hiding (between)
@@ -412,17 +408,11 @@ b bx by = branching { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNon
 b' :: forall event. Cycle (VM.Maybe (Note event)) -> Cycle (VM.Maybe (Note event))
 b' bx = b bx []
 
-b_ :: Cycle (VM.Maybe (Note Unit)) -> Array (Cycle (VM.Maybe (Note Unit))) -> Cycle (VM.Maybe (Note Unit))
-b_ = b
-
 i :: forall event. Cycle (VM.Maybe (Note event)) -> Array (Cycle (VM.Maybe (Note event))) -> Cycle (VM.Maybe (Note event))
 i sx sy = internal { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (sx :| sy) }
 
 i' :: forall event. Cycle (VM.Maybe (Note event)) -> Cycle (VM.Maybe (Note event))
 i' sx = i sx []
-
-i_ :: Cycle (VM.Maybe (Note Unit)) -> Array (Cycle (VM.Maybe (Note Unit))) -> Cycle (VM.Maybe (Note Unit))
-i_ = i
 
 x :: forall event. Cycle (VM.Maybe (Note event)) -> Array (Cycle (VM.Maybe (Note event))) -> Cycle (VM.Maybe (Note event))
 x xx xy = simultaneous { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (xx :| xy) }
@@ -430,11 +420,6 @@ x xx xy = simultaneous { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.from
 x' :: forall event. Cycle (VM.Maybe (Note event)) -> Cycle (VM.Maybe (Note event))
 x' sx = x sx []
 
-x_ :: Cycle (VM.Maybe (Note Unit)) -> Array (Cycle (VM.Maybe (Note Unit))) -> Cycle (VM.Maybe (Note Unit))
-x_ = x
-
-u :: Cycle (VM.Maybe (Note Unit)) -> Cycle (VM.Maybe (Note Unit))
-u = identity
 
 drone :: forall event. String -> VM.Maybe (DroneNote event)
 drone = VM.just <<< sample2drone <<< Sample
@@ -852,26 +837,6 @@ instance parseToCycleString :: ParseToCycle String where
 instance parseToCycleProxy :: (IsSymbol sym, MiniNotation sym) => ParseToCycle (Proxy sym) where
   parse = parse <<< reflectSymbol
 
-parse_
-  :: forall s
-   . ParseToCycle s
-  => s
-  -> Cycle (VM.Maybe (Note Unit))
-parse_ = parse
-
-parseInternal :: forall event. String -> CycleDuration -> NextCycle event
-parseInternal str dur = asScore false
-  $ maybe (pure $ intentionalSilenceForInternalUseOnly dur) flattenScore
-  $ join
-  $ map
-      ( NEA.fromArray
-          <<< compact
-          <<< map NEA.fromArray
-          <<< (unrest <<< cycleToSequence dur)
-      )
-  $ hush
-  $ parseWithBrackets str
-
 rend :: forall event. Cycle (VM.Maybe (Note event)) -> CycleDuration -> (NextCycle event)
 rend cyn dur = asScore false
   $ maybe (pure (intentionalSilenceForInternalUseOnly dur)) flattenScore
@@ -881,9 +846,6 @@ rend cyn dur = asScore false
   $ unrest
   $ cycleToSequence dur
   $ cyn
-
-rend_ :: Cycle (VM.Maybe (Note Unit)) -> CycleDuration -> (NextCycle Unit)
-rend_ = rend
 
 rendNit :: forall event. NonEmptyArray (NonEmptyArray (NoteInTime (VM.Maybe (Note event)))) -> NextCycle event
 rendNit = asScore false <<< s2f
@@ -1105,8 +1067,6 @@ djQuickCheck = do
         }
     }
 
-s_ :: forall s. S s Unit => s -> CycleDuration -> Voice Unit
-s_ = s
 newtype CoercionHelper event = CoercionHelper (CycleDuration -> Voice event)
 
 class S s event where
