@@ -12,12 +12,12 @@ import Data.Lens (set, traversed)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap, wrap)
 import Data.NonEmpty ((:|))
-import Type.Proxy (Proxy(..))
 import Data.Profunctor (lcmap)
 import Data.Tuple.Nested ((/\))
 import Data.UInt (toInt)
 import Data.Variant.Either (right)
 import Effect (Effect)
+import Data.Variant.Maybe as VM
 import Effect.Aff (Aff)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
@@ -30,18 +30,21 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Subscription as HS
 import Halogen.VDom.Driver (runUI)
+import Heterogeneous.Mapping (hmap)
 import Math ((%))
 import Record as R
 import Simple.JSON as JSON
+import Type.Proxy (Proxy(..))
 import WAGS.Create.Optionals (highpass, pan)
 import WAGS.Interpret (close, getByteFrequencyData)
+import WAGS.Lib.HList (HNil(..), (:), type (:))
 import WAGS.Lib.Learn (class ToScene, Analysers, State', WagsState(..), bStyle, initialState, toScene)
 import WAGS.Lib.Learn.Oscillator (lfo)
 import WAGS.Lib.Tidal (tdl)
-import WAGS.Lib.Tidal.Cycle (noteFromSample_)
+import WAGS.Lib.Tidal.Cycle (noteFromSample_, Cycle)
 import WAGS.Lib.Tidal.FX (fx, goodbye, hello)
-import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, lnr, lnv, lvt, make, mseq, nl, onTag, parse, s)
-import WAGS.Lib.Tidal.Types (AFuture, FoT, TidalRes, FoT_)
+import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, lnr, lnv, lvt, make, mseq, nefy, i, nl, onTag, parse, s)
+import WAGS.Lib.Tidal.Types (AFuture, Note, FoT, TidalRes, FoT_)
 import WAGS.Run (Run)
 import WAGS.WebAPI (AudioContext)
 

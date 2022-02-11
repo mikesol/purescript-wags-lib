@@ -11,6 +11,7 @@ module WAGS.Lib.Tidal.Tidal
   , changeSample
   , changeSampleF
   , changeVolume
+  , class ParseToCycle
   , class S
   , cycleP
   , derivative
@@ -52,9 +53,10 @@ module WAGS.Lib.Tidal.Tidal
   , lvt
   , make
   , module WAGS.Lib.Tidal.Cycle
-  , n
-  , nl
   , mseq
+  , n
+  , nefy
+  , nl
   , onTag
   , onTag'
   , onTagWithIndex
@@ -69,7 +71,6 @@ module WAGS.Lib.Tidal.Tidal
   , onTagsWithIndex'
   , openFuture
   , openVoice
-  , class ParseToCycle
   , parse
   , parseWithBrackets
   , plainly
@@ -82,7 +83,8 @@ module WAGS.Lib.Tidal.Tidal
   , when_
   , x
   , x'
-  ) where
+  )
+  where
 
 import Prelude hiding (between)
 
@@ -98,6 +100,7 @@ import Data.Filterable (compact, filter, filterMap, maybeBool)
 import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
+import Data.Identity (Identity(..))
 import Data.Int (fromString, toNumber)
 import Data.Lens (Lens', Prism', _Right, _Left, iso, lens, over, prism', set, traversed)
 import Data.Lens.Iso.Newtype (unto)
@@ -129,20 +132,22 @@ import Data.Vec as V
 import Foreign.Object (Object)
 import Foreign.Object as O
 import Foreign.Object as Object
+import Heterogeneous.Mapping (class Mapping)
 import Prim.Row (class Nub, class Union)
 import Prim.RowList (class RowToList)
 import Record as Record
+import Safe.Coerce (coerce)
 import Test.QuickCheck (arbitrary)
 import Test.QuickCheck.Gen (Gen, arrayOf1, elements, frequency, resize)
 import Text.Parsing.StringParser (Parser, fail, runParser, try)
 import Text.Parsing.StringParser.CodeUnits (alphaNum, anyDigit, char, oneOf, satisfy, skipSpaces)
 import Text.Parsing.StringParser.Combinators (between, many, many1, optionMaybe, sepBy1, sepEndBy, sepEndBy1)
-import Safe.Coerce (coerce)
 import Type.Equality (class TypeEquals, proof)
 import Type.Proxy (Proxy(..))
 import WAGS.Create (class Create)
 import WAGS.Create.Optionals (input)
 import WAGS.Graph.AudioUnit as CTOR
+import WAGS.Lib.HList (HCons(..), HNil)
 import WAGS.Lib.Tidal.Cycle (Cycle(..), singleton, branching, simultaneous, internal, flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
 import WAGS.Lib.Tidal.FX (WAGSITumult)
 import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
@@ -408,12 +413,24 @@ b bx by = branching { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNon
 b' :: forall event. Cycle (VM.Maybe (Note event)) -> Cycle (VM.Maybe (Note event))
 b' bx = b bx []
 
+nefy :: forall f a b. (a -> f a -> b) -> NonEmpty f a -> b
+nefy ff (xx :| yy) = ff xx yy
+
+class H2N a b | a -> b where
+  h2n :: a -> NonEmpty Array b
+
+instance h2nTuple :: TypeEquals a aa => H2N (HCons a HNil) aa where
+  h2n (HCons aa _) = coerce (proof :: Identity a -> Identity aa) aa :| []
+else instance h2nTuple2 :: (TypeEquals a aa, H2N b aa) => H2N (HCons a b) aa where
+  h2n (HCons aa bb) = coerce (proof :: Identity a -> Identity aa) aa :| [qq] <> rr
+    where
+    (qq :| rr) = h2n bb
+
 i :: forall event. Cycle (VM.Maybe (Note event)) -> Array (Cycle (VM.Maybe (Note event))) -> Cycle (VM.Maybe (Note event))
 i sx sy = internal { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (sx :| sy) }
 
 i' :: forall event. Cycle (VM.Maybe (Note event)) -> Cycle (VM.Maybe (Note event))
 i' sx = i sx []
-
 x :: forall event. Cycle (VM.Maybe (Note event)) -> Array (Cycle (VM.Maybe (Note event))) -> Cycle (VM.Maybe (Note event))
 x xx xy = simultaneous { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (xx :| xy) }
 
