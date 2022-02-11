@@ -132,7 +132,6 @@ import Data.Vec as V
 import Foreign.Object (Object)
 import Foreign.Object as O
 import Foreign.Object as Object
-import Heterogeneous.Mapping (class Mapping)
 import Prim.Row (class Nub, class Union)
 import Prim.RowList (class RowToList)
 import Record as Record
