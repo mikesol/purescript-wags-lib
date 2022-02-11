@@ -141,9 +141,9 @@ import Test.QuickCheck.Gen (Gen, arrayOf1, elements, frequency, resize)
 import Text.Parsing.StringParser (Parser, fail, runParser, try)
 import Text.Parsing.StringParser.CodeUnits (alphaNum, anyDigit, char, oneOf, satisfy, skipSpaces)
 import Text.Parsing.StringParser.Combinators (between, many, many1, optionMaybe, sepBy1, sepEndBy, sepEndBy1)
-import Type.Equality (class TypeEquals)
+import Safe.Coerce (coerce)
+import Type.Equality (class TypeEquals, proof)
 import Type.Proxy (Proxy(..))
-import Unsafe.Coerce (unsafeCoerce)
 import WAGS.Create (class Create)
 import WAGS.Create.Optionals (input)
 import WAGS.Graph.AudioUnit as CTOR
@@ -153,7 +153,7 @@ import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, sample2drone)
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.TLP (class MiniNotation)
-import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas(..), UnsampledTimeIs, Voice(..), BFoT)
+import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BFoT, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..))
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -1107,6 +1107,7 @@ djQuickCheck = do
 
 s_ :: forall s. S s Unit => s -> CycleDuration -> Voice Unit
 s_ = s
+newtype CoercionHelper event = CoercionHelper (CycleDuration -> Voice event)
 
 class S s event where
   s :: s -> CycleDuration -> Voice event
@@ -1142,7 +1143,7 @@ instance sVoice :: TypeEquals eventIn eventOut => S (Voice eventIn) eventOut whe
   s = s <<< (const :: Voice eventIn -> CycleDuration -> Voice eventIn)
 
 instance sVoiceFT :: TypeEquals eventIn eventOut => S (CycleDuration -> (Voice eventIn)) eventOut where
-  s = unsafeCoerce
+  s = coerce (proof :: CoercionHelper eventIn -> CoercionHelper eventOut)
 
 betwixt :: forall n. Ord n => n -> n -> n -> n
 betwixt mn' mx' nn = if nn < mn then mn else if nn > mx then mx else nn
