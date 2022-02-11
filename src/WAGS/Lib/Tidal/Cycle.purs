@@ -2,20 +2,21 @@ module WAGS.Lib.Tidal.Cycle where
 
 import Prelude
 
+import Data.Array.NonEmpty as NEA
 import Data.Foldable (class Foldable, foldMapDefaultR, foldl, foldr, intercalate)
-import Data.Newtype (class Newtype, unwrap)
 import Data.FunctorWithIndex (class FunctorWithIndex)
 import Data.Generic.Rep (class Generic)
 import Data.Int (floor)
-import Data.Variant (Variant, match, inj)
-import Data.Array.NonEmpty as NEA
+import Data.Newtype (class Newtype, unwrap)
+import Data.NonEmpty ((:|))
 import Data.Show.Generic (genericShow)
 import Data.Traversable (class Traversable, sequenceDefault, traverse)
-import Data.Variant.Maybe (Maybe, just, nothing, maybe)
+import Data.Variant (Variant, match, inj)
 import Data.Variant.Either (either, right)
+import Data.Variant.Maybe (Maybe, just, nothing, maybe)
+import Type.Proxy (Proxy(..))
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.Types (DroneNote, Note(..), Sample, unlockSample, emptyCtrl)
-import Type.Proxy (Proxy(..))
 
 type CycleEnv = { weight :: Number, tag :: Maybe String }
 
@@ -106,6 +107,9 @@ instance bindCycle :: Bind Cycle where
     }
 
 instance monadCycle :: Monad Cycle
+
+instance semigroupCycle :: Semigroup (Cycle n) where
+  append aa bb = internal { env: { weight: 1.0, tag: nothing }, cycles: NEA.fromNonEmpty (aa :| [bb]) }
 
 instance functorWithIndexCycle :: FunctorWithIndex Int Cycle where
   mapWithIndex fff vvv = (go 0 vvv).val
