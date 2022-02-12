@@ -83,8 +83,7 @@ module WAGS.Lib.Tidal.Tidal
   , when_
   , x
   , x'
-  )
-  where
+  ) where
 
 import Prelude hiding (between)
 
@@ -421,7 +420,7 @@ class H2N a b | a -> b where
 instance h2nTuple :: TypeEquals a aa => H2N (HCons a HNil) aa where
   h2n (HCons aa _) = coerce (proof :: Identity a -> Identity aa) aa :| []
 else instance h2nTuple2 :: (TypeEquals a aa, H2N b aa) => H2N (HCons a b) aa where
-  h2n (HCons aa bb) = coerce (proof :: Identity a -> Identity aa) aa :| [qq] <> rr
+  h2n (HCons aa bb) = coerce (proof :: Identity a -> Identity aa) aa :| [ qq ] <> rr
     where
     (qq :| rr) = h2n bb
 
@@ -430,12 +429,12 @@ i sx sy = internal { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonE
 
 i' :: forall event. Cycle (VM.Maybe (Note event)) -> Cycle (VM.Maybe (Note event))
 i' sx = i sx []
+
 x :: forall event. Cycle (VM.Maybe (Note event)) -> Array (Cycle (VM.Maybe (Note event))) -> Cycle (VM.Maybe (Note event))
 x xx xy = simultaneous { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (xx :| xy) }
 
 x' :: forall event. Cycle (VM.Maybe (Note event)) -> Cycle (VM.Maybe (Note event))
 x' sx = x sx []
-
 
 drone :: forall event. String -> VM.Maybe (DroneNote event)
 drone = VM.just <<< sample2drone <<< Sample
@@ -490,6 +489,7 @@ sampleP = do
       , rateFoT: const 1.0
       , forwardFoT: const true
       , volumeFoT: const 1.0
+      , tumultFoT: const (fx $ goodbye hello)
       }
     Just foundSample -> pure $ maybe VM.nothing VM.just foundSample
 
@@ -713,6 +713,7 @@ asScore force flattened = NextCycle
           , forwardFoT: (unwrap aa.note).forwardFoT
           , cycleStartsAt: prevCycleEnded
           , rateFoT: (unwrap aa.note).rateFoT
+          , tumultFoT: (unwrap aa.note).tumultFoT
           , bufferOffsetFoT: (unwrap aa.note).bufferOffsetFoT
           , volumeFoT: (unwrap aa.note).volumeFoT
           , bigCycleDuration: aa.bigCycleDuration
@@ -816,6 +817,7 @@ intentionalSilenceForInternalUseOnly (CycleDuration cl) = NoteInFlattenedTime
       , rateFoT: const 1.0
       , forwardFoT: const true
       , volumeFoT: const 1.0
+      , tumultFoT: const (fx $ goodbye hello)
       , bufferOffsetFoT: const 0.0
       }
   , bigStartsAt: 0.0
@@ -875,6 +877,7 @@ n f = Note $ f
   , forwardFoT: const true
   , rateFoT: pure 1.0
   , bufferOffsetFoT: pure 0.0
+  , tumultFoT: const (fx $ goodbye hello)
   , volumeFoT: pure 1.0
   }
 
@@ -886,6 +889,7 @@ nl = n <<< dimap
       , r: iii.rateFoT
       , b: iii.bufferOffsetFoT
       , v: iii.volumeFoT
+      , t: iii.tumultFoT
       }
   )
   ( \iii ->
@@ -894,6 +898,7 @@ nl = n <<< dimap
       , rateFoT: iii.r
       , bufferOffsetFoT: iii.b
       , volumeFoT: iii.v
+      , tumultFoT: iii.t
       }
   )
 
@@ -962,6 +967,7 @@ genSingleton =
       , volumeFoT: const 1.0
       , forwardFoT: const true
       , bufferOffsetFoT: const 0.0
+      , tumultFoT: const (fx $ goodbye hello)
       , sampleFoT: _
       }
     <<< VE.right <$> genSingleSample
@@ -1117,7 +1123,7 @@ instance sVoice :: TypeEquals eventIn eventOut => S (Voice eventIn) eventOut whe
   s = s <<< (const :: Voice eventIn -> CycleDuration -> Voice eventIn)
 
 instance sVoiceFT :: TypeEquals eventIn eventOut => S (CycleDuration -> (Voice eventIn)) eventOut where
-  s = compose (proof :: Voice eventIn -> Voice eventOut) 
+  s = compose (proof :: Voice eventIn -> Voice eventOut)
 
 betwixt :: forall n. Ord n => n -> n -> n -> n
 betwixt mn' mx' nn = if nn < mn then mn else if nn > mx then mx else nn

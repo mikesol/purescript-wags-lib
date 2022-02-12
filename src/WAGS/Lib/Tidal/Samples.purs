@@ -2076,7 +2076,7 @@ import Foreign.Object (Object)
 import Foreign.Object as Object
 import Safe.Coerce (coerce)
 import Unsafe.Coerce (unsafeCoerce)
-import WAGS.Lib.Tidal.FX (calm)
+import WAGS.Lib.Tidal.FX (calm, goodbye, hello, fx)
 import WAGS.Lib.Tidal.Types (BufferUrl(..), ClockTimeIs, FXInput, DroneNote(..), Note(..), Sample(..), Samples, TimeIs, TimeIsAndWas, UnsampledTimeIs)
 import WAGS.WebAPI (BrowserAudioBuffer)
 
@@ -6298,6 +6298,7 @@ nameToSampleMNO = (map <<< map)
         { sampleFoT: _
         , bufferOffsetFoT: const 0.0
         , rateFoT: const 1.0
+        , tumultFoT: const $ fx $ goodbye hello
         , forwardFoT: const true
         , volumeFoT: const 1.0
         }
