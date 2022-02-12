@@ -60,6 +60,7 @@ type RBuf event
   { sampleFoT :: Either (UnsampledTimeIs event -> Sample) Sample
   , forwardFoT :: BFoT event
   , rateFoT :: FoT event
+  , tumultFoT :: TimeIs event -> Tumultuous D1 "output" (voice :: Unit)
   , bufferOffsetFoT :: FoT event
   , volumeFoT :: FoT event
   , cycleStartsAt :: Number
@@ -355,6 +356,7 @@ instance showDroneNote :: Show (DroneNote event) where
 type Note' event =
   { sampleFoT :: Either (UnsampledTimeIs event -> Sample) Sample
   , forwardFoT :: BFoT event
+  , tumultFoT :: TimeIs event -> Tumultuous D1 "output" (voice :: Unit)
   , rateFoT :: FoT event
   , bufferOffsetFoT :: FoT event
   , volumeFoT :: FoT event
@@ -363,6 +365,7 @@ type Note' event =
 type NoteLazy' event =
   { s :: String
   , f :: BFoT event
+  , t :: TimeIs event -> Tumultuous D1 "output" (voice :: Unit)
   , r :: FoT event
   , b :: FoT event
   , v :: FoT event

@@ -14,6 +14,7 @@ import Data.Traversable (class Traversable, sequenceDefault, traverse)
 import Data.Variant.Maybe (Maybe, just, nothing, maybe)
 import Data.Variant.Either (either, right)
 import WAGS.Lib.Tidal.Samples as S
+import WAGS.Lib.Tidal.FX (goodbye, hello, fx)
 import WAGS.Lib.Tidal.Types (DroneNote, Note(..), Sample, unlockSample, emptyCtrl)
 import Type.Proxy (Proxy(..))
 
@@ -219,6 +220,7 @@ noteFromSample = Note
     { sampleFoT: _
     , rateFoT: const 1.0
     , volumeFoT: const 1.0
+    , tumultFoT: const $ fx $ goodbye hello
     , bufferOffsetFoT: const 0.0
     , forwardFoT: const true
     }

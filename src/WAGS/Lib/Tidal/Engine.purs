@@ -41,10 +41,11 @@ import WAGS.Interpret (bufferDuration)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), CfScoredBufferPool, makeScoredBufferPool)
 import WAGS.Lib.Learn (FullSceneBuilder, AnalysersCb, usingcr)
 import WAGS.Lib.Tidal.Download (downloadSilence, initialBuffers)
-import WAGS.Lib.Tidal.FX (calm)
+import WAGS.Lib.Tidal.FX (calm, goodbye, hello)
 import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleInfo, DroneNote(..), Globals, IsFresh, NBuf, Next, NextCycle, RBuf, Sample(..), SampleCache, TheFuture, TidalRes, TimeIs(..), UnsampledTimeIs(..), ExternalControl, h2v')
 import WAGS.Run (SceneI(..))
 import WAGS.Subgraph (SubSceneSig)
+import WAGS.Tumult.Make (tumultuously)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer, MediaRecorderCb)
 
 globalFF = 0.03 :: Number
@@ -109,7 +110,7 @@ internal0
        , buffers :: SampleCache
        , time :: Number
        }
-internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0.5, sample: 0.5, forward: 0.5 } }) # SG.loopUsingScene
+internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0.5, sample: 0.5, forward: 0.5, tumult: 0.5 } }) # SG.loopUsingScene
   \{ time
    , silence
    , buffers
@@ -121,7 +122,13 @@ internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0
    { initialEntropies: initialEntropiesOld } -> case buf' of
     Nothing ->
       { control: { initialEntropies: initialEntropiesOld }
-      , scene: { singleton: gain 0.0 (playBuf { onOff: _off } silence) }
+      , scene:
+          { singleton: gain 0.0
+              { tmlt:
+                  tumult (tumultuously (goodbye hello +> V.empty))
+                    { voice: (playBuf { onOff: _off } silence) }
+              }
+          }
       }
     Just
       ( Buffy
@@ -131,6 +138,7 @@ internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0
               { sampleFoT
               , forwardFoT
               , rateFoT
+              , tumultFoT
               , bufferOffsetFoT
               , volumeFoT
               , duration
@@ -146,9 +154,11 @@ internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0
       offsetEntropy <- arbitrary
       sampleEntropy <- arbitrary
       forwardEntropy <- arbitrary
+      tumultEntropy <- arbitrary
       initialEntropies <-
-        if starting then { volume: _, rate: _, sample: _, bufferOffset: _, forward: _ }
+        if starting then { volume: _, rate: _, sample: _, bufferOffset: _, forward: _, tumult: _ }
           <$> arbitrary
+          <*> arbitrary
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
@@ -207,19 +217,25 @@ internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0
             { singleton:
                 gain
                   vol
-                  ( playBuf
-                      { onOff:
-                          ff globalFF
-                            $
-                              if starting then
-                                ff (max 0.0 (startTime - time)) (pure _offOn)
-                              else
-                                pure _on
-                      , bufferOffset: bufferOffsetFoT (thisIsTime initialEntropies.bufferOffset offsetEntropy)
-                      , playbackRate: ff globalFF $ pure $ rateFoT (thisIsTime initialEntropies.rate rateEntropy)
-                      }
-                      buf
-                  )
+                  { tmlt:
+                      tumult (tumultFoT (thisIsTime initialEntropies.tumult tumultEntropy))
+                        { voice:
+                            ( playBuf
+                                { onOff:
+                                    ff globalFF
+                                      $
+                                        if starting then
+                                          ff (max 0.0 (startTime - time)) (pure _offOn)
+                                        else
+                                          pure _on
+                                , bufferOffset: bufferOffsetFoT (thisIsTime initialEntropies.bufferOffset offsetEntropy)
+                                , playbackRate: ff globalFF $ pure $ rateFoT (thisIsTime initialEntropies.rate rateEntropy)
+                                }
+                                buf
+                            )
+                        }
+
+                  }
             }
         }
 
