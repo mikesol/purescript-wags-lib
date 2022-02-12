@@ -3,8 +3,10 @@ module WAGS.Lib.Piecewise where
 
 import Prelude
 
+import Data.Array.NonEmpty as NEA
 import Data.Foldable (foldl)
 import Data.List (List(..))
+import Data.List as List
 import Data.List.NonEmpty (NonEmptyList(..), sortBy)
 import Data.List.NonEmpty as NEL
 import Data.Map as Map
@@ -151,6 +153,9 @@ makeChunksR =
 type MakePiecewise v
   = NonEmpty List (Number /\ v) -> (APFofT v)
 
+type MakePiecewiseA v
+  = Array (Number /\ v) -> (APFofT v)
+
 makePiecewise' :: forall v. MakeChunks v -> MakePiecewise v
 makePiecewise' mkc l = go
   where
@@ -167,6 +172,11 @@ makeLoopingPiecewise' mpw l { time, headroomInSeconds } = mpw l { time: time % (
 
 makePiecewise :: MakePiecewise Number
 makePiecewise = makePiecewise' makeChunks
+
+makePiecewiseA :: MakePiecewiseA Number
+makePiecewiseA = NEA.fromArray >>> map NEA.toNonEmpty >>> case _ of
+  Just (aa :| bb) -> makePiecewise (aa :| List.fromFoldable bb)
+  Nothing -> makePiecewise (0.0 /\ 0.0 :| Nil)
 
 makeLoopingPiecewise :: MakePiecewise Number
 makeLoopingPiecewise = makeLoopingPiecewise' makePiecewise
@@ -193,7 +203,7 @@ simplePiecewise arr = f
     ub = Map.lookupGE n asMap
     val = case lb of
       Nothing -> case ub of
-        Nothing ->  0.0
+        Nothing -> 0.0
         Just x -> x.value
       Just llb -> case ub of
         Nothing -> llb.value

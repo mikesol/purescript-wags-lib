@@ -16,8 +16,8 @@ import Data.Profunctor (lcmap)
 import Data.Tuple.Nested ((/\))
 import Data.UInt (toInt)
 import Data.Variant.Either (right)
-import Effect (Effect)
 import Data.Variant.Maybe as VM
+import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
@@ -43,6 +43,7 @@ import WAGS.Lib.Learn.Oscillator (lfo)
 import WAGS.Lib.Tidal (tdl)
 import WAGS.Lib.Tidal.Cycle (noteFromSample_, Cycle)
 import WAGS.Lib.Tidal.FX (fx, goodbye, hello)
+import WAGS.Lib.Tidal.Synth (synth)
 import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, lnr, lnv, lvt, make, mseq, nefy, i, nl, onTag, parse, s)
 import WAGS.Lib.Tidal.Types (AFuture, Note, FoT, TidalRes, FoT_)
 import WAGS.Run (Run)
@@ -57,7 +58,10 @@ data Action
   | Freqz (Array String)
 
 wag :: AFuture
-wag = wag0 <> wag1 <> wag2
+wag = wag0 <> wag1 <> wag2 <> wag3
+
+wag3 :: AFuture
+wag3 = make 2.0 { earth: s $ (map <<< map) (synth {}) $ parse "c4 d4 e4 f4 g4 a4 b4 c5" }
 
 wag1 :: AFuture
 wag1 = make 2.0 { earth: s "hh hh hh hh" }

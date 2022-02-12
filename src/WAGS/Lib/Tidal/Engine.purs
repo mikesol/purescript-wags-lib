@@ -109,12 +109,14 @@ internal0
        , externalControl :: ExternalControl
        , buffers :: SampleCache
        , time :: Number
+       , headroomInSeconds :: Number
        }
 internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0.5, sample: 0.5, forward: 0.5, tumult: 0.5 } }) # SG.loopUsingScene
   \{ time
    , silence
    , buffers
    , externalControl
+   , headroomInSeconds
    , event
    , seed
    , buf: buf'
@@ -176,6 +178,7 @@ internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0
             { bigCycleTime
             , littleCycleTime
             , event
+            , headroomInSeconds
             , externalControl
             , clockTime: time
             , normalizedClockTime
@@ -196,6 +199,7 @@ internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0
           TimeIs
             { sampleTime
             , event
+            , headroomInSeconds
             , externalControl
             , bigCycleTime
             , littleCycleTime
@@ -247,10 +251,11 @@ internal1
        , buffers :: SampleCache
        , event :: IsFresh event
        , silence :: BrowserAudioBuffer
+       , headroomInSeconds :: Number
        , time :: Number
        }
 internal1 = (const emptyLags) # SG.loopUsingScene
-  \{ time, buffers, event, externalControl, silence, fng: { future, globals, seed } }
+  \{ time, headroomInSeconds, buffers, event, externalControl, silence, fng: { future, globals, seed } }
    { timeLag
    , volumeLag
    } -> { newSeed: mkSeed seed, size: globalSize } # evalGen do
@@ -291,7 +296,7 @@ internal1 = (const emptyLags) # SG.loopUsingScene
                   { voice: subgraph
                       (V.zipWithE (/\) seeds (extract future))
                       (const $ const $ internal0)
-                      (const $ uncurry { time, buffers, event, externalControl, silence, seed: _, buf: _ })
+                      (const $ uncurry { time, buffers, event, headroomInSeconds, externalControl, silence, seed: _, buf: _ })
                       {}
                   }
               }
@@ -624,6 +629,7 @@ engine dmo evt ctrl mrc bsc = usingcr
                         { subs: subgraph vec (const $ const $ internal1)
                             ( const $
                                 { time: time'
+                                , headroomInSeconds
                                 , buffers
                                 , event
                                 , externalControl

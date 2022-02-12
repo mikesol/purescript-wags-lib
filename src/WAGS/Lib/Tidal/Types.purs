@@ -385,6 +385,7 @@ unlockSample event externalControl =
     , normalizedClockTime: 0.0
     , normalizedBigCycleTime: 0.0
     , normalizedLittleCycleTime: 0.0
+    , headroomInSeconds: 0.0
     , littleCycleDuration: 0.0
     , bigCycleDuration: 0.0
     , entropy: 0.0
@@ -461,7 +462,7 @@ newtype UnsampledTimeIs event
   , clockTime :: Number
   , bigCycleTime :: Number
   , externalControl :: ExternalControl
-
+  , headroomInSeconds :: Number
   , littleCycleTime :: Number
   , normalizedClockTime :: Number
   , normalizedBigCycleTime :: Number
@@ -477,6 +478,7 @@ derive instance newtypeUnsampledTimeIs :: Newtype (UnsampledTimeIs event) _
 type TimeIs' event =
   { event :: IsFresh event
   , externalControl :: ExternalControl
+  , headroomInSeconds :: Number
   , clockTime :: Number
   , sampleTime :: Number
   , bigCycleTime :: Number
