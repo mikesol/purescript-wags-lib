@@ -1083,8 +1083,6 @@ djQuickCheck = do
         }
     }
 
-newtype CoercionHelper event = CoercionHelper (CycleDuration -> Voice event)
-
 class S s event where
   s :: s -> CycleDuration -> Voice event
 
@@ -1119,7 +1117,7 @@ instance sVoice :: TypeEquals eventIn eventOut => S (Voice eventIn) eventOut whe
   s = s <<< (const :: Voice eventIn -> CycleDuration -> Voice eventIn)
 
 instance sVoiceFT :: TypeEquals eventIn eventOut => S (CycleDuration -> (Voice eventIn)) eventOut where
-  s = coerce (proof :: CoercionHelper eventIn -> CoercionHelper eventOut)
+  s = compose (proof :: Voice eventIn -> Voice eventOut) 
 
 betwixt :: forall n. Ord n => n -> n -> n -> n
 betwixt mn' mx' nn = if nn < mn then mn else if nn > mx then mx else nn
