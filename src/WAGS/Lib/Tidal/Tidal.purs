@@ -1,5 +1,6 @@
 module WAGS.Lib.Tidal.Tidal
   ( addEffect
+  , changeEffect
   , asScore
   , b
   , b'
@@ -43,6 +44,7 @@ module WAGS.Lib.Tidal.Tidal
   , lnbo
   , lnf
   , lnr
+  , lnx
   , lns
   , lnv
   , ltd
@@ -152,7 +154,7 @@ import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, sample2drone)
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.TLP (class MiniNotation)
-import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BFoT, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..))
+import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BFoT, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs, TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..))
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -331,6 +333,17 @@ type ChangeSig =
 
 changeRate :: ChangeSig
 changeRate = setter' lnr
+
+lnx :: forall event. Lens' (Note event) (TimeIs event -> Tumultuous D1 "output" (voice :: Unit))
+lnx = unto Note <<< prop (Proxy :: _ "tumultFoT")
+
+changeEffect
+  :: forall container event
+   . Traversable container
+  => (TimeIs' event -> Tumultuous D1 "output" (voice :: Unit))
+  -> container (Note event)
+  -> container (Note event)
+changeEffect = setter' lnx
 
 lnbo :: forall event. Lens' (Note event) (FoT event)
 lnbo = unto Note <<< prop (Proxy :: _ "bufferOffsetFoT")
