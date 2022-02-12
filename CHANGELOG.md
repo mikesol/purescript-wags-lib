@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.0.85] - 2022-02-11
 
 - uses type equality for more elegant proof in the `S` class.
+- removes unneeded monomorphic functions.
+- adds tumult to individual samples.
 
 ## [0.0.84] - 2022-02-10
 
