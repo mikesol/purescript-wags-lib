@@ -1,17 +1,17 @@
 module WAGS.Lib.Tidal.Tidal
-  ( addEffect
+  ( addDroneEffect
+  , addEffect
   , asScore
   , b
   , b'
   , betwixt
   , c2s
   , changeBufferOffset
-  , changeDroneVolume
   , changeDroneForward
-  , addDroneEffect
-  , changeDroneRate
   , changeDroneLoopEnd
   , changeDroneLoopStart
+  , changeDroneRate
+  , changeDroneVolume
   , changeEffect
   , changeForward
   , changeRate
@@ -23,6 +23,7 @@ module WAGS.Lib.Tidal.Tidal
   , cycleP
   , djQuickCheck
   , drone
+  , fadeTo
   , focus
   , i
   , i'
@@ -77,6 +78,7 @@ module WAGS.Lib.Tidal.Tidal
   , onTagsWithIndex'
   , openFuture
   , openVoice
+  , oscWarp
   , parse
   , parseWithBrackets
   , plainly
@@ -89,7 +91,8 @@ module WAGS.Lib.Tidal.Tidal
   , when_
   , x
   , x'
-  ) where
+  )
+  where
 
 import Prelude hiding (between)
 
@@ -137,6 +140,7 @@ import Data.Vec as V
 import Foreign.Object (Object)
 import Foreign.Object as O
 import Foreign.Object as Object
+import Math (exp, pow)
 import Prim.Row (class Nub, class Union)
 import Prim.RowList (class RowToList)
 import Record as Record
@@ -158,7 +162,7 @@ import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (sample2drone)
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.TLP (class MiniNotation)
-import WAGS.Lib.Tidal.Types (AfterMatter, BFoT, BufferUrl, ClockTimeIs', CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs, TimeIs', UnsampledTimeIs, Voice(..), WH, WH', getNow)
+import WAGS.Lib.Tidal.Types (AfterMatter, BFoT, BufferUrl, ClockTimeIs, ClockTimeIs', CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs, TimeIs', TimeIsAndWasAndHadBeen, UnsampledTimeIs, Voice(..), WH, WH', getNow)
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -1201,3 +1205,41 @@ betwixt mn' mx' nn = if nn < mn then mn else if nn > mx then mx else nn
   where
   mn = min mn' mx'
   mx = max mn' mx'
+
+oscWarp
+  :: forall event
+   . { upTime :: Number
+     , downTime :: Number
+     , upWarp :: Number
+     , downWarp :: Number
+     }
+  -> TimeIsAndWasAndHadBeen (ClockTimeIs event)
+  -> Number
+oscWarp { upTime: ut, downTime: dt, upWarp, downWarp } = unwrap >>> match
+  { timeIs: \{} -> 0.0
+  , timeIsAndWas: \{ timeIs, timeWas } -> upTime * ((unwrap timeIs).clockTime - (unwrap timeWas).clockTime)
+  , timeIsAndWasAndHadBeen: \{ timeIs, timeWas, valWas, valHadBeen } ->
+      let
+        o = ((if valWas >= 1.0 then (negate downTime) else if valWas <= 0.0 then upTime else if valWas > valHadBeen then upTime else (negate downTime)) * ((unwrap timeIs).clockTime - (unwrap timeWas).clockTime)) + valWas
+      in
+        if o > 1.0 then 1.0 else if o < 0.0 then 0.0 else (o `pow` (exp (if valWas > valHadBeen then upWarp else downWarp)))
+  }
+  where
+  upTime = 1.0 / (max 0.001 ut)
+  downTime = 1.0 / (max 0.001 dt)
+
+fadeTo
+  :: forall event
+   . { n :: Number
+     , duration :: Number
+     }
+  -> TimeIsAndWasAndHadBeen (ClockTimeIs event)
+  -> Number
+fadeTo { n: nn, duration: t } = unwrap >>> match
+  { timeIs: \{} -> 0.0
+  -- todo: combine
+  , timeIsAndWas: \{ timeIs, timeWas, valWas } -> if valWas == nn then nn else let o = (if valWas < nn then 1.0 else (-1.0)) * duration * ((unwrap timeIs).clockTime - (unwrap timeWas).clockTime) + valWas in (if valWas < o then min else max) nn o
+  , timeIsAndWasAndHadBeen: \{ timeIs, timeWas, valWas } -> if valWas == nn then nn else let o = (if valWas < nn then 1.0 else (-1.0)) * duration * ((unwrap timeIs).clockTime - (unwrap timeWas).clockTime) + valWas in (if valWas < o then min else max) nn o
+  }
+  where
+  duration = 1.0 / (max 0.001 t)

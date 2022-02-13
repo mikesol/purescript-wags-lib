@@ -45,7 +45,7 @@ import WAGS.Lib.Tidal (tdl)
 import WAGS.Lib.Tidal.Cycle (Cycle, c2d, noteFromSample_)
 import WAGS.Lib.Tidal.FX (fx, goodbye, hello)
 import WAGS.Lib.Tidal.Synth (synth)
-import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, i, ldv, lnr, lnv, lvt, make, mseq, nefy, nl, onTag, parse, s)
+import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, i, ldv, lnr, lnv, lvt, make, mseq, nefy, nl, onTag, fadeTo, oscWarp, parse, s)
 import WAGS.Lib.Tidal.Types (AFuture, Note, FoT, TidalRes, FoT_)
 import WAGS.Run (Run)
 import WAGS.WebAPI (AudioContext)
@@ -66,19 +66,8 @@ wag3 = make 2.0
   { earth: s $ (map <<< map) (synth {}) $ parse "c4 d4 e4 f4 g4 a4 b4 c5"
   , heart:
       set (traversed <<< ldv)
-        ( lcmap unwrap
-            ( let rt = 0.5 in  match
-                { timeIs: \{} -> 0.0
-                , timeIsAndWas: \{ timeIs, timeWas } -> rt * ((unwrap timeIs).clockTime - (unwrap timeWas).clockTime)
-                -- triangle
-                , timeIsAndWasAndHadBeen: \{ timeIs, timeWas, valWas, valHadBeen } ->
-                    let
-                      o = ((if valWas == 1.0 then (negate rt) else if valWas == 0.0 then rt else if valWas > valHadBeen then rt else (negate rt)) * ((unwrap timeIs).clockTime - (unwrap timeWas).clockTime)) + valWas
-                    in
-                      if o > 1.0 then 1.0 else if o < 0.0 then 0.0 else o
-                }
-            )
-        )
+        -- (oscWarp { upTime: 0.25, downTime: 0.25, upWarp: 0.0, downWarp: 0.0 })
+        (fadeTo { n: 1.0, duration: 1.0 })
         $ c2d
         $ parse "pad"
   }
