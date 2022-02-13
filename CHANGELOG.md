@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.88] - 2022-02-11
 
-- changes back derivative to previous implementation
+- changes back derivative to previous implementation and calls it `cderiv`
 
 ## [0.0.87] - 2022-02-11
 
