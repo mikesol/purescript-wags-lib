@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.0.87] - 2022-02-11
 
 - changes air to water
+- adds drone verbs
+- uses new wags
 
 ## [0.0.86] - 2022-02-11
 
