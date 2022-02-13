@@ -1,12 +1,18 @@
 module WAGS.Lib.Tidal.Tidal
   ( addEffect
-  , changeEffect
   , asScore
   , b
   , b'
   , betwixt
   , c2s
   , changeBufferOffset
+  , changeDroneVolume
+  , changeDroneForward
+  , addDroneEffect
+  , changeDroneRate
+  , changeDroneLoopEnd
+  , changeDroneLoopStart
+  , changeEffect
   , changeForward
   , changeRate
   , changeSample
@@ -44,9 +50,9 @@ module WAGS.Lib.Tidal.Tidal
   , lnbo
   , lnf
   , lnr
-  , lnx
   , lns
   , lnv
+  , lnx
   , ltd
   , ltn
   , lts
@@ -103,7 +109,7 @@ import Data.FunctorWithIndex (mapWithIndex)
 import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
 import Data.Identity (Identity(..))
 import Data.Int (fromString, toNumber)
-import Data.Lens (Lens', Prism', _Right, _Left, iso, lens, over, prism', set, traversed)
+import Data.Lens (Lens', Prism', _Left, _Right, iso, lens, over, prism', set, traversed)
 import Data.Lens.Iso.Newtype (unto)
 import Data.Lens.Record (prop)
 import Data.List (List(..), foldMap, foldl, (:))
@@ -154,7 +160,7 @@ import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, sample2drone)
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.TLP (class MiniNotation)
-import WAGS.Lib.Tidal.Types (WH, WH', AfterMatter, BFoT, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs, TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..))
+import WAGS.Lib.Tidal.Types (AfterMatter, BFoT, BufferUrl, ClockTimeIs(..), ClockTimeIs', CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs(..), TimeIs', TimeIsAndWas(..), UnsampledTimeIs, Voice(..), WH, WH', FXInput')
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -368,26 +374,59 @@ lnv = unto Note <<< prop (Proxy :: _ "volumeFoT")
 changeVolume :: ChangeSig
 changeVolume = setter' lnv
 
+type ChangeDroneSig =
+  forall event
+   . (ClockTimeIs' event -> Number)
+  -> DroneNote event
+  -> DroneNote event
+
 lds :: forall event. Lens' (DroneNote event) Sample
 lds = unto DroneNote <<< prop (Proxy :: _ "sample")
 
 ldr :: forall event. Lens' (DroneNote event) (O'Past event)
 ldr = unto DroneNote <<< prop (Proxy :: _ "rateFoT")
 
+droneSetter' xx ff = set xx (\(TimeIsAndWas { timeIs: (ClockTimeIs clockTimeIs) }) -> ff clockTimeIs)
+
+changeDroneRate :: ChangeDroneSig
+changeDroneRate = droneSetter' ldr
+
 ldls :: forall event. Lens' (DroneNote event) (O'Past event)
 ldls = unto DroneNote <<< prop (Proxy :: _ "loopStartFoT")
+
+changeDroneLoopStart :: ChangeDroneSig
+changeDroneLoopStart = droneSetter' ldls
 
 ldle :: forall event. Lens' (DroneNote event) (O'Past event)
 ldle = unto DroneNote <<< prop (Proxy :: _ "loopEndFoT")
 
+changeDroneLoopEnd :: ChangeDroneSig
+changeDroneLoopEnd = droneSetter' ldle
+
 ldf :: forall event. Lens' (DroneNote event) Boolean
 ldf = unto DroneNote <<< prop (Proxy :: _ "forward")
+
+changeDroneForward :: forall event
+   . Boolean
+  -> DroneNote event
+  -> DroneNote event
+changeDroneForward = set ldf
+
 
 ldv :: forall event. Lens' (DroneNote event) (O'Past event)
 ldv = unto DroneNote <<< prop (Proxy :: _ "volumeFoT")
 
+changeDroneVolume :: ChangeDroneSig
+changeDroneVolume = droneSetter' ldv
+
 ldt :: forall event. Lens' (DroneNote event) (FXInput event -> WAGSITumult)
 ldt = unto DroneNote <<< prop (Proxy :: _ "tumultFoT")
+
+addDroneEffect :: forall event
+   . (FXInput' event -> WAGSITumult)
+  -> DroneNote event
+  -> DroneNote event
+addDroneEffect = set ldt <<< lcmap unwrap
 
 lcw :: forall note. Lens' (Cycle note) Number
 lcw = lens getWeight
