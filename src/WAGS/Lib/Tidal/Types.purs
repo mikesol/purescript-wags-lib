@@ -184,17 +184,17 @@ type EWF' (v :: Type) r
 type EWF (v :: Type)
   = EWF' v ()
 
-type AH' (v :: Type) r
-  = (air :: v, heart :: v | r)
+type WH' (v :: Type) r
+  = (water :: v, heart :: v | r)
 
-type AH (v :: Type)
-  = AH' v ()
+type WH (v :: Type)
+  = WH' v ()
 
 newtype TheFuture event
   = TheFuture
   {
   | EWF' (Voice event)
-      ( AH' (Maybe (DroneNote event))
+      ( WH' (Maybe (DroneNote event))
           ( sounds :: Object BufferUrl
           , title :: String
           , preload :: Array Sample
@@ -211,7 +211,7 @@ instance semigroupTheFuture :: Semigroup (TheFuture event) where
     , lambert: combineVoices a.cycleDuration a.lambert b.lambert
     , hendricks: combineVoices a.cycleDuration a.hendricks b.hendricks
     , ross: combineVoices a.cycleDuration a.ross b.ross
-    , air: a.air <|> b.air
+    , water: a.water <|> b.water
     , heart: a.heart <|> b.heart
     , sounds: Object.union a.sounds b.sounds
     , title: a.title <> " <> " <> b.title

@@ -154,7 +154,7 @@ import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
 import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, sample2drone)
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.TLP (class MiniNotation)
-import WAGS.Lib.Tidal.Types (AH, AH', AfterMatter, BFoT, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs, TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..))
+import WAGS.Lib.Tidal.Types (WH, WH', AfterMatter, BFoT, BufferUrl, CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs, TimeIs', TimeIsAndWas, UnsampledTimeIs, Voice(..))
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -167,7 +167,7 @@ make
   :: forall inRec overfull rest event
    . Union inRec
        ( EWF' (CycleDuration -> Voice event)
-           ( AH' (VM.Maybe (DroneNote event))
+           ( WH' (VM.Maybe (DroneNote event))
                ( title :: String
                , sounds :: Object BufferUrl
                , preload :: Array Sample
@@ -177,7 +177,7 @@ make
        overfull
   => Nub overfull
        ( EWF' (CycleDuration -> Voice event)
-           ( AH' (VM.Maybe (DroneNote event))
+           ( WH' (VM.Maybe (DroneNote event))
                ( title :: String
                , sounds :: Object BufferUrl
                , preload :: Array Sample
@@ -198,7 +198,7 @@ make cl rr = TheFuture $ Record.union
       , ross: z.ross
       }
   )
-  { air: z.air
+  { water: z.water
   , heart: z.heart
   , title: z.title
   , sounds: z.sounds
@@ -218,7 +218,7 @@ make cl rr = TheFuture $ Record.union
       )
       ::
            { | EWF' (CycleDuration -> Voice event)
-               ( AH' (VM.Maybe (DroneNote event))
+               ( WH' (VM.Maybe (DroneNote event))
                    ( title :: String
                    , sounds :: Object BufferUrl
                    , preload :: Array Sample
@@ -799,12 +799,12 @@ openVoices = fromHomogeneous
       )
   $ homogeneous (mempty :: { | EWF Unit })
 
-type OpenDrones event = { | AH (VM.Maybe (DroneNote event)) }
+type OpenDrones event = { | WH (VM.Maybe (DroneNote event)) }
 
 openDrones :: forall event. OpenDrones event
 openDrones = fromHomogeneous
   $ map (const VM.nothing)
-  $ homogeneous (mempty :: { | AH Unit })
+  $ homogeneous (mempty :: { | WH Unit })
 
 openFuture :: forall event. CycleDuration -> TheFuture event
 openFuture cycleDuration = TheFuture
@@ -814,7 +814,7 @@ openFuture cycleDuration = TheFuture
       )
   $ Record.union
       ( fromHomogeneous $ map (const VM.nothing)
-          $ homogeneous (mempty :: { | AH Unit })
+          $ homogeneous (mempty :: { | WH Unit })
       )
       { title: "wagsi @ tidal"
       , cycleDuration
@@ -1093,7 +1093,7 @@ djQuickCheck = do
         , lambert
         , hendricks
         , ross
-        , air: VM.nothing
+        , water: VM.nothing
         , heart: VM.nothing
         , title: "d j q u i c k c h e c k"
         , sounds: Object.empty
