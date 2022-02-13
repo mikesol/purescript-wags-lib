@@ -1183,10 +1183,10 @@ betwixt mn' mx' nn = if nn < mn then mn else if nn > mx then mx else nn
   mn = min mn' mx'
   mx = max mn' mx'
 
-derivative :: forall a. ClockTime a => (TimeIsAndWas a -> Number) -> Number -> TimeIsAndWas a -> Number
+derivative :: forall a. ClockTime a => (TimeIsAndWas a -> Number) -> (Number -> Number) -> TimeIsAndWas a -> Number
 derivative f y v = match { just: \a -> a, nothing: \_ -> f v } $ unwrap do
   let v' = unwrap v
   let ti = v'.timeIs
   mti' <- v'.timeWas
   mn' <- v'.valWas
-  pure $ (y * (clockTime ti - clockTime mti')) + mn'
+  pure $ (y (clockTime ti - clockTime mti')) + mn'
