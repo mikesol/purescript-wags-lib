@@ -21,7 +21,6 @@ module WAGS.Lib.Tidal.Tidal
   , class ParseToCycle
   , class S
   , cycleP
-  , cderiv
   , djQuickCheck
   , drone
   , focus
@@ -57,7 +56,6 @@ module WAGS.Lib.Tidal.Tidal
   , ltn
   , lts
   , ltt
-  , lvg
   , lvt
   , make
   , module WAGS.Lib.Tidal.Cycle
@@ -129,7 +127,7 @@ import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D1)
 import Data.Unfoldable (replicate)
-import Data.Variant (match)
+import Data.Variant (Variant, match)
 import Data.Variant.Either (right)
 import Data.Variant.Either as VE
 import Data.Variant.Maybe (nothing)
@@ -157,10 +155,10 @@ import WAGS.Lib.HList (HCons(..), HNil)
 import WAGS.Lib.Tidal.Cycle (Cycle(..), singleton, branching, simultaneous, internal, flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
 import WAGS.Lib.Tidal.FX (WAGSITumult)
 import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
-import WAGS.Lib.Tidal.Samples (class ClockTime, clockTime, sample2drone)
+import WAGS.Lib.Tidal.Samples (sample2drone)
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.TLP (class MiniNotation)
-import WAGS.Lib.Tidal.Types (AfterMatter, BFoT, BufferUrl, ClockTimeIs(..), ClockTimeIs', CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs(..), TimeIs', TimeIsAndWas(..), UnsampledTimeIs, Voice(..), WH, WH', FXInput')
+import WAGS.Lib.Tidal.Types (AfterMatter, BFoT, BufferUrl, ClockTimeIs', CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs, TimeIs', UnsampledTimeIs, Voice(..), WH, WH', getNow)
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -253,7 +251,7 @@ calm :: Tumultuous D1 "output" (voice :: Unit)
 calm = fx $ goodbye hello
 
 plainly :: NextCycle ~> Voice
-plainly = Voice <<< { globals: Globals { gain: const 1.0, fx: const calm }, next: _ }
+plainly = Voice <<< { globals: Globals { fx: const calm }, next: _ }
 
 --- lenses
 l_j :: forall a. Prism' (VM.Maybe a) a
@@ -261,9 +259,6 @@ l_j = prism' VM.just (VM.maybe Nothing Just)
 
 l_r :: forall a b. Prism' (VE.Either a b) b
 l_r = prism' VE.right (VM.maybe Nothing Just <<< VE.hush)
-
-lvg :: forall event. Lens' (Voice event) (O'Past event)
-lvg = unto Voice <<< prop (Proxy :: _ "globals") <<< unto Globals <<< prop (Proxy :: _ "gain")
 
 lvt :: forall event. Lens' (Voice event) (FXInput event -> Tumultuous D1 "output" (voice :: Unit))
 lvt = unto Voice <<< prop (Proxy :: _ "globals") <<< unto Globals <<< prop (Proxy :: _ "fx")
@@ -386,7 +381,30 @@ lds = unto DroneNote <<< prop (Proxy :: _ "sample")
 ldr :: forall event. Lens' (DroneNote event) (O'Past event)
 ldr = unto DroneNote <<< prop (Proxy :: _ "rateFoT")
 
-droneSetter' xx ff = set xx (\(TimeIsAndWas { timeIs: (ClockTimeIs clockTimeIs) }) -> ff clockTimeIs)
+droneSetter'
+  :: forall t3227 t3228 t3229 t3233 t3234 t3236 t3238 t3239 t3240 t3241
+   . Newtype t3234 t3233
+  => Newtype t3236
+       ( Variant
+           ( timeIs ::
+               { timeIs :: t3234
+               | t3238
+               }
+           , timeIsAndWas ::
+               { timeIs :: t3234
+               | t3239
+               }
+           , timeIsAndWasAndHadBeen ::
+               { timeIs :: t3234
+               | t3240
+               }
+           )
+       )
+  => ((t3229 -> t3236 -> t3241) -> t3227 -> t3228)
+  -> (t3233 -> t3241)
+  -> t3227
+  -> t3228
+droneSetter' xx ff = set xx (ff <<< unwrap <<< getNow)
 
 changeDroneRate :: ChangeDroneSig
 changeDroneRate = droneSetter' ldr
@@ -406,12 +424,12 @@ changeDroneLoopEnd = droneSetter' ldle
 ldf :: forall event. Lens' (DroneNote event) Boolean
 ldf = unto DroneNote <<< prop (Proxy :: _ "forward")
 
-changeDroneForward :: forall event
+changeDroneForward
+  :: forall event
    . Boolean
   -> DroneNote event
   -> DroneNote event
 changeDroneForward = set ldf
-
 
 ldv :: forall event. Lens' (DroneNote event) (O'Past event)
 ldv = unto DroneNote <<< prop (Proxy :: _ "volumeFoT")
@@ -422,7 +440,8 @@ changeDroneVolume = droneSetter' ldv
 ldt :: forall event. Lens' (DroneNote event) (FXInput event -> WAGSITumult)
 ldt = unto DroneNote <<< prop (Proxy :: _ "tumultFoT")
 
-addDroneEffect :: forall event
+addDroneEffect
+  :: forall event
    . (FXInput' event -> WAGSITumult)
   -> DroneNote event
   -> DroneNote event
@@ -819,7 +838,7 @@ flattenScore l = flattened
 openVoice :: forall event. CycleDuration -> Voice event
 openVoice = Voice
   <<<
-    { globals: Globals { gain: const 0.0, fx: const calm }
+    { globals: Globals { fx: const calm }
     , next: _
     }
   <<< asScore false
@@ -1106,9 +1125,9 @@ genCycle = go 0
         )
   go _ = genSingletonOrRest
 
-genVoice :: forall event. Number -> CycleDuration -> Gen { cycle :: Cycle (VM.Maybe (Note event)), voice :: Voice event }
-genVoice vol cl = do
-  let globals = Globals { gain: const vol, fx: const calm }
+genVoice :: forall event. CycleDuration -> Gen { cycle :: Cycle (VM.Maybe (Note event)), voice :: Voice event }
+genVoice cl = do
+  let globals = Globals { fx: const calm }
   cycle <- genCycle
   let next = asScore false $ s2f $ c2s cycle cl
   pure $ { cycle, voice: Voice { globals, next } }
@@ -1117,7 +1136,7 @@ djQuickCheck :: forall event. Gen { cycle :: Cycle (VM.Maybe (Note event)), futu
 djQuickCheck = do
   cl' <- arbitrary
   let cycleDuration = CycleDuration (1.0 + 3.0 * cl')
-  { cycle, voice: earth } <- genVoice 1.0 cycleDuration
+  { cycle, voice: earth } <- genVoice cycleDuration
   wind <- pure (openVoice cycleDuration)
   fire <- pure (openVoice cycleDuration)
   lambert <- pure (openVoice cycleDuration)
@@ -1182,11 +1201,3 @@ betwixt mn' mx' nn = if nn < mn then mn else if nn > mx then mx else nn
   where
   mn = min mn' mx'
   mx = max mn' mx'
-
-cderiv :: forall a. ClockTime a => (TimeIsAndWas a -> Number) -> Number -> TimeIsAndWas a -> Number
-cderiv f y v = match { just: \a -> a, nothing: \_ -> f v } $ unwrap do
-  let v' = unwrap v
-  let ti = v'.timeIs
-  mti' <- v'.timeWas
-  mn' <- v'.valWas
-  pure $ (y * (clockTime ti - clockTime mti')) + mn'

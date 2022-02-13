@@ -15,6 +15,7 @@ import Data.NonEmpty ((:|))
 import Data.Profunctor (lcmap)
 import Data.Tuple.Nested ((/\))
 import Data.UInt (toInt)
+import Data.Variant (match)
 import Data.Variant.Either (right)
 import Data.Variant.Maybe as VM
 import Effect (Effect)
@@ -41,10 +42,10 @@ import WAGS.Lib.HList (HNil(..), (:), type (:))
 import WAGS.Lib.Learn (class ToScene, Analysers, State', WagsState(..), bStyle, initialState, toScene)
 import WAGS.Lib.Learn.Oscillator (lfo)
 import WAGS.Lib.Tidal (tdl)
-import WAGS.Lib.Tidal.Cycle (noteFromSample_, Cycle)
+import WAGS.Lib.Tidal.Cycle (Cycle, c2d, noteFromSample_)
 import WAGS.Lib.Tidal.FX (fx, goodbye, hello)
 import WAGS.Lib.Tidal.Synth (synth)
-import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, lnr, lnv, lvt, make, mseq, nefy, i, nl, onTag, parse, s)
+import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, i, ldv, lnr, lnv, lvt, make, mseq, nefy, nl, onTag, parse, s)
 import WAGS.Lib.Tidal.Types (AFuture, Note, FoT, TidalRes, FoT_)
 import WAGS.Run (Run)
 import WAGS.WebAPI (AudioContext)
@@ -61,7 +62,26 @@ wag :: AFuture
 wag = wag0 <> wag1 <> wag2 <> wag3
 
 wag3 :: AFuture
-wag3 = make 2.0 { earth: s $ (map <<< map) (synth {}) $ parse "c4 d4 e4 f4 g4 a4 b4 c5" }
+wag3 = make 2.0
+  { earth: s $ (map <<< map) (synth {}) $ parse "c4 d4 e4 f4 g4 a4 b4 c5"
+  , heart:
+      set (traversed <<< ldv)
+        ( lcmap unwrap
+            ( let rt = 0.5 in  match
+                { timeIs: \{} -> 0.0
+                , timeIsAndWas: \{ timeIs, timeWas } -> rt * ((unwrap timeIs).clockTime - (unwrap timeWas).clockTime)
+                -- triangle
+                , timeIsAndWasAndHadBeen: \{ timeIs, timeWas, valWas, valHadBeen } ->
+                    let
+                      o = ((if valWas == 1.0 then (negate rt) else if valWas == 0.0 then rt else if valWas > valHadBeen then rt else (negate rt)) * ((unwrap timeIs).clockTime - (unwrap timeWas).clockTime)) + valWas
+                    in
+                      if o > 1.0 then 1.0 else if o < 0.0 then 0.0 else o
+                }
+            )
+        )
+        $ c2d
+        $ parse "pad"
+  }
 
 wag1 :: AFuture
 wag1 = make 2.0 { earth: s "hh hh hh hh" }

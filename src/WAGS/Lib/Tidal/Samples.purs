@@ -2077,7 +2077,7 @@ import Foreign.Object as Object
 import Safe.Coerce (coerce)
 import Unsafe.Coerce (unsafeCoerce)
 import WAGS.Lib.Tidal.FX (calm, goodbye, hello, fx)
-import WAGS.Lib.Tidal.Types (BufferUrl(..), ClockTimeIs, FXInput, DroneNote(..), Note(..), Sample(..), Samples, TimeIs, TimeIsAndWas, UnsampledTimeIs)
+import WAGS.Lib.Tidal.Types (BufferUrl(..), getNow, ClockTimeIs, FXInput, DroneNote(..), Note(..), Sample(..), Samples, TimeIs, TimeIsAndWasAndHadBeen, UnsampledTimeIs)
 import WAGS.WebAPI (BrowserAudioBuffer)
 
 unsafeSamples :: Samples ~> Object
@@ -4074,8 +4074,8 @@ instance entropyUnsampledTimeIs :: Entropy (UnsampledTimeIs event) where
 instance entropyTimeIs :: Entropy (TimeIs event) where
   entropy = unwrap >>> _.entropy
 
-instance entropyTimeIsAndWas :: Entropy (TimeIsAndWas (TimeIs event)) where
-  entropy = unwrap >>> _.timeIs >>> unwrap >>> _.entropy
+instance entropyTimeIsAndWasAndHadBeen :: Entropy (TimeIsAndWasAndHadBeen (TimeIs event)) where
+  entropy = getNow >>> unwrap >>> _.entropy
 
 instance entropyClockTimeIs :: Entropy (ClockTimeIs event) where
   entropy = unwrap >>> _.entropy
@@ -4083,8 +4083,8 @@ instance entropyClockTimeIs :: Entropy (ClockTimeIs event) where
 instance entropyFXInput:: Entropy (FXInput event) where
   entropy = unwrap >>> _.entropy
 
-instance entropyClockTimeIsAndWas :: Entropy (TimeIsAndWas (ClockTimeIs event)) where
-  entropy = unwrap >>> _.timeIs >>> unwrap >>> _.entropy
+instance entropyClockTimeIsAndWasAndHadBeen :: Entropy (TimeIsAndWasAndHadBeen (ClockTimeIs event)) where
+  entropy = getNow >>> unwrap >>> _.entropy
 
 class ClockTime a where
   clockTime :: a -> Number
@@ -4095,8 +4095,8 @@ instance clockTimeTimeIs :: ClockTime (TimeIs event) where
 instance unsampledTimeTimeIs :: ClockTime (UnsampledTimeIs event) where
   clockTime = unwrap >>> _.clockTime
 
-instance clockTimeTimeIsAndWas :: ClockTime (TimeIsAndWas (TimeIs event)) where
-  clockTime = unwrap >>> _.timeIs >>> unwrap >>> _.clockTime
+instance clockTimeTimeIsAndWasAndHadBeen :: ClockTime (TimeIsAndWasAndHadBeen (TimeIs event)) where
+  clockTime = getNow >>> unwrap >>> _.clockTime
 
 instance clockTimeClockTimeIs :: ClockTime (ClockTimeIs event) where
   clockTime = unwrap >>> _.clockTime
@@ -4104,8 +4104,8 @@ instance clockTimeClockTimeIs :: ClockTime (ClockTimeIs event) where
 instance clockTimeFXInput :: ClockTime (FXInput event) where
   clockTime = unwrap >>> _.clockTime
 
-instance clockTimeClockTimeIsAndWas :: ClockTime (TimeIsAndWas (ClockTimeIs event)) where
-  clockTime = unwrap >>> _.timeIs >>> unwrap >>> _.clockTime
+instance clockTimeClockTimeIsAndWasAndHadBeen :: ClockTime (TimeIsAndWasAndHadBeen (ClockTimeIs event)) where
+  clockTime = getNow >>> unwrap >>> _.clockTime
 
 class InitialEntropy a where
   initialEntropy :: a -> Number
@@ -4116,8 +4116,8 @@ instance initialEntropyTimeIs :: InitialEntropy (TimeIs event) where
 instance initialEntropyUnsampledTimeIs :: InitialEntropy (UnsampledTimeIs event) where
   initialEntropy = unwrap >>> _.initialEntropy
 
-instance initialEntropyTimeIsAndWas :: InitialEntropy (TimeIsAndWas (TimeIs event)) where
-  initialEntropy = unwrap >>> _.timeIs >>> unwrap >>> _.initialEntropy
+instance initialEntropyTimeIsAndWasAndHadBeen :: InitialEntropy (TimeIsAndWasAndHadBeen (TimeIs event)) where
+  initialEntropy = getNow >>> unwrap >>> _.initialEntropy
 
 class SampleTime a where
   sampleTime :: a -> Number
@@ -4125,8 +4125,8 @@ class SampleTime a where
 instance sampleTimeTimeIs :: SampleTime (TimeIs event) where
   sampleTime = unwrap >>> _.sampleTime
 
-instance sampleTimeTimeIsAndWas :: SampleTime (TimeIsAndWas (TimeIs event)) where
-  sampleTime = unwrap >>> _.timeIs >>> unwrap >>> _.sampleTime
+instance sampleTimeTimeIsAndWasAndHadBeen :: SampleTime (TimeIsAndWasAndHadBeen (TimeIs event)) where
+  sampleTime = getNow >>> unwrap >>> _.sampleTime
 
 class BigCycleTime a where
   bigCycleTime :: a -> Number
@@ -4137,8 +4137,8 @@ instance bigCycleTimeTimeIs :: BigCycleTime (TimeIs event) where
 instance bigCycleTimeUnsampledTimeIs :: BigCycleTime (UnsampledTimeIs event) where
   bigCycleTime = unwrap >>> _.bigCycleTime
 
-instance bigCycleTimeTimeIsAndWas :: BigCycleTime (TimeIsAndWas (TimeIs event)) where
-  bigCycleTime = unwrap >>> _.timeIs >>> unwrap >>> _.bigCycleTime
+instance bigCycleTimeTimeIsAndWasAndHadBeen :: BigCycleTime (TimeIsAndWasAndHadBeen (TimeIs event)) where
+  bigCycleTime = getNow >>> unwrap >>> _.bigCycleTime
 
 class LittleCycleTime a where
   littleCycleTime :: a -> Number
@@ -4149,8 +4149,8 @@ instance littleCycleTimeTimeIs :: LittleCycleTime (TimeIs event) where
 instance littleCycleTimeUnsampledTimeIs :: LittleCycleTime (UnsampledTimeIs event) where
   littleCycleTime = unwrap >>> _.littleCycleTime
 
-instance littleCycleTimeTimeIsAndWas :: LittleCycleTime (TimeIsAndWas (TimeIs event)) where
-  littleCycleTime = unwrap >>> _.timeIs >>> unwrap >>> _.littleCycleTime
+instance littleCycleTimeTimeIsAndWasAndHadBeen :: LittleCycleTime (TimeIsAndWasAndHadBeen (TimeIs event)) where
+  littleCycleTime = getNow >>> unwrap >>> _.littleCycleTime
 
 class NormalizedClockTime a where
   normalizedClockTime :: a -> Number
@@ -4161,8 +4161,8 @@ instance normalizedClockTimeTimeIs :: NormalizedClockTime (TimeIs event) where
 instance normalizedClockTimeUnsampledTimeIs :: NormalizedClockTime (UnsampledTimeIs event) where
   normalizedClockTime = unwrap >>> _.normalizedClockTime
 
-instance normalizedClockTimeTimeIsAndWas :: NormalizedClockTime (TimeIsAndWas (TimeIs event)) where
-  normalizedClockTime = unwrap >>> _.timeIs >>> unwrap >>> _.normalizedClockTime
+instance normalizedClockTimeTimeIsAndWasAndHadBeen :: NormalizedClockTime (TimeIsAndWasAndHadBeen (TimeIs event)) where
+  normalizedClockTime = getNow >>> unwrap >>> _.normalizedClockTime
 
 class NormalizedSampleTime a where
   normalizedSampleTime :: a -> Number
@@ -4170,8 +4170,8 @@ class NormalizedSampleTime a where
 instance normalizedSampleTimeTimeIs :: NormalizedSampleTime (TimeIs event) where
   normalizedSampleTime = unwrap >>> _.normalizedSampleTime
 
-instance normalizedSampleTimeTimeIsAndWas :: NormalizedSampleTime (TimeIsAndWas (TimeIs event)) where
-  normalizedSampleTime = unwrap >>> _.timeIs >>> unwrap >>> _.normalizedSampleTime
+instance normalizedSampleTimeTimeIsAndWasAndHadBeen :: NormalizedSampleTime (TimeIsAndWasAndHadBeen (TimeIs event)) where
+  normalizedSampleTime = getNow >>> unwrap >>> _.normalizedSampleTime
 
 class NormalizedBigCycleTime a where
   normalizedBigCycleTime :: a -> Number
@@ -4182,8 +4182,8 @@ instance normalizedBigCycleTimeTimeIs :: NormalizedBigCycleTime (TimeIs event) w
 instance normalizedBigCycleTimeUnsampledTimeIs :: NormalizedBigCycleTime (UnsampledTimeIs event) where
   normalizedBigCycleTime = unwrap >>> _.normalizedBigCycleTime
 
-instance normalizedBigCycleTimeTimeIsAndWas :: NormalizedBigCycleTime (TimeIsAndWas (TimeIs event)) where
-  normalizedBigCycleTime = unwrap >>> _.timeIs >>> unwrap >>> _.normalizedBigCycleTime
+instance normalizedBigCycleTimeTimeIsAndWasAndHadBeen :: NormalizedBigCycleTime (TimeIsAndWasAndHadBeen (TimeIs event)) where
+  normalizedBigCycleTime = getNow >>> unwrap >>> _.normalizedBigCycleTime
 
 class NormalizedLittleCycleTime a where
   normalizedLittleCycleTime :: a -> Number
@@ -4194,8 +4194,8 @@ instance normalizedLittleCycleTimeTimeIs :: NormalizedLittleCycleTime (TimeIs ev
 instance normalizedLittleCycleTimeUnsampledTimeIs :: NormalizedLittleCycleTime (UnsampledTimeIs event) where
   normalizedLittleCycleTime = unwrap >>> _.normalizedLittleCycleTime
 
-instance normalizedLittleCycleTimeTimeIsAndWas :: NormalizedLittleCycleTime (TimeIsAndWas (TimeIs event)) where
-  normalizedLittleCycleTime = unwrap >>> _.timeIs >>> unwrap >>> _.normalizedLittleCycleTime
+instance normalizedLittleCycleTimeTimeIsAndWasAndHadBeen :: NormalizedLittleCycleTime (TimeIsAndWasAndHadBeen (TimeIs event)) where
+  normalizedLittleCycleTime = getNow >>> unwrap >>> _.normalizedLittleCycleTime
 
 class LittleCycleDuration a where
   littleCycleDuration :: a -> Number
@@ -4206,8 +4206,8 @@ instance littleCycleDurationTimeIs :: LittleCycleDuration (TimeIs event) where
 instance littleCycleDurationUnsampledTimeIs :: LittleCycleDuration (UnsampledTimeIs event) where
   littleCycleDuration = unwrap >>> _.littleCycleDuration
 
-instance littleCycleDurationTimeIsAndWas :: LittleCycleDuration (TimeIsAndWas (TimeIs event)) where
-  littleCycleDuration = unwrap >>> _.timeIs >>> unwrap >>> _.littleCycleDuration
+instance littleCycleDurationTimeIsAndWasAndHadBeen :: LittleCycleDuration (TimeIsAndWasAndHadBeen (TimeIs event)) where
+  littleCycleDuration = getNow >>> unwrap >>> _.littleCycleDuration
 
 class BigCycleDuration a where
   bigCycleDuration :: a -> Number
@@ -4218,8 +4218,8 @@ instance bigCycleDurationTimeIs :: BigCycleDuration (TimeIs event) where
 instance bigCycleDurationUnsampledTimeIs :: BigCycleDuration (UnsampledTimeIs event) where
   bigCycleDuration = unwrap >>> _.bigCycleDuration
 
-instance bigCycleDurationTimeIsAndWas :: BigCycleDuration (TimeIsAndWas (TimeIs event)) where
-  bigCycleDuration = unwrap >>> _.timeIs >>> unwrap >>> _.bigCycleDuration
+instance bigCycleDurationTimeIsAndWasAndHadBeen :: BigCycleDuration (TimeIsAndWasAndHadBeen (TimeIs event)) where
+  bigCycleDuration = getNow >>> unwrap >>> _.bigCycleDuration
 
 class BufferDuration a where
   bufferDuration :: a -> Number
@@ -4227,8 +4227,8 @@ class BufferDuration a where
 instance bufferDurationTimeIs :: BufferDuration (TimeIs event) where
   bufferDuration = unwrap >>> _.bufferDuration
 
-instance bufferDurationTimeIsAndWas :: BufferDuration (TimeIsAndWas (TimeIs event)) where
-  bufferDuration = unwrap >>> _.timeIs >>> unwrap >>> _.bufferDuration
+instance bufferDurationTimeIsAndWasAndHadBeen :: BufferDuration (TimeIsAndWasAndHadBeen (TimeIs event)) where
+  bufferDuration = getNow >>> unwrap >>> _.bufferDuration
 
 ---
 sample2drone :: forall event. Sample -> DroneNote event

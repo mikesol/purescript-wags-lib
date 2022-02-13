@@ -14,6 +14,7 @@ import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
 import Data.Symbol (class IsSymbol)
 import Data.Typelevel.Num (class Nat, class Succ, type (:*), D0, D1, D2, D4, D8)
+import Data.Variant (Variant, match)
 import Data.Variant.Either (either, Either)
 import Data.Variant.Maybe (Maybe)
 import Data.Vec as V
@@ -130,31 +131,35 @@ derive instance newtypeNextCycle :: Newtype (NextCycle event) _
 
 newtype Globals event
   = Globals
-  { gain :: O'Past event
-  , fx :: FXInput event -> Tumultuous D1 "output" (voice :: Unit)
+  { fx :: FXInput event -> Tumultuous D1 "output" (voice :: Unit)
+  }
+
+getNow :: forall t971 t973 t984 t990 t996.
+  Newtype t971
+    (Variant
+       ( timeIs :: { timeIs :: t973
+                   | t984
+                   }
+       , timeIsAndWas :: { timeIs :: t973
+                         | t990
+                         }
+       , timeIsAndWasAndHadBeen :: { timeIs :: t973
+                                   | t996
+                                   }
+       )
+    )
+   => t971 -> t973
+getNow = unwrap >>> match
+  { timeIs: \{ timeIs } -> timeIs
+  , timeIsAndWas: \{ timeIs } -> timeIs
+  , timeIsAndWasAndHadBeen: \{ timeIs } -> timeIs
   }
 
 derive instance newtypeGlobals :: Newtype (Globals event) _
 
 combineGlobals :: forall event. CycleDuration -> Globals event -> Globals event -> Globals event
 combineGlobals (CycleDuration breakpoint) (Globals a) (Globals b) = Globals
-  { gain:
-      \ipt@
-         ( TimeIsAndWas
-             { timeIs: timeIs@(ClockTimeIs ti)
-             , valWas
-             , timeWas
-             }
-         ) ->
-        if ti.adulteratedClockTime < breakpoint then a.gain ipt
-        else b.gain
-          ( TimeIsAndWas
-              { timeIs: over (unto ClockTimeIs) (turnBackTime breakpoint) timeIs
-              , valWas
-              , timeWas: map (over (unto ClockTimeIs) (turnBackTime breakpoint)) timeWas
-              }
-          )
-  , fx: \ipt@(FXInput timeIs) ->
+  { fx: \ipt@(FXInput timeIs) ->
       if timeIs.adulteratedClockTime < breakpoint then a.fx ipt
       else b.fx (over (unto FXInput) (turnBackTime breakpoint) ipt)
   }
@@ -498,20 +503,28 @@ newtype TimeIs event = TimeIs (TimeIs' event)
 
 derive instance newtypeTimeIs :: Newtype (TimeIs event) _
 
-newtype TimeIsAndWas time
-  = TimeIsAndWas
-  { timeIs :: time
-  , valWas :: Maybe Number
-  , timeWas :: Maybe time
-  }
+newtype TimeIsAndWasAndHadBeen time
+  = TimeIsAndWasAndHadBeen
+  ( Variant
+      ( timeIs :: { timeIs :: time }
+      , timeIsAndWas :: { timeIs :: time, timeWas :: time, valWas :: Number }
+      , timeIsAndWasAndHadBeen ::
+          { timeIs :: time
+          , timeWas :: time
+          , valWas :: Number
+          , timeHadBeen :: time
+          , valHadBeen :: Number
+          }
+      )
+  )
 
-derive instance newtypeTimeIsAndWas :: Newtype (TimeIsAndWas time) _
+derive instance newtypeTimeIsAndWasAndHadBeen :: Newtype (TimeIsAndWasAndHadBeen time) _
 
 type O'Clock event
   = ClockTimeIs event -> Number
 
 type O'Past event
-  = TimeIsAndWas (ClockTimeIs event) -> Number
+  = TimeIsAndWasAndHadBeen (ClockTimeIs event) -> Number
 
 type FoT event
   = TimeIs event -> Number
@@ -522,7 +535,7 @@ type BFoT event
 type FoT_ = FoT Unit
 
 type FoP event
-  = TimeIsAndWas (TimeIs event) -> Number
+  = TimeIsAndWasAndHadBeen (TimeIs event) -> Number
 
 type FoP_ = FoP Unit
 
