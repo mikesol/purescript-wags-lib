@@ -5,7 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.88] - 2022-02-11
+## [0.0.89] - 2022-02-13
+
+- revamps drone to have second derivative, allowing for simple harmonic motion.
+- removes global fader from tracks, as no one seems to use it, and folks use `fx` instead.
+
+## [0.0.88] - 2022-02-13
 
 - changes back derivative to previous implementation and calls it `cderiv`
 
