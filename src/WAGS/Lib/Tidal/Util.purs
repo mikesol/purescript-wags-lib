@@ -4,13 +4,11 @@ import Prelude
 
 import Control.Alt ((<|>))
 import Control.Comonad.Cofree (Cofree, (:<))
-import Data.Array (length)
 import Data.Compactable (compact)
 import Data.List (List(..), fold, (:))
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
 import Data.Set as Set
-import Data.String (Pattern(..), split)
 import Data.Tuple.Nested ((/\))
 import Data.Variant.Maybe (maybe)
 import Effect (Effect)
