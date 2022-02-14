@@ -4,11 +4,13 @@ import Prelude
 
 import Control.Alt ((<|>))
 import Control.Comonad.Cofree (Cofree, (:<))
+import Data.Array (length)
 import Data.Compactable (compact)
 import Data.List (List(..), fold, (:))
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
 import Data.Set as Set
+import Data.String (Pattern(..), split)
 import Data.Tuple.Nested ((/\))
 import Data.Variant.Maybe (maybe)
 import Effect (Effect)
@@ -20,7 +22,7 @@ import FRP.Event as Event
 import Foreign.Object as Object
 import WAGS.Lib.Tidal.Download (getBuffersUsingCache)
 import WAGS.Lib.Tidal.ObjectHack as OH
-import WAGS.Lib.Tidal.Samples (nameToSampleO, sampleToUrls)
+import WAGS.Lib.Tidal.Samples (sampleToUrls)
 import WAGS.Lib.Tidal.Types (DroneNote(..), NextCycle(..), Sample, SampleCache, TheFuture(..), Voice(..))
 import WAGS.WebAPI (AudioContext)
 
@@ -70,13 +72,12 @@ doDownloads' audioContext { read, write } push lock key = do
   let
     sets = Set.fromFoldable
       ( preload
-          <> fold (map v2s [ earth, wind, fire, lambert, hendricks, ross])
+          <> fold (map v2s [ earth, wind, fire, lambert, hendricks, ross ])
           <> (compact $ (map (maybe Nothing Just)) $ ((map <<< map) d2s [ water, heart ]))
       )
-    samplesToUrl = OH.catMaybes $ Object.mapWithKey (\k _ -> Object.lookup k sounds <|> do
-      nm <- Object.lookup k nameToSampleO
-      url <- Object.lookup (unwrap nm) sampleToUrls
-      pure url) (Object.fromFoldable (Set.map (\samp -> (unwrap samp) /\ unit) sets) )
+    samplesToUrl = OH.catMaybes $ Object.mapWithKey
+      (\k _ -> Object.lookup k sounds <|> Object.lookup k sampleToUrls)
+      (Object.fromFoldable (Set.map (\samp -> (unwrap samp) /\ unit) sets))
   newMap <- getBuffersUsingCache samplesToUrl audioContext cache
   liftEffect do
     write newMap

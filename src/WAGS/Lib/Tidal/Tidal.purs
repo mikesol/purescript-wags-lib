@@ -91,8 +91,7 @@ module WAGS.Lib.Tidal.Tidal
   , when_
   , x
   , x'
-  )
-  where
+  ) where
 
 import Prelude hiding (between)
 
@@ -126,14 +125,14 @@ import Data.Set as Set
 import Data.String.CodeUnits as CU
 import Data.Symbol (class IsSymbol, reflectSymbol)
 import Data.Traversable (class Traversable, sequence, traverse)
-import Data.Tuple (fst, snd)
+import Data.Tuple (fst)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D1)
 import Data.Unfoldable (replicate)
 import Data.Variant (Variant, match)
 import Data.Variant.Either (right)
 import Data.Variant.Either as VE
-import Data.Variant.Maybe (nothing)
+import Data.Variant.Maybe (just, nothing)
 import Data.Variant.Maybe as VM
 import Data.Vec ((+>))
 import Data.Vec as V
@@ -157,12 +156,10 @@ import WAGS.Create.Optionals (input)
 import WAGS.Graph.AudioUnit as CTOR
 import WAGS.Lib.HList (HCons(..), HNil)
 import WAGS.Lib.Tidal.Cycle (Cycle(..), singleton, branching, simultaneous, internal, flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
-import WAGS.Lib.Tidal.FX (WAGSITumult)
-import WAGS.Lib.Tidal.SampleDurs (sampleToDur, sampleToDur')
-import WAGS.Lib.Tidal.Samples (sample2drone)
+import WAGS.Lib.Tidal.Samples (sample2drone, urls)
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.TLP (class MiniNotation)
-import WAGS.Lib.Tidal.Types (AfterMatter, BFoT, BufferUrl, ClockTimeIs, ClockTimeIs', CycleDuration(..), DroneNote(..), EWF, EWF', FXInput, FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Past, Sample(..), Tag, TheFuture(..), TimeIs, TimeIs', TimeIsAndWasAndHadBeen, UnsampledTimeIs, Voice(..), WH, WH', getNow)
+import WAGS.Lib.Tidal.Types (AfterMatter, BFoT, BufferUrl, ClockTimeIs', CycleDuration(..), DroneNote(..), EWF, EWF', FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Fx, O'Past, Sample(..), Tag, TheFuture(..), TimeIs, TimeIs', UnsampledTimeIs, Voice(..), WH, WH', getNow)
 import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
@@ -264,7 +261,7 @@ l_j = prism' VM.just (VM.maybe Nothing Just)
 l_r :: forall a b. Prism' (VE.Either a b) b
 l_r = prism' VE.right (VM.maybe Nothing Just <<< VE.hush)
 
-lvt :: forall event. Lens' (Voice event) (FXInput event -> Tumultuous D1 "output" (voice :: Unit))
+lvt :: forall event. Lens' (Voice event) (O'Fx event)
 lvt = unto Voice <<< prop (Proxy :: _ "globals") <<< unto Globals <<< prop (Proxy :: _ "fx")
 
 addEffect
@@ -272,7 +269,7 @@ addEffect
    . (FXInput' event -> Tumultuous D1 "output" (voice :: Unit))
   -> Voice event
   -> Voice event
-addEffect = set lvt <<< lcmap unwrap
+addEffect = set lvt <<< lcmap (getNow >>> unwrap)
 
 lfn :: forall note. Lens' (NoteInFlattenedTime note) note
 lfn = unto NoteInFlattenedTime <<< prop (Proxy :: _ "note")
@@ -441,15 +438,15 @@ ldv = unto DroneNote <<< prop (Proxy :: _ "volumeFoT")
 changeDroneVolume :: ChangeDroneSig
 changeDroneVolume = droneSetter' ldv
 
-ldt :: forall event. Lens' (DroneNote event) (FXInput event -> WAGSITumult)
+ldt :: forall event. Lens' (DroneNote event) (O'Fx event)
 ldt = unto DroneNote <<< prop (Proxy :: _ "tumultFoT")
 
 addDroneEffect
   :: forall event
-   . (FXInput' event -> WAGSITumult)
+   . (FXInput' event -> Tumultuous D1 "output" (voice :: Unit))
   -> DroneNote event
   -> DroneNote event
-addDroneEffect = set ldt <<< lcmap unwrap
+addDroneEffect = set ldt <<< lcmap (getNow >>> unwrap)
 
 lcw :: forall note. Lens' (Cycle note) Number
 lcw = lens getWeight
@@ -553,20 +550,15 @@ weightP = do
 
 sampleP :: forall event. Parser (VM.Maybe (Note event))
 sampleP = do
-  possiblySample <- sampleName
-  -- if it is in our original stock, there may be a level
-  -- of indirection. for example, chin and chin:0 are the same sample
-  -- otherwise, if it is not in the original stock, we use the name as-is
-  case O.lookup possiblySample S.nameToSampleMNO of
-    Nothing -> pure $ VM.just $ Note
-      { sampleFoT: VE.right $ Sample possiblySample
-      , bufferOffsetFoT: const 0.0
-      , rateFoT: const 1.0
-      , forwardFoT: const true
-      , volumeFoT: const 1.0
-      , tumultFoT: const (fx $ goodbye hello)
-      }
-    Just foundSample -> pure $ maybe VM.nothing VM.just foundSample
+  ourSample <- sampleName
+  pure $ if ourSample == "~" then nothing else just $ Note
+    { sampleFoT: VE.right $ Sample ourSample
+    , bufferOffsetFoT: const 0.0
+    , rateFoT: const 1.0
+    , forwardFoT: const true
+    , volumeFoT: const 1.0
+    , tumultFoT: const (fx $ goodbye hello)
+    }
 
 branchingcyclePInternal :: forall event. Int -> Parser (Cycle (VM.Maybe (Note event)))
 branchingcyclePInternal lvl = branching <$> do
@@ -1029,7 +1021,10 @@ s2f = fromMaybe
 -- dj quickcheck --
 
 qcSamples :: NonEmptyArray Sample
-qcSamples = map fst $ fromMaybe (sampleToDur') $ NEA.fromArray $ NEA.filter ((>) 0.8 <<< snd) sampleToDur
+qcSamples = fromMaybe (NEA.fromNonEmpty (Sample "intentionalSilenceForInternalUseOnly" :| []))
+  $ NEA.fromArray
+  $ map Sample
+  $ O.keys urls
 
 genSingleSample :: Gen Sample
 genSingleSample = elements qcSamples
@@ -1207,13 +1202,47 @@ betwixt mn' mx' nn = if nn < mn then mn else if nn > mx then mx else nn
   mx = max mn' mx'
 
 oscWarp
-  :: forall event
-   . { upTime :: Number
-     , downTime :: Number
-     , upWarp :: Number
+  :: forall t386 t399 t412 t417 t423 t424 t427 t428 t434 t449 t450 t453 t454
+   . Newtype t399
+       ( Variant
+           ( timeIs :: Record t412
+           , timeIsAndWas ::
+               { timeIs :: t424
+               , timeWas :: t428
+               | t417
+               }
+           , timeIsAndWasAndHadBeen ::
+               { timeIs :: t450
+               , timeWas :: t454
+               , valHadBeen :: Number
+               , valWas :: Number
+               | t434
+               }
+           )
+       )
+  => Newtype t424
+       { clockTime :: Number
+       | t423
+       }
+  => Newtype t428
+       { clockTime :: Number
+       | t427
+       }
+  => Newtype t450
+       { clockTime :: Number
+       | t449
+       }
+  => Newtype t454
+       { clockTime :: Number
+       | t453
+       }
+  => { downTime :: Number
      , downWarp :: Number
+     , upTime :: Number
+     , upWarp :: Number
+     | t386
      }
-  -> TimeIsAndWasAndHadBeen (ClockTimeIs event)
+  -> t399
   -> Number
 oscWarp { upTime: ut, downTime: dt, upWarp, downWarp } = unwrap >>> match
   { timeIs: \{} -> 0.0
@@ -1229,11 +1258,45 @@ oscWarp { upTime: ut, downTime: dt, upWarp, downWarp } = unwrap >>> match
   downTime = 1.0 / (max 0.001 dt)
 
 fadeTo
-  :: forall event
-   . { n :: Number
-     , duration :: Number
+  :: forall t3290 t3298 t3311 t3316 t3329 t3330 t3333 t3334 t3343 t3356 t3357 t3360 t3361
+   . Newtype t3298
+       ( Variant
+           ( timeIs :: Record t3311
+           , timeIsAndWas ::
+               { timeIs :: t3330
+               , timeWas :: t3334
+               , valWas :: Number
+               | t3316
+               }
+           , timeIsAndWasAndHadBeen ::
+               { timeIs :: t3357
+               , timeWas :: t3361
+               , valWas :: Number
+               | t3343
+               }
+           )
+       )
+  => Newtype t3330
+       { clockTime :: Number
+       | t3329
+       }
+  => Newtype t3334
+       { clockTime :: Number
+       | t3333
+       }
+  => Newtype t3357
+       { clockTime :: Number
+       | t3356
+       }
+  => Newtype t3361
+       { clockTime :: Number
+       | t3360
+       }
+  => { duration :: Number
+     , n :: Number
+     | t3290
      }
-  -> TimeIsAndWasAndHadBeen (ClockTimeIs event)
+  -> t3298
   -> Number
 fadeTo { n: nn, duration: t } = unwrap >>> match
   { timeIs: \{} -> 0.0

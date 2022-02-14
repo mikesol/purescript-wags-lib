@@ -15,8 +15,6 @@ import WAGS.Tumult (Tumultuous)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
 
-type WAGSITumult = Tumultuous D1 "output" (voice :: Unit)
-
 fx
   :: forall scene graph graphRL
    . RowToList graph graphRL
@@ -24,7 +22,7 @@ fx
   => SubgraphIsRenderable graph "output" (voice :: Unit)
   => NodesCanBeTumultuous graphRL
   => { | scene }
-  -> WAGSITumult
+  -> Tumultuous D1 "output" (voice :: Unit)
 fx scene = tumultuously (scene +> V.empty)
 
 hello :: CTOR.Input "voice" /\ {}
@@ -33,5 +31,5 @@ hello = input (Proxy :: _ "voice")
 goodbye :: forall a. a -> { output :: a }
 goodbye = { output: _ }
 
-calm :: WAGSITumult
+calm :: Tumultuous D1 "output" (voice :: Unit)
 calm = fx $ goodbye hello

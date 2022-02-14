@@ -23,6 +23,7 @@ import Effect.Aff (Aff)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
 import FRP.Event (Event, subscribe)
+import Foreign.Object (singleton)
 import Halogen as H
 import Halogen.Aff (awaitBody, runHalogenAff)
 import Halogen.HTML as HH
@@ -45,8 +46,8 @@ import WAGS.Lib.Tidal (tdl)
 import WAGS.Lib.Tidal.Cycle (Cycle, c2d, noteFromSample_)
 import WAGS.Lib.Tidal.FX (fx, goodbye, hello)
 import WAGS.Lib.Tidal.Synth (synth)
-import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, i, ldv, lnr, lnv, lvt, make, mseq, nefy, nl, onTag, fadeTo, oscWarp, parse, s)
-import WAGS.Lib.Tidal.Types (AFuture, Note, FoT, TidalRes, FoT_)
+import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, i, ldv, lnr, lnv, addEffect, make, mseq, nefy, nl, onTag, fadeTo, oscWarp, parse, s)
+import WAGS.Lib.Tidal.Types (AFuture, BufferUrl(..), FoT, FoT_, Note, TidalRes)
 import WAGS.Run (Run)
 import WAGS.WebAPI (AudioContext)
 
@@ -73,7 +74,10 @@ wag3 = make 2.0
   }
 
 wag1 :: AFuture
-wag1 = make 2.0 { earth: s "hh hh hh hh" }
+wag1 = make 2.0
+  { earth: s "myhh hh myhh hh"
+  , sounds: singleton "myhh" $ BufferUrl "https://freesound.org/data/previews/399/399897_7682129-lq.mp3"
+  }
 
 wag2 :: AFuture
 wag2 = make 2.0
@@ -100,15 +104,14 @@ wag0 =
         $ parse (Proxy :: _ "tink:1;t0 tink:2;t1 tink:3;t2 tink:0;t3 tink:4;t4 tink:2;t5 tink:3;t6 tink:1;t7 tink:2;t8 tink:0;t9 tink:3;t10 ")
     , wind:
         map
-          ( set lvt
-              ( lcmap unwrap \{ clockTime } ->
-                  let
-                    mody = clockTime % (m2 * 2.0)
-                  in
-                    fx
-                      ( goodbye $ highpass (200.0 + mody * 100.0) hello
-                      )
-              )
+          ( addEffect \{ clockTime } ->
+              let
+                mody = clockTime % (m2 * 2.0)
+              in
+                fx
+                  ( goodbye $ highpass (200.0 + mody * 100.0) hello
+                  )
+
           ) $ s $ onTag "ph" (changeRate \{ normalizedSampleTime: t } -> min 1.2 (1.0 + t * 0.3))
           $ onTag "print" (changeVolume \{ normalizedSampleTime: _ } -> 0.2)
           $ onTag "pk" (changeRate \{ normalizedSampleTime: t } -> 0.7 - t * 0.2)
@@ -116,13 +119,12 @@ wag0 =
           $ parse "psr:3 ~ [~ chin*4] ~ [psr:3;ph psr:3;ph ~ ] , [~ ~ ~ psr:1;print] kurt:5;kt , ~ ~ pluck:1;pk ~ ~ ~ ~ ~ "
     , fire:
         map
-          ( set lvt
-              ( lcmap unwrap \{ clockTime } -> fx
-                  ( goodbye $ pan (lfo { phase: 0.0, amp: 1.0, freq: 0.2 } clockTime + 0.0)
-                      { myhp: highpass (lfo { phase: 0.0, amp: 2000.0, freq: 0.4 } clockTime + 2000.0) hello
-                      }
-                  )
+          ( addEffect \{ clockTime } -> fx
+              ( goodbye $ pan (lfo { phase: 0.0, amp: 1.0, freq: 0.2 } clockTime + 0.0)
+                  { myhp: highpass (lfo { phase: 0.0, amp: 2000.0, freq: 0.4 } clockTime + 2000.0) hello
+                  }
               )
+
           ) $ s "~ ~ ~ ~ ~ ~ speechless:2 ~"
     , title: "lo fi"
     }

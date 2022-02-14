@@ -43,7 +43,7 @@ import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), CfScoredBufferPool, ma
 import WAGS.Lib.Learn (FullSceneBuilder, AnalysersCb, usingcr)
 import WAGS.Lib.Tidal.Download (downloadSilence, initialBuffers)
 import WAGS.Lib.Tidal.FX (calm, goodbye, hello)
-import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, CycleInfo, DroneNote(..), ExternalControl, Globals, IsFresh, NBuf, Next, NextCycle, RBuf, Sample(..), SampleCache, TheFuture, TidalRes, TimeIs(..), UnsampledTimeIs(..), h2v')
+import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, ClockTimeIs(..), CycleInfo, DroneNote(..), ExternalControl, FXInput(..), Globals, IsFresh, NBuf, Next, NextCycle, RBuf, Sample(..), SampleCache, TheFuture, TidalRes, TimeIs(..), TimeIsAndWasAndHadBeen(..), UnsampledTimeIs(..), h2v')
 import WAGS.Run (SceneI(..))
 import WAGS.Subgraph (SubSceneSig)
 import WAGS.Tumult.Make (tumultuously)
@@ -244,7 +244,7 @@ internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0
             }
         }
 
-calcWithLag :: forall (t879 :: Type) (t900 :: Type) (t902 :: Type) (t920 :: Type) (t922 :: Type) (t939 :: Row Type). t879 -> VM.Maybe t900 -> VM.Maybe t920 -> VM.Maybe t902 -> VM.Maybe t922 -> Variant ( timeIs :: { timeIs :: t879 } , timeIsAndWas :: { timeIs :: t879 , timeWas :: t900 , valWas :: t902 } , timeIsAndWasAndHadBeen :: { timeHadBeen :: t920 , timeIs :: t879 , timeWas :: t900 , valHadBeen :: t922 , valWas :: t902 } | t939 )
+calcWithLag :: forall (t879 :: Type) (t900 :: Type) (t902 :: Type) (t920 :: Type) (t922 :: Type) (t939 :: Row Type). t879 -> VM.Maybe t900 -> VM.Maybe t920 -> VM.Maybe t902 -> VM.Maybe t922 -> Variant (timeIs :: { timeIs :: t879 }, timeIsAndWas :: { timeIs :: t879, timeWas :: t900, valWas :: t902 }, timeIsAndWasAndHadBeen :: { timeHadBeen :: t920, timeIs :: t879, timeWas :: t900, valHadBeen :: t922, valWas :: t902 } | t939)
 calcWithLag thisIsTime prevTime0 prevTime1 prevVal0 prevVal1 =
   let
     nml _ = inj (Proxy :: _ "timeIs") { timeIs: thisIsTime }
@@ -288,28 +288,39 @@ internal1
        }
 internal1 = (const emptyLags) # SG.loopUsingScene
   \{ time, headroomInSeconds, buffers, event, externalControl, silence, fng: { future, globals, seed } }
-   { } -> { newSeed: mkSeed seed, size: globalSize } # evalGen do
+   { timeLag0
+   , tumultLag0
+   , timeLag1
+   , tumultLag1
+   } -> { newSeed: mkSeed seed, size: globalSize } # evalGen do
     tumultEntropy <- arbitrary
     seeds <- sequence (V.fill (const arbitrary))
+    let
+      prevTime0 = extract timeLag0
+      prevTumult0 = extract tumultLag0
+      prevTime1 = extract timeLag1
+      prevTumult1 = extract tumultLag1
+      thisIsTime = wrap
+        { clockTime: time
+        , adulteratedClockTime: time
+        , event
+        , externalControl
+        , buffers
+        , silence
+        , entropy: tumultEntropy
+        }
+      tumArg = wrap $ calcWithLag thisIsTime prevTime0 prevTime1 prevTumult0 prevTumult1
+      tumultNow = (unwrap globals).fx tumArg
     pure
       { control:
-          {
+          { tumultLag0: unwrapCofree tumultLag0 (VM.just tumultNow)
+          , timeLag0: unwrapCofree timeLag0 (VM.just thisIsTime)
+          , tumultLag1: unwrapCofree tumultLag1 prevTumult0
+          , timeLag1: unwrapCofree timeLag1 prevTime0
           }
       , scene:
           { singleton: gain 1.0
-              { tmlt: tumult
-                  ( (unwrap globals).fx
-                      ( wrap
-                          { clockTime: time
-                          , adulteratedClockTime: time
-                          , event
-                          , externalControl
-                          , buffers
-                          , silence
-                          , entropy: tumultEntropy
-                          }
-                      )
-                  )
+              { tmlt: tumult tumultNow
                   { voice: subgraph
                       (V.zipWithE (/\) seeds (extract future))
                       (const $ const $ internal0)
@@ -321,7 +332,10 @@ internal1 = (const emptyLags) # SG.loopUsingScene
       }
   where
   emptyLags =
-    { 
+    { timeLag0: makeLag
+    , tumultLag0: makeLag
+    , timeLag1: makeLag
+    , tumultLag1: makeLag
     }
 
 type CfLag a
@@ -353,7 +367,7 @@ droneSg = (const emptyLags)
        , seed
        , buf: buf'
        }
-       { timeLag0, rateLag0, volumeLag0, loopStartLag0, loopEndLag0, timeLag1, rateLag1, volumeLag1, loopStartLag1, loopEndLag1 } ->
+       { timeLag0, rateLag0, tumultLag0, volumeLag0, loopStartLag0, loopEndLag0, timeLag1, rateLag1, tumultLag1, volumeLag1, loopStartLag1, loopEndLag1 } ->
         buf' # VM.maybe'
           ( \_ ->
               { control: emptyLags
@@ -388,21 +402,25 @@ droneSg = (const emptyLags)
                 prevTime1 = extract timeLag1
                 prevVolume0 = extract volumeLag0
                 prevVolume1 = extract volumeLag1
-                volumeNow = volumeFoT $ wrap $ calcWithLag (wrap $ thisIsTime volumeEntropy) prevTime0 prevTime1 prevVolume0 prevVolume1
+                volumeNow = volumeFoT $ TimeIsAndWasAndHadBeen $ (calcWithLag (ClockTimeIs $ thisIsTime volumeEntropy) prevTime0 prevTime1 prevVolume0 prevVolume1)
                 prevLoopStart0 = extract loopStartLag0
                 prevLoopStart1 = extract loopStartLag1
-                loopStartNow = loopStartFoT $ wrap $ calcWithLag (wrap $ thisIsTime loopStartEntropy) prevTime0 prevTime1 prevLoopStart0 prevLoopStart1
+                loopStartNow = loopStartFoT $ TimeIsAndWasAndHadBeen $ calcWithLag (ClockTimeIs $ thisIsTime loopStartEntropy) prevTime0 prevTime1 prevLoopStart0 prevLoopStart1
                 prevLoopEnd0 = extract loopEndLag0
                 prevLoopEnd1 = extract loopEndLag1
-                loopEndNow = loopEndFoT $ wrap $ calcWithLag (wrap $ thisIsTime loopEndEntropy) prevTime0 prevTime1 prevLoopEnd0 prevLoopEnd1
+                loopEndNow = loopEndFoT $ TimeIsAndWasAndHadBeen $ calcWithLag (ClockTimeIs $ thisIsTime loopEndEntropy) prevTime0 prevTime1 prevLoopEnd0 prevLoopEnd1
                 prevRate0 = extract rateLag0
                 prevRate1 = extract rateLag1
-                rateNow = rateFoT $ wrap $ calcWithLag (wrap $ thisIsTime rateEntropy) prevTime0 prevTime1 prevRate0 prevRate1
+                rateNow = rateFoT $ TimeIsAndWasAndHadBeen $ calcWithLag (ClockTimeIs $ thisIsTime rateEntropy) prevTime0 prevTime1 prevRate0 prevRate1
+                prevTumult0 = extract tumultLag0
+                prevTumult1 = extract tumultLag1
+                tumultNow = tumultFoT $ TimeIsAndWasAndHadBeen $ calcWithLag (FXInput $ Record.union { buffers, silence } (thisIsTime tumultEntropy)) (map (FXInput <<< Record.union { buffers, silence } <<< unwrap) prevTime0) (map (FXInput <<< Record.union { buffers, silence } <<< unwrap) prevTime1) prevTumult0 prevTumult1
                 vol = ff globalFF $ pure $ volumeNow
               pure
                 { control:
                     { rateLag0: unwrapCofree rateLag0 (VM.just rateNow)
                     , volumeLag0: unwrapCofree volumeLag0 (VM.just volumeNow)
+                    , tumultLag0: unwrapCofree tumultLag0 (VM.just tumultNow)
                     , loopStartLag0: unwrapCofree loopStartLag0 (VM.just loopStartNow)
                     , loopEndLag0: unwrapCofree loopEndLag0 (VM.just loopEndNow)
                     -- for now, the previous time gets no entropy
@@ -410,6 +428,7 @@ droneSg = (const emptyLags)
                     , timeLag0: unwrapCofree timeLag0 (VM.just $ wrap $ thisIsTime 0.0)
                     , rateLag1: unwrapCofree rateLag1 (prevRate0)
                     , volumeLag1: unwrapCofree volumeLag1 (prevVolume0)
+                    , tumultLag1: unwrapCofree tumultLag1 (prevTumult0)
                     , loopStartLag1: unwrapCofree loopStartLag1 (prevLoopStart0)
                     , loopEndLag1: unwrapCofree loopEndLag1 (prevLoopEnd0)
                     , timeLag1: unwrapCofree timeLag1 (prevTime0)
@@ -417,7 +436,7 @@ droneSg = (const emptyLags)
                 , scene:
                     { singleton:
                         gain vol
-                          { dronetmlt: tumult (tumultFoT (wrap $ Record.union { buffers, silence } (thisIsTime tumultEntropy)))
+                          { dronetmlt: tumult tumultNow 
                               { voice: loopBuf
                                   { onOff: ff globalFF $ pure _on
                                   , loopStart: loopStartNow
@@ -435,11 +454,13 @@ droneSg = (const emptyLags)
     { timeLag0: makeLag
     , rateLag0: makeLag
     , volumeLag0: makeLag
+    , tumultLag0: makeLag
     , loopStartLag0: makeLag
     , loopEndLag0: makeLag
     , timeLag1: makeLag
     , rateLag1: makeLag
     , volumeLag1: makeLag
+    , tumultLag1: makeLag
     , loopStartLag1: makeLag
     , loopEndLag1: makeLag
     }

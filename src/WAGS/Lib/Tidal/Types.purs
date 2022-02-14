@@ -14,7 +14,7 @@ import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
 import Data.Symbol (class IsSymbol)
 import Data.Typelevel.Num (class Nat, class Succ, type (:*), D0, D1, D2, D4, D8)
-import Data.Variant (Variant, match)
+import Data.Variant (Variant, inj, match)
 import Data.Variant.Either (either, Either)
 import Data.Variant.Maybe (Maybe)
 import Data.Vec as V
@@ -130,25 +130,28 @@ instance semigroupNextCycle :: Semigroup (NextCycle event) where
 derive instance newtypeNextCycle :: Newtype (NextCycle event) _
 
 newtype Globals event
-  = Globals
-  { fx :: FXInput event -> Tumultuous D1 "output" (voice :: Unit)
-  }
+  = Globals { fx :: O'Fx event }
 
-getNow :: forall t971 t973 t984 t990 t996.
-  Newtype t971
-    (Variant
-       ( timeIs :: { timeIs :: t973
-                   | t984
-                   }
-       , timeIsAndWas :: { timeIs :: t973
-                         | t990
-                         }
-       , timeIsAndWasAndHadBeen :: { timeIs :: t973
-                                   | t996
-                                   }
+getNow
+  :: forall t971 t973 t984 t990 t996
+   . Newtype t971
+       ( Variant
+           ( timeIs ::
+               { timeIs :: t973
+               | t984
+               }
+           , timeIsAndWas ::
+               { timeIs :: t973
+               | t990
+               }
+           , timeIsAndWasAndHadBeen ::
+               { timeIs :: t973
+               | t996
+               }
+           )
        )
-    )
-   => t971 -> t973
+  => t971
+  -> t973
 getNow = unwrap >>> match
   { timeIs: \{ timeIs } -> timeIs
   , timeIsAndWas: \{ timeIs } -> timeIs
@@ -159,9 +162,17 @@ derive instance newtypeGlobals :: Newtype (Globals event) _
 
 combineGlobals :: forall event. CycleDuration -> Globals event -> Globals event -> Globals event
 combineGlobals (CycleDuration breakpoint) (Globals a) (Globals b) = Globals
-  { fx: \ipt@(FXInput timeIs) ->
-      if timeIs.adulteratedClockTime < breakpoint then a.fx ipt
-      else b.fx (over (unto FXInput) (turnBackTime breakpoint) ipt)
+  { fx: \ipt ->
+      let
+        ti = getNow ipt
+      in
+        if (unwrap ti).adulteratedClockTime < breakpoint then a.fx ipt
+        else b.fx $ match
+          { timeIs: \iii -> TimeIsAndWasAndHadBeen $ inj (Proxy :: _ "timeIs") { timeIs: over (unto FXInput) (turnBackTime breakpoint) iii.timeIs }
+          , timeIsAndWas: \iii -> TimeIsAndWasAndHadBeen $ inj (Proxy :: _ "timeIsAndWas") { timeIs: over (unto FXInput) (turnBackTime breakpoint) iii.timeIs, timeWas: over (unto FXInput) (turnBackTime breakpoint) iii.timeWas, valWas: iii.valWas }
+          , timeIsAndWasAndHadBeen: \iii -> TimeIsAndWasAndHadBeen $ inj (Proxy :: _ "timeIsAndWasAndHadBeen") { timeIs: over (unto FXInput) (turnBackTime breakpoint) iii.timeIs, timeWas: over (unto FXInput) (turnBackTime breakpoint) iii.timeWas, valWas: iii.valWas, timeHadBeen: over (unto FXInput) (turnBackTime breakpoint) iii.timeHadBeen, valHadBeen: iii.valHadBeen }
+          }
+          (unwrap ipt)
   }
 
 newtype Voice event
@@ -340,7 +351,7 @@ newtype DroneNote event
   , loopStartFoT :: O'Past event
   , loopEndFoT :: O'Past event
   , volumeFoT :: O'Past event
-  , tumultFoT :: FXInput event -> Tumultuous D1 "output" (voice :: Unit)
+  , tumultFoT :: O'Fx event
   }
 
 derive instance newtypeDroneNote :: Newtype (DroneNote event) _
@@ -503,28 +514,28 @@ newtype TimeIs event = TimeIs (TimeIs' event)
 
 derive instance newtypeTimeIs :: Newtype (TimeIs event) _
 
-newtype TimeIsAndWasAndHadBeen time
+newtype TimeIsAndWasAndHadBeen time val
   = TimeIsAndWasAndHadBeen
   ( Variant
       ( timeIs :: { timeIs :: time }
-      , timeIsAndWas :: { timeIs :: time, timeWas :: time, valWas :: Number }
+      , timeIsAndWas :: { timeIs :: time, timeWas :: time, valWas :: val }
       , timeIsAndWasAndHadBeen ::
           { timeIs :: time
           , timeWas :: time
-          , valWas :: Number
+          , valWas :: val
           , timeHadBeen :: time
-          , valHadBeen :: Number
+          , valHadBeen :: val
           }
       )
   )
 
-derive instance newtypeTimeIsAndWasAndHadBeen :: Newtype (TimeIsAndWasAndHadBeen time) _
-
-type O'Clock event
-  = ClockTimeIs event -> Number
+derive instance newtypeTimeIsAndWasAndHadBeen :: Newtype (TimeIsAndWasAndHadBeen time val) _
 
 type O'Past event
-  = TimeIsAndWasAndHadBeen (ClockTimeIs event) -> Number
+  = TimeIsAndWasAndHadBeen (ClockTimeIs event) Number -> Number
+
+type O'Fx event
+  = TimeIsAndWasAndHadBeen (FXInput event) (Tumultuous D1 "output" (voice :: Unit)) -> Tumultuous D1 "output" (voice :: Unit)
 
 type FoT event
   = TimeIs event -> Number
@@ -535,7 +546,7 @@ type BFoT event
 type FoT_ = FoT Unit
 
 type FoP event
-  = TimeIsAndWasAndHadBeen (TimeIs event) -> Number
+  = TimeIsAndWasAndHadBeen (TimeIs event) Number -> Number
 
 type FoP_ = FoP Unit
 

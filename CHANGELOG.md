@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.90] - 2022-02-14
+
+- removes long objects and exports from `Samples` and `Cycles`.
+- holds past of tumult.
+
 ## [0.0.89] - 2022-02-13
 
 - revamps drone to have second derivative, allowing for simple harmonic motion.
