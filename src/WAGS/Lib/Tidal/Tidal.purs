@@ -161,7 +161,7 @@ import WAGS.Lib.Tidal.Samples (sample2drone, urls)
 import Prim.Row as Row
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.TLP (class MiniNotation)
-import WAGS.Lib.Tidal.Types (AfterMatter, BFoT, BufferUrl, ClockTimeIs', CycleDuration(..), DroneNote(..), EWF, EWF', FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Fx, O'Past, Sample(..), Tag, TheFuture(..), TimeIs, TimeIs', UnsampledTimeIs, Voice(..), WH, WH', getNow)
+import WAGS.Lib.Tidal.Types (AfterMatter, BFoT, BFoT', BufferUrl, ClockTimeIs', CycleDuration(..), DroneNote(..), EWF, EWF', FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Fx, O'Past, Sample(..), Tag, TheFuture(..), TimeIs, TimeIs', UnsampledTimeIs, Voice(..), WH, WH', getNow)
 import WAGS.Rendered (Instruction')
 import WAGS.Tumult (Tumultuous, safeUntumult)
 import WAGS.Tumult.Make (tumultuously)
@@ -362,10 +362,10 @@ lnf = unto Note <<< prop (Proxy :: _ "forwardFoT")
 changeForward
   :: forall container event
    . Traversable container
-  => BFoT event
+  => BFoT' event
   -> container (Note event)
   -> container (Note event)
-changeForward = set (traversed <<< lnf)
+changeForward = set (traversed <<< lnf) <<< lcmap unwrap
 
 lnv :: forall event. Lens' (Note event) (FoT event)
 lnv = unto Note <<< prop (Proxy :: _ "volumeFoT")

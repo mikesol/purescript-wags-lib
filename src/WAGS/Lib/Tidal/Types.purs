@@ -472,8 +472,7 @@ newtype ClockTimeIs event = ClockTimeIs (ClockTimeIs' event)
 
 derive instance newtypeClockTimeIs :: Newtype (ClockTimeIs event) _
 
-newtype UnsampledTimeIs event
-  = UnsampledTimeIs
+type UnsampledTimeIs' event =
   { event :: IsFresh event
   , clockTime :: Number
   , bigCycleTime :: Number
@@ -488,6 +487,9 @@ newtype UnsampledTimeIs event
   , entropy :: Number
   , initialEntropy :: Number
   }
+
+newtype UnsampledTimeIs event
+  = UnsampledTimeIs (UnsampledTimeIs' event)
 
 derive instance newtypeUnsampledTimeIs :: Newtype (UnsampledTimeIs event) _
 
@@ -531,26 +533,25 @@ newtype TimeIsAndWasAndHadBeen time val
 
 derive instance newtypeTimeIsAndWasAndHadBeen :: Newtype (TimeIsAndWasAndHadBeen time val) _
 instance functorTimeIsAndWasAndHadBeen :: Functor (TimeIsAndWasAndHadBeen time) where
-  map f (TimeIsAndWasAndHadBeen xx) = 
-      match
-        { timeIs: \{ timeIs } -> TimeIsAndWasAndHadBeen $ inj (Proxy :: _ "timeIs") { timeIs }
-        , timeIsAndWas: \{ timeIs, timeWas, valWas } -> TimeIsAndWasAndHadBeen
-            $ inj (Proxy :: _ "timeIsAndWas")
-                { timeIs
-                , timeWas
-                , valWas: f valWas
-                }
-        , timeIsAndWasAndHadBeen: \{ timeIs, timeWas, valWas, timeHadBeen, valHadBeen } -> TimeIsAndWasAndHadBeen
-            $ inj (Proxy :: _ "timeIsAndWasAndHadBeen")
-                { timeIs
-                , timeWas
-                , timeHadBeen
-                , valWas: f valWas
-                , valHadBeen: f valHadBeen
-                }
-        }
-        xx
-    
+  map f (TimeIsAndWasAndHadBeen xx) =
+    match
+      { timeIs: \{ timeIs } -> TimeIsAndWasAndHadBeen $ inj (Proxy :: _ "timeIs") { timeIs }
+      , timeIsAndWas: \{ timeIs, timeWas, valWas } -> TimeIsAndWasAndHadBeen
+          $ inj (Proxy :: _ "timeIsAndWas")
+              { timeIs
+              , timeWas
+              , valWas: f valWas
+              }
+      , timeIsAndWasAndHadBeen: \{ timeIs, timeWas, valWas, timeHadBeen, valHadBeen } -> TimeIsAndWasAndHadBeen
+          $ inj (Proxy :: _ "timeIsAndWasAndHadBeen")
+              { timeIs
+              , timeWas
+              , timeHadBeen
+              , valWas: f valWas
+              , valHadBeen: f valHadBeen
+              }
+      }
+      xx
 
 type O'Past event
   = TimeIsAndWasAndHadBeen (ClockTimeIs event) Number -> Number
@@ -563,6 +564,9 @@ type FoT event
 
 type BFoT event
   = UnsampledTimeIs event -> Boolean
+
+type BFoT' event
+  = UnsampledTimeIs' event -> Boolean
 
 type FoT_ = FoT Unit
 
