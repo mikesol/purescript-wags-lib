@@ -142,6 +142,7 @@ import Foreign.Object as O
 import Foreign.Object as Object
 import Math (exp, pow)
 import Prim.Row (class Nub, class Union)
+import Prim.Row as Row
 import Prim.RowList (class RowToList)
 import Record as Record
 import Safe.Coerce (coerce)
@@ -158,10 +159,9 @@ import WAGS.Graph.AudioUnit as CTOR
 import WAGS.Lib.HList (HCons(..), HNil)
 import WAGS.Lib.Tidal.Cycle (Cycle(..), singleton, branching, simultaneous, internal, flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
 import WAGS.Lib.Tidal.Samples (sample2drone, urls)
-import Prim.Row as Row
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.TLP (class MiniNotation)
-import WAGS.Lib.Tidal.Types (AfterMatter, BFoT, BFoT', BufferUrl, ClockTimeIs', CycleDuration(..), DroneNote(..), EWF, EWF', FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Fx, O'Past, Sample(..), Tag, TheFuture(..), TimeIs, TimeIs', UnsampledTimeIs, Voice(..), WH, WH', getNow)
+import WAGS.Lib.Tidal.Types (AfterMatter, BFoT, BFoT', BufferUrl, ClockTimeIs', CycleDuration(..), DroneNote(..), EWF, EWF', FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Fx, O'Past, Sample(..), Tag, TheFuture(..), TimeIs, TimeIs', UnsampledTimeIs, Voice(..), WH, WH', UnsampledTimeIs', getNow)
 import WAGS.Rendered (Instruction')
 import WAGS.Tumult (Tumultuous, safeUntumult)
 import WAGS.Tumult.Make (tumultuously)
@@ -321,10 +321,10 @@ changeSample = set (traversed <<< lns <<< iso (VE.either Left Right) (either VE.
 changeSampleF
   :: forall container event
    . Traversable container
-  => (UnsampledTimeIs event -> Sample)
+  => (UnsampledTimeIs' event -> Sample)
   -> container (Note event)
   -> container (Note event)
-changeSampleF = set (traversed <<< lns <<< iso (VE.either Left Right) (either VE.left VE.right) <<< _Left)
+changeSampleF = set (traversed <<< lns <<< iso (VE.either Left Right) (either VE.left VE.right) <<< _Left) <<< lcmap unwrap
 
 lnr :: forall event. Lens' (Note event) (FoT event)
 lnr = unto Note <<< prop (Proxy :: _ "rateFoT")
