@@ -6,6 +6,7 @@ module WAGS.Lib.Tidal.Tidal
   , b'
   , betwixt
   , c2s
+  , numericTumult
   , changeBufferOffset
   , changeDroneForward
   , changeDroneLoopEnd
@@ -129,7 +130,7 @@ import Data.Tuple (fst)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D1)
 import Data.Unfoldable (replicate)
-import Data.Variant (Variant, match)
+import Data.Variant (Variant, prj, match)
 import Data.Variant.Either (right)
 import Data.Variant.Either as VE
 import Data.Variant.Maybe (just, nothing)
@@ -157,10 +158,12 @@ import WAGS.Graph.AudioUnit as CTOR
 import WAGS.Lib.HList (HCons(..), HNil)
 import WAGS.Lib.Tidal.Cycle (Cycle(..), singleton, branching, simultaneous, internal, flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
 import WAGS.Lib.Tidal.Samples (sample2drone, urls)
+import Prim.Row as Row
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.TLP (class MiniNotation)
 import WAGS.Lib.Tidal.Types (AfterMatter, BFoT, BufferUrl, ClockTimeIs', CycleDuration(..), DroneNote(..), EWF, EWF', FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Fx, O'Past, Sample(..), Tag, TheFuture(..), TimeIs, TimeIs', UnsampledTimeIs, Voice(..), WH, WH', getNow)
-import WAGS.Tumult (Tumultuous)
+import WAGS.Rendered (Instruction')
+import WAGS.Tumult (Tumultuous, safeUntumult)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
 
@@ -551,14 +554,16 @@ weightP = do
 sampleP :: forall event. Parser (VM.Maybe (Note event))
 sampleP = do
   ourSample <- sampleName
-  pure $ if ourSample == "~" then nothing else just $ Note
-    { sampleFoT: VE.right $ Sample ourSample
-    , bufferOffsetFoT: const 0.0
-    , rateFoT: const 1.0
-    , forwardFoT: const true
-    , volumeFoT: const 1.0
-    , tumultFoT: const (fx $ goodbye hello)
-    }
+  pure $
+    if ourSample == "~" then nothing
+    else just $ Note
+      { sampleFoT: VE.right $ Sample ourSample
+      , bufferOffsetFoT: const 0.0
+      , rateFoT: const 1.0
+      , forwardFoT: const true
+      , volumeFoT: const 1.0
+      , tumultFoT: const (fx $ goodbye hello)
+      }
 
 branchingcyclePInternal :: forall event. Int -> Parser (Cycle (VM.Maybe (Note event)))
 branchingcyclePInternal lvl = branching <$> do
@@ -1306,3 +1311,44 @@ fadeTo { n: nn, duration: t } = unwrap >>> match
   }
   where
   duration = 1.0 / (max 0.001 t)
+
+numericTumult
+  :: forall t984 t1021 t1036 t1051 t1055 t1061 t1062 t1064 t1079 t1080 t1081
+   . Newtype t1021
+       { param :: VM.Maybe t984
+       | t1036
+       }
+  => Eq t1051
+  => Row.Cons t1062
+       { id :: t1051
+       | t1055
+       }
+       t1064
+       Instruction'
+  => IsSymbol t1062
+  => t984
+  -> t1061 t1062
+  -> t1051
+  -> ( { id :: t1051
+       | t1055
+       }
+       -> t1021
+     )
+  -> Tumultuous t1079 t1080 t1081
+  -> t984
+numericTumult dflt pxy idd fnc = fromMaybe dflt
+  <<< flip A.index 0
+  <<< filterMap
+    ( join
+        <<< map
+          ( fnc
+              >>> unwrap
+              >>> _.param
+              >>> VM.maybe Nothing Just
+          )
+        <<< filter (eq idd <<< _.id)
+        <<< prj pxy
+        <<< unwrap
+    )
+  <<< join
+  <<< safeUntumult
