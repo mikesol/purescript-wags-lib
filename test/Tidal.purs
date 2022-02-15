@@ -2,18 +2,19 @@ module Test.Tidal where
 
 import Prelude
 
-import Data.Either (Either(..))
 import Data.Array.NonEmpty as NEA
+import Data.Either (Either(..))
 import Data.Newtype (wrap)
-import Data.Variant.Maybe (Maybe, just, nothing)
 import Data.NonEmpty ((:|))
+import Data.Tuple.Nested ((/\))
+import Data.Variant.Either (right)
+import Data.Variant.Maybe (Maybe, just, nothing)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import WAGS.Lib.Tidal.Cycle (Cycle, branching, cycleFromSample, cycleFromSample', internal, simultaneous)
 import WAGS.Lib.Tidal.FX (goodbye, hello, fx)
-import WAGS.Lib.Tidal.Tidal (c2s, parseWithBrackets, unrest)
+import WAGS.Lib.Tidal.Tidal (c2s, parseWithBrackets, unrest, weightedChoice)
 import WAGS.Lib.Tidal.Types (Note(..), Sample(..), NoteInTime(..))
-import Data.Variant.Either (right)
 
 runWrapped
   :: String
@@ -38,6 +39,15 @@ tech_2__Sample = Sample "tech:2" :: Sample
 
 testTidal :: Spec Unit
 testTidal = do
+  describe "Tests weighted choice" do
+    it "Chooses the correct choice 0" do
+      weightedChoice (5.0 /\ 0 :| [ 1.0 /\ 1 ]) 0.5 `shouldEqual` 0
+    it "Chooses the correct choice 1" do
+      weightedChoice (5.0 /\ 0 :| [ 1.0 /\ 1 ]) 0.9 `shouldEqual` 1
+    it "Chooses the correct choice 2" do
+      weightedChoice (5.0 /\ 0 :| [ 1.0 /\ 1, 5.0 /\ 2 ]) 0.9 `shouldEqual` 2
+    it "Chooses the correct choice 3" do
+      weightedChoice (5.0 /\ 0 :| [ 1.0 /\ 1, 5.0 /\ 2 ]) 0.5 `shouldEqual` 1
   describe "Tests parser" do
     it "Works on simple imput" do
       runWrapped

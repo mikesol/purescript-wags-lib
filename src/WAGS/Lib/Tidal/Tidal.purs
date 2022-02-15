@@ -6,6 +6,7 @@ module WAGS.Lib.Tidal.Tidal
   , b'
   , betwixt
   , c2s
+  , weightedChoice
   , numericTumult
   , changeBufferOffset
   , changeDroneForward
@@ -108,7 +109,6 @@ import Data.Filterable (compact, filter, filterMap, maybeBool)
 import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
-import Data.Identity (Identity(..))
 import Data.Int (fromString, toNumber)
 import Data.Lens (Lens', Prism', _Left, _Right, iso, lens, over, prism', set, traversed)
 import Data.Lens.Iso.Newtype (unto)
@@ -126,7 +126,7 @@ import Data.Set as Set
 import Data.String.CodeUnits as CU
 import Data.Symbol (class IsSymbol, reflectSymbol)
 import Data.Traversable (class Traversable, sequence, traverse)
-import Data.Tuple (fst)
+import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D1)
 import Data.Unfoldable (replicate)
@@ -135,17 +135,13 @@ import Data.Variant.Either (right)
 import Data.Variant.Either as VE
 import Data.Variant.Maybe (just, nothing)
 import Data.Variant.Maybe as VM
-import Data.Vec ((+>))
-import Data.Vec as V
 import Foreign.Object (Object)
 import Foreign.Object as O
 import Foreign.Object as Object
 import Math (exp, pow)
 import Prim.Row (class Nub, class Union)
 import Prim.Row as Row
-import Prim.RowList (class RowToList)
 import Record as Record
-import Safe.Coerce (coerce)
 import Test.QuickCheck (arbitrary)
 import Test.QuickCheck.Gen (Gen, arrayOf1, elements, frequency, resize)
 import Text.Parsing.StringParser (Parser, fail, runParser, try)
@@ -153,19 +149,14 @@ import Text.Parsing.StringParser.CodeUnits (alphaNum, anyDigit, char, oneOf, sat
 import Text.Parsing.StringParser.Combinators (between, many, many1, optionMaybe, sepBy1, sepEndBy, sepEndBy1)
 import Type.Equality (class TypeEquals, proof)
 import Type.Proxy (Proxy(..))
-import WAGS.Create (class Create)
-import WAGS.Create.Optionals (input)
-import WAGS.Graph.AudioUnit as CTOR
-import WAGS.Lib.HList (HCons(..), HNil)
 import WAGS.Lib.Tidal.Cycle (Cycle(..), singleton, branching, simultaneous, internal, flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
+import WAGS.Lib.Tidal.FX (goodbye, hello, calm, fx)
 import WAGS.Lib.Tidal.Samples (sample2drone, urls)
 import WAGS.Lib.Tidal.Samples as S
 import WAGS.Lib.Tidal.TLP (class MiniNotation)
 import WAGS.Lib.Tidal.Types (AfterMatter, BFoT, BFoT', BufferUrl, ClockTimeIs', CycleDuration(..), DroneNote(..), EWF, EWF', FXInput', FoT, Globals(..), NextCycle(..), Note(..), Note', NoteInFlattenedTime(..), NoteInTime(..), NoteLazy', O'Fx, O'Past, Sample(..), Tag, TheFuture(..), TimeIs, TimeIs', UnsampledTimeIs, Voice(..), WH, WH', UnsampledTimeIs', getNow)
 import WAGS.Rendered (Instruction')
 import WAGS.Tumult (Tumultuous, safeUntumult)
-import WAGS.Tumult.Make (tumultuously)
-import WAGS.Validation (class NodesCanBeTumultuous, class SubgraphIsRenderable)
 
 -- | Only play the first cycle, and truncate/interrupt the playing cycle at the next sub-ending.
 impatient :: NextCycle ~> NextCycle
@@ -234,25 +225,6 @@ make cl rr = TheFuture $ Record.union
                    )
                )
            }
-
-fx
-  :: forall scene graph graphRL
-   . RowToList graph graphRL
-  => Create scene () graph
-  => SubgraphIsRenderable graph "output" (voice :: Unit)
-  => NodesCanBeTumultuous graphRL
-  => { | scene }
-  -> Tumultuous D1 "output" (voice :: Unit)
-fx scene = tumultuously (scene +> V.empty)
-
-hello :: CTOR.Input "voice" /\ {}
-hello = input (Proxy :: _ "voice")
-
-goodbye :: forall a. a -> { output :: a }
-goodbye = { output: _ }
-
-calm :: Tumultuous D1 "output" (voice :: Unit)
-calm = fx $ goodbye hello
 
 plainly :: NextCycle ~> Voice
 plainly = Voice <<< { globals: Globals { fx: const calm }, next: _ }
@@ -479,6 +451,21 @@ when_ cond func aa = if cond aa then func aa else aa
 focus :: forall a. (a -> Boolean) -> Prism' a a
 focus = prism' identity <<< maybeBool
 
+weightedChoice :: forall a. NonEmpty Array (Number /\ a) -> Number ->  a
+weightedChoice ii = go (L.fromFoldable uscd.init) uscd.last 0.0
+  where
+  full = foldl (+) 0.0 (map fst ii)
+  uscd = NEA.unsnoc (NEA.fromNonEmpty ii)
+  go Nil df _ _ = snd df
+  go ((aa /\ bb) : cc) df sm nn =
+    let
+      frac = aa / full
+      tt = frac + sm
+      oo
+        | tt > nn = bb
+        | otherwise = go cc df tt nn
+    in
+      oo
 ---
 b :: forall event. Cycle (VM.Maybe (Note event)) -> Array (Cycle (VM.Maybe (Note event))) -> Cycle (VM.Maybe (Note event))
 b bx by = branching { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (bx :| by) }
@@ -488,16 +475,6 @@ b' bx = b bx []
 
 nefy :: forall f a b. (a -> f a -> b) -> NonEmpty f a -> b
 nefy ff (xx :| yy) = ff xx yy
-
-class H2N a b | a -> b where
-  h2n :: a -> NonEmpty Array b
-
-instance h2nTuple :: TypeEquals a aa => H2N (HCons a HNil) aa where
-  h2n (HCons aa _) = coerce (proof :: Identity a -> Identity aa) aa :| []
-else instance h2nTuple2 :: (TypeEquals a aa, H2N b aa) => H2N (HCons a b) aa where
-  h2n (HCons aa bb) = coerce (proof :: Identity a -> Identity aa) aa :| [ qq ] <> rr
-    where
-    (qq :| rr) = h2n bb
 
 i :: forall event. Cycle (VM.Maybe (Note event)) -> Array (Cycle (VM.Maybe (Note event))) -> Cycle (VM.Maybe (Note event))
 i sx sy = internal { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (sx :| sy) }
