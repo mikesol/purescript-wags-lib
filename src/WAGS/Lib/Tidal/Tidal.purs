@@ -138,7 +138,7 @@ import Data.Variant.Maybe as VM
 import Foreign.Object (Object)
 import Foreign.Object as O
 import Foreign.Object as Object
-import Math (exp, pow)
+import Math (exp, pow, pi)
 import Prim.Row (class Nub, class Union)
 import Prim.Row as Row
 import Record as Record
@@ -205,7 +205,7 @@ make cl rr = TheFuture $ Record.union
   , cycleDuration
   }
   where
-  cycleDuration = wrap cl
+  cycleDuration = wrap (if cl <= 0.0 then pi else cl)
   z =
     Record.merge rr
       ( Record.union (openVoices :: OpenVoices event)
