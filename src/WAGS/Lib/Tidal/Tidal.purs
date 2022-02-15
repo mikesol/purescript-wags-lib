@@ -104,13 +104,13 @@ import Data.Array (fold, null, uncons, (..))
 import Data.Array as A
 import Data.Array.NonEmpty as NEA
 import Data.Array.NonEmpty.Internal (NonEmptyArray)
-import Data.Either (Either(..), either, hush)
+import Data.Either (Either, hush)
 import Data.Filterable (compact, filter, filterMap, maybeBool)
 import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
 import Data.Int (fromString, toNumber)
-import Data.Lens (Lens', Prism', _Left, _Right, iso, lens, over, prism', set, traversed)
+import Data.Lens (Lens', Prism', lens, over, prism', set, traversed)
 import Data.Lens.Iso.Newtype (unto)
 import Data.Lens.Record (prop)
 import Data.List (List(..), foldMap, foldl, (:))
@@ -131,7 +131,7 @@ import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D1)
 import Data.Unfoldable (replicate)
 import Data.Variant (Variant, prj, match)
-import Data.Variant.Either (right)
+import Data.Variant.Either (left, right)
 import Data.Variant.Either as VE
 import Data.Variant.Maybe (just, nothing)
 import Data.Variant.Maybe as VM
@@ -288,7 +288,7 @@ changeSample
   => Sample
   -> container (Note event)
   -> container (Note event)
-changeSample = set (traversed <<< lns <<< iso (VE.either Left Right) (either VE.left VE.right) <<< _Right)
+changeSample = set (traversed <<< lns) <<< right
 
 changeSampleF
   :: forall container event
@@ -296,7 +296,7 @@ changeSampleF
   => (UnsampledTimeIs' event -> Sample)
   -> container (Note event)
   -> container (Note event)
-changeSampleF = set (traversed <<< lns <<< iso (VE.either Left Right) (either VE.left VE.right) <<< _Left) <<< lcmap unwrap
+changeSampleF = set (traversed <<< lns) <<< left <<< lcmap unwrap
 
 lnr :: forall event. Lens' (Note event) (FoT event)
 lnr = unto Note <<< prop (Proxy :: _ "rateFoT")
