@@ -39,7 +39,6 @@ import Simple.JSON as JSON
 import Type.Proxy (Proxy(..))
 import WAGS.Create.Optionals (highpass, pan)
 import WAGS.Interpret (close, getByteFrequencyData)
-import WAGS.Lib.HList (HNil(..), (:), type (:))
 import WAGS.Lib.Learn (class ToScene, Analysers, State', WagsState(..), bStyle, initialState, toScene)
 import WAGS.Lib.Learn.Oscillator (lfo)
 import WAGS.Lib.Tidal (tdl)
