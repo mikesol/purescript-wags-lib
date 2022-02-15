@@ -2,21 +2,21 @@ module WAGS.Lib.Tidal.Cycle where
 
 import Prelude
 
+import Data.Array.NonEmpty as NEA
 import Data.Foldable (class Foldable, foldMapDefaultR, foldl, foldr, intercalate)
-import Data.Newtype (class Newtype, unwrap)
 import Data.FunctorWithIndex (class FunctorWithIndex)
 import Data.Generic.Rep (class Generic)
 import Data.Int (floor)
-import Data.Variant (Variant, match, inj)
-import Data.Array.NonEmpty as NEA
+import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
 import Data.Traversable (class Traversable, sequenceDefault, traverse)
-import Data.Variant.Maybe (Maybe, just, nothing, maybe)
+import Data.Variant (Variant, match, inj)
 import Data.Variant.Either (either, right)
-import WAGS.Lib.Tidal.Samples as S
-import WAGS.Lib.Tidal.FX (goodbye, hello, fx)
-import WAGS.Lib.Tidal.Types (DroneNote, Note(..), Sample, unlockSample, emptyCtrl)
+import Data.Variant.Maybe (Maybe, just, nothing, maybe)
 import Type.Proxy (Proxy(..))
+import WAGS.Lib.Tidal.FX (goodbye, hello, fx)
+import WAGS.Lib.Tidal.Samples as S
+import WAGS.Lib.Tidal.Types (DroneNote, Note(..), Sample, unlockSample, emptyCtrl)
 
 type CycleEnv = { weight :: Number, tag :: Maybe String }
 
@@ -90,7 +90,7 @@ instance applyCycle :: Apply Cycle where
 
 instance applicativeCycle :: Applicative Cycle where
   pure = singleton <<<
-    { env: { weight: 1.0, tag: nothing }
+    { env: emptyEnv
     , val: _
     }
 
@@ -144,6 +144,18 @@ flattenCycle = unwrap >>> match
   , internal: \{ cycles } -> join $ map flattenCycle cycles
   , singleton: \{ val } -> pure val
   }
+
+flatten :: Cycle ~> Cycle
+flatten = internal 
+  <<< { env: emptyEnv, cycles: _ }
+  <<< go
+  where
+  go = unwrap >>> match
+    { branching: \{ cycles } -> join $ map go cycles
+    , simultaneous: \{ cycles } -> join $ map go cycles
+    , internal: \{ cycles } -> join $ map go cycles
+    , singleton:  NEA.singleton <<< singleton
+    }
 
 firstCycle :: forall a. Cycle a -> a
 firstCycle = go
@@ -247,5 +259,7 @@ cycleFromSample_ = cycleFromSample
 intentionalSilenceForInternalUseOnly_ :: forall event. Cycle (Maybe (Note event))
 intentionalSilenceForInternalUseOnly_ = cycleFromSample S.intentionalSilenceForInternalUseOnly__Sample
 
+emptyEnv = { weight: 1.0, tag: nothing  } :: CycleEnv
+
 r :: forall event. Cycle (Maybe (Note event))
-r = singleton { val: nothing, env: { weight: 1.0, tag: nothing } }
+r = singleton { val: nothing, env: emptyEnv }
