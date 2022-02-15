@@ -2,9 +2,19 @@ module WAGS.Lib.Tidal.Synth
   ( Full
   , Opt
   , m2f
-  , pitches
-  , synth
   , midify
+  , periodicSynth
+  , periodicSynth_
+  , pitches
+  , sawtoothSynth
+  , sawtoothSynth_
+  , sineSynth
+  , sineSynth_
+  , squareSynth
+  , squareSynth_
+  , synth
+  , triangleSynth
+  , triangleSynth_
   ) where
 
 import Prelude
@@ -12,15 +22,16 @@ import Prelude
 import Data.List (List(..), (:))
 import Data.Maybe (fromMaybe)
 import Data.NonEmpty ((:|))
-import Data.Tuple.Nested ((/\))
-import Data.Typelevel.Num (D1)
+import Data.Tuple.Nested (type (/\), (/\))
+import Data.Typelevel.Num (class Lt, D1)
 import Data.Variant.Either (either)
+import Data.Vec (Vec)
 import Foreign.Object (fromHomogeneous)
 import Foreign.Object as Object
 import Math (pow)
 import Prim.Row (class Nub, class Union)
 import Record as Record
-import WAGS.Create.Optionals (gain, sinOsc)
+import WAGS.Create.Optionals (gain, periodicOsc, sawtoothOsc, sinOsc, squareOsc, triangleOsc)
 import WAGS.Graph.Parameter (ff)
 import WAGS.Lib.Piecewise (APFofT, makePiecewise)
 import WAGS.Lib.Tidal.FX (goodbye, hello, fx)
@@ -337,6 +348,76 @@ defaultPw =
           : Nil
     ) :: APFofT Number
 
+triangleSynth ∷ Note ~> Note
+triangleSynth = triangleSynth_ defaultPw
+
+triangleSynth_ :: APFofT Number -> Note ~> Note
+triangleSynth_ pw = synth
+  { synth: \ifo (TimeIs { sampleTime, headroomInSeconds }) -> fx
+      $ goodbye
+      $ gain
+          (ff 0.03 $ pw { time: sampleTime, headroomInSeconds })
+          { ipt: hello
+          , osc: triangleOsc ifo.freq
+          }
+  }
+
+squareSynth ∷ Note ~> Note
+squareSynth = squareSynth_ defaultPw
+
+squareSynth_ :: APFofT Number -> Note ~> Note
+squareSynth_ pw = synth
+  { synth: \ifo (TimeIs { sampleTime, headroomInSeconds }) -> fx
+      $ goodbye
+      $ gain
+          (ff 0.03 $ pw { time: sampleTime, headroomInSeconds })
+          { ipt: hello
+          , osc: squareOsc ifo.freq
+          }
+  }
+
+sawtoothSynth ∷ Note ~> Note
+sawtoothSynth = sawtoothSynth_ defaultPw
+
+sawtoothSynth_ :: APFofT Number -> Note ~> Note
+sawtoothSynth_ pw = synth
+  { synth: \ifo (TimeIs { sampleTime, headroomInSeconds }) -> fx
+      $ goodbye
+      $ gain
+          (ff 0.03 $ pw { time: sampleTime, headroomInSeconds })
+          { ipt: hello
+          , osc: sawtoothOsc ifo.freq
+          }
+  }
+
+sineSynth ∷ Note ~> Note
+sineSynth = sineSynth_ defaultPw
+
+sineSynth_ :: APFofT Number -> Note ~> Note
+sineSynth_ pw = synth
+  { synth: \ifo (TimeIs { sampleTime, headroomInSeconds }) -> fx
+      $ goodbye
+      $ gain
+          (ff 0.03 $ pw { time: sampleTime, headroomInSeconds })
+          { ipt: hello
+          , osc: sinOsc ifo.freq
+          }
+  }
+
+periodicSynth ∷ ∀ size. Lt D1 size ⇒ (Vec size Number /\ Vec size Number) → Note ~> Note
+periodicSynth = periodicSynth_ defaultPw
+
+periodicSynth_ :: forall size. Lt D1 size => APFofT Number -> (Vec size Number /\ Vec size Number) -> Note ~> Note
+periodicSynth_ pw v = synth
+  { synth: \ifo (TimeIs { sampleTime, headroomInSeconds }) -> fx
+      $ goodbye
+      $ gain
+          (ff 0.03 $ pw { time: sampleTime, headroomInSeconds })
+          { ipt: hello
+          , osc: periodicOsc v ifo.freq
+          }
+  }
+
 synth
   :: forall inRec overfull event
    . Union inRec (Opt event) overfull
@@ -382,7 +463,7 @@ synth r (Note n@{ sampleFoT }) = Note
             $ gain
                 (ff 0.03 $ defaultPw { time: sampleTime, headroomInSeconds })
                 { ipt: hello
-                , sosc: sinOsc ifo.freq
+                , osc: sinOsc ifo.freq
                 }
         }
       ) :: { | Full event }
