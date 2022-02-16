@@ -5,8 +5,10 @@ module WAGS.Lib.Tidal.Compat where
 import Prelude
 
 import Data.Unfoldable (replicate)
-import WAGS.Lib.Tidal.Cycle (Cycle)
-import WAGS.Lib.Tidal.Tidal (b)
+import Data.Variant.Maybe (Maybe)
+import WAGS.Lib.Tidal.Cycle (Cycle, r)
+import WAGS.Lib.Tidal.Tidal (b, i)
+import WAGS.Lib.Tidal.Types (Note)
 
 every
   :: forall a
@@ -14,7 +16,23 @@ every
   -> (Cycle a -> Cycle a)
   -> Cycle a
   -> Cycle a
-every i
-  | i <= 0 = const identity
-  | i == 1 = ($)
-  | otherwise = flip (<*>) (replicate (i - 1)) <<< map b
+every ix
+  | ix <= 0 = const identity
+  | ix == 1 = ($)
+  | otherwise = flip (<*>) (replicate (ix - 1)) <<< map b
+
+fast
+  :: Int
+  -> Cycle
+  ~> Cycle
+fast ix
+  | ix <= 1 = identity
+  | otherwise = i <*> replicate (ix - 1)
+
+fastGap
+  :: forall event. Int
+  -> Cycle (Maybe (Note event))
+  -> Cycle (Maybe (Note event))
+fastGap ix
+  | ix <= 1 = identity
+  | otherwise = flip i (replicate (ix - 1) r)
