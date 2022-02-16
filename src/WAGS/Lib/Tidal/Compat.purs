@@ -15,6 +15,6 @@ every
   -> Cycle a
   -> Cycle a
 every i
-  | i < 0 = const identity
+  | i <= 0 = const identity
   | i == 1 = ($)
   | otherwise = flip (<*>) (replicate (i - 1)) <<< map b
