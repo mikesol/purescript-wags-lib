@@ -467,25 +467,25 @@ weightedChoice ii = go (L.fromFoldable uscd.init) uscd.last 0.0
     in
       oo
 ---
-b :: forall event. Cycle (VM.Maybe (Note event)) -> Array (Cycle (VM.Maybe (Note event))) -> Cycle (VM.Maybe (Note event))
+b :: forall event a. Cycle a -> Array (Cycle a) -> Cycle a
 b bx by = branching { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (bx :| by) }
 
-b' :: forall event. Cycle (VM.Maybe (Note event)) -> Cycle (VM.Maybe (Note event))
+b' :: forall event a. Cycle a -> Cycle a
 b' bx = b bx []
 
 nefy :: forall f a b. (a -> f a -> b) -> NonEmpty f a -> b
 nefy ff (xx :| yy) = ff xx yy
 
-i :: forall event. Cycle (VM.Maybe (Note event)) -> Array (Cycle (VM.Maybe (Note event))) -> Cycle (VM.Maybe (Note event))
+i :: forall event a. Cycle a -> Array (Cycle a) -> Cycle a
 i sx sy = internal { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (sx :| sy) }
 
-i' :: forall event. Cycle (VM.Maybe (Note event)) -> Cycle (VM.Maybe (Note event))
+i' :: forall event a. Cycle a -> Cycle a
 i' sx = i sx []
 
-x :: forall event. Cycle (VM.Maybe (Note event)) -> Array (Cycle (VM.Maybe (Note event))) -> Cycle (VM.Maybe (Note event))
+x :: forall event a. Cycle a -> Array (Cycle a) -> Cycle a
 x xx xy = simultaneous { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (xx :| xy) }
 
-x' :: forall event. Cycle (VM.Maybe (Note event)) -> Cycle (VM.Maybe (Note event))
+x' :: forall event a. Cycle a -> Cycle a
 x' sx = x sx []
 
 drone :: forall event. String -> VM.Maybe (DroneNote event)
