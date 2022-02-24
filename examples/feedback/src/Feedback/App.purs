@@ -15,7 +15,7 @@ import Data.Lens (over)
 import Data.Lens.Grate (grate)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Monoid.Additive (Additive)
-import Data.Newtype (unwrap)
+import Data.Newtype (unwrap, wrap)
 import Data.Traversable (for_, traverse)
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\))
@@ -312,7 +312,7 @@ controls :: Quads Control
 controls =
    T2 (Rect 0 0 60 60) focusc T2_0
   +> T2 (Rect 590 590 410 100) plainc T2_0
-  +> T2 (Rect 660 340 270 120) plainc T2_0
+  +> T3 (Rect 660 340 270 120) plainc T3_2
   +> T2 (Rect 590 460 340 130) plainc T2_0
   +> T2 (Rect 0 940 300 60) plainc T2_0
   +> T2 (Rect 90 750 300 60) plainc T2_0
@@ -376,7 +376,7 @@ great = grate ((/\) <$> ((#) fst) <*> ((#) snd))
 tnt = over great toNumber
 
 c2s :: forall i w. Control -> Array (HH.HTML i w)
-c2s (Slider (Rect x y w h) color t) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
+c2s (Slider (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
 c2s (T2 (Rect x y w h) color t) =
   [ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
   ] <> case t of
@@ -384,8 +384,8 @@ c2s (T2 (Rect x y w h) color t) =
     T2_1 -> [ SE.circle [ SA.cx $ (toNumber x + (toNumber w / 2.0)), SA.cy $ (toNumber y + (toNumber h / 2.0)), SA.r $ toNumber ((min w h) - 20) / 2.0, SA.fill (RGB 10 10 10), SA.stroke (RGB 4 4 4) ] ]
 c2s (T3 (Rect x y w h) color t) = [ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ] ] <> case t of
   T3_0 -> []
-  T3_1 -> []
-  T3_2 -> []
+  T3_1 -> [ SE.polygon [ HH.attr (wrap "points") (show x <> "," <> show y <> " " <> show (x + w) <> "," <> show y <> " " <> show (x + w) <> "," <> show (y + h) <> " ") ] ]
+  T3_2 -> [SE.polygon [ HH.attr (wrap "points") (show x <> "," <> show y <> " " <> show x <> "," <> show (y + h) <> " " <> show (x + w) <> "," <> show (y + h) <> " ") ]]
 --c2s (T4 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
 --c2s (T5 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
 --c2s (T6 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
