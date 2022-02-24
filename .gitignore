@@ -10,3 +10,4 @@
 /.spago
 packages.json
 midiparse/.venv
+**/.DS_Store
