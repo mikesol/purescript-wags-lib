@@ -14,6 +14,7 @@ in      conf
               , "record"
               , "event"
               , "foreign-object"
+              , "halogen-svg"
               , "indexed-monad"
               , "debug"
               , "parallel"

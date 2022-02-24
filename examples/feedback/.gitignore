@@ -9,4 +9,4 @@
 /.psa*
 /.spago
 /dist/bundle.js
-/scripts/.venv
+.venv

@@ -173,6 +173,25 @@ let additions =
         , repo = "https://github.com/mikesol/purescript-wags.git"
         , version = "v0.6.9"
         }
+      , halogen-svg = {
+        dependencies = ["aff"
+  , "arrays"
+  , "effect"
+  , "foldable-traversable"
+  , "halogen"
+  , "halogen-hooks"
+  , "maybe"
+  , "newtype"
+  , "prelude"
+  , "psci-support"
+  , "safe-coerce"
+  , "strings"
+  , "tuples"
+  , "typelevel-prelude"
+  , "web-dom"
+  , "web-uievents"], repo = "https://github.com/JordanMartinez/purescript-halogen-svg-elems.git"
+        , version = "v5.0.2"
+      }
       , everythings-better-with-variants =
         { dependencies =
           [ "control"

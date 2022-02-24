@@ -3,7 +3,7 @@ module Main where
 import Prelude
 
 import Effect (Effect)
-import Gamelan.App as App
+import Feedback.App as App
 import Halogen.Aff (awaitBody, runHalogenAff)
 import Halogen.VDom.Driver (runUI)
 

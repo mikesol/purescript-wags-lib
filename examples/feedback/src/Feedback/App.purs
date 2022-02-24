@@ -1,7 +1,8 @@
-module Gamelan.App where
+module Feedback.App where
 
 import Prelude
 
+import Color (rgb)
 import Control.Applicative.Indexed ((:*>))
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
@@ -10,16 +11,18 @@ import Control.Plus (empty)
 import Data.Array as A
 import Data.Array.NonEmpty as NEA
 import Data.Int (floor, toNumber)
+import Data.Lens (over)
+import Data.Lens.Grate (grate)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Monoid.Additive (Additive(..))
+import Data.Monoid.Additive (Additive)
 import Data.Newtype (unwrap)
 import Data.Traversable (for_, traverse)
+import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\))
-import Data.Typelevel.Num (D2, D7, toInt')
-import Data.Vec ((+>))
+import Data.Typelevel.Num (D2, D7, D60, toInt')
+import Data.Vec (Vec, (+>))
 import Data.Vec as V
 import Data.Vec as Vec
-import Debug (spy)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
@@ -29,19 +32,23 @@ import FRP.Behavior (Behavior, behavior)
 import FRP.Behavior.Mouse (position)
 import FRP.Event (makeEvent, subscribe)
 import FRP.Event.Mouse (getMouse)
+import Halogen (ClassName(..))
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Halogen.Svg.Attributes (Color(..))
+import Halogen.Svg.Attributes as SA
+import Halogen.Svg.Elements as SE
 import Record.Builder as Record
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 import WAGS.Change (ichange)
 import WAGS.Control.Functions (imodifyRes)
-import WAGS.Control.Functions.Graph (iloop, startUsingWithHint)
+import WAGS.Control.Functions.Graph (iloop, loopUsingScene)
 import WAGS.Control.Functions.Subgraph as SG
 import WAGS.Control.Types (Frame0, Scene)
-import WAGS.Create.Optionals (gain, playBuf, speaker, subgraph)
+import WAGS.Create.Optionals (gain, playBuf, sinOsc, speaker, subgraph)
 import WAGS.Graph.AudioUnit (OnOff(..), _off, _offOn, _on)
 import WAGS.Graph.Parameter (ff)
 import WAGS.Interpret (close, context, decodeAudioDataFromUri, makeFFIAudioSnapshot)
@@ -59,6 +66,7 @@ import WAGS.Math (calcSlope)
 import WAGS.Run (RunAudio, RunEngine, SceneI(..), Run, run)
 import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
+import Web.DOM.Node (lookupNamespaceURI)
 
 ntropi :: Behavior Number
 ntropi =
@@ -231,56 +239,17 @@ acc =
   , keyBufs: V.fill (const $ { latch: makeLatchAP, buffers: makeBufferPool })
   }
 
-scene :: forall trigger analyserCbs. SceneI trigger World analyserCbs -> { | Acc } -> _
-scene e a =
-  let
-    actualizer = {}
-
-    --------------------------------------------
-    actualized =
-      Record.build
-        (Record.union (keyBufsActualize e a))
-        actualizer
-
-    headz = heads actualized
-
-    scene' =
-      speaker
-        { masterGain:
-            gain 1.0
-              ( Record.build
-                  ( Record.union (keyBufGraph e headz)
-                  )
-                  {}
-              )
-        }
-  in
-    tails actualized /\ scene'
-
 type Res
   = { x :: Additive Int, y :: Additive Int }
 
 piece :: forall env analyserCbs. Scene (SceneI env World analyserCbs) RunAudio RunEngine Frame0 Res
 piece =
-  startUsingWithHint
-    scene
-    { microphone: empty, mediaElement: empty }
-    (const acc)
-    ( iloop
-        ( \e@(SceneI e') a ->
-            let
-              acc /\ graph = scene e a
-            in
-              imodifyRes
-                ( const
-                    ( maybe mempty
-                        (\{ x, y } -> { x: Additive x, y: Additive y })
-                        e'.world.mickey
-                    )
-                )
-                :*> (ichange graph $> acc)
-        )
-    )
+  loopUsingScene
+    (\_ _ -> {control: unit, scene: speaker
+        { masterGain:
+            gain 0.01 $ sinOsc 440.0
+        }})
+  (const unit)
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =
@@ -316,28 +285,122 @@ initialState _ =
 classes :: forall r p. Array String -> HP.IProp (class :: String | r) p
 classes = HP.classes <<< map H.ClassName
 
+data T2 = T2_0 | T2_1
+data T3 = T3_0 | T3_1 | T3_2
+--data T4 = T4_0 | T4_1 | T4_2 | T4_3
+--data T5 = T5_0 | T5_1 | T5_2 | T5_3 | T5_4
+--data T6 = T6_0 | T6_1 | T6_2 | T6_3 | T6_4
+
+data Rect = Rect Int Int Int Int
+
+data Control
+  = Slider Rect Color Number
+  | T2 Rect Color T2
+  | T3 Rect Color T3
+  -- | T4 Rect Color T4
+  -- | T5 Rect Color T5
+  -- | T6 Rect Color T6
+  | Pad Rect Color Number
+  | Source Rect Color
+
+plainc = RGB 100 100 100
+focusc = RGB 10 10 10
+
+type Quads a = Vec D60 a
+
+controls :: Quads Control
+controls =
+   T2 (Rect 0 0 60 60) focusc T2_0
+  +> T2 (Rect 590 590 410 100) plainc T2_0
+  +> T2 (Rect 660 340 270 120) plainc T2_0
+  +> T2 (Rect 590 460 340 130) plainc T2_0
+  +> T2 (Rect 0 940 300 60) plainc T2_0
+  +> T2 (Rect 90 750 300 60) plainc T2_0
+  +> T2 (Rect 90 810 450 60) plainc T2_0
+  +> T2 (Rect 90 870 630 70) plainc T2_0
+  +> T2 (Rect 0 60 60 60) plainc T2_0
+  +> T2 (Rect 60 0 60 60) plainc T2_0
+  +> T2 (Rect 400 60 60 60) plainc T2_0
+  +> T2 (Rect 400 120 60 60) plainc T2_0
+  +> T2 (Rect 90 690 60 60) plainc T2_0
+  +> T2 (Rect 150 690 60 60) plainc T2_0
+  +> T2 (Rect 300 940 60 60) plainc T2_0
+  +> T2 (Rect 360 940 60 60) plainc T2_0
+  +> T2 (Rect 420 940 60 60) plainc T2_0
+  +> T2 (Rect 480 940 60 60) plainc T2_0
+  +> T2 (Rect 540 940 60 60) plainc T2_0
+  +> T2 (Rect 600 940 60 60) plainc T2_0
+  +> T2 (Rect 660 940 60 60) plainc T2_0
+  +> T2 (Rect 210 690 60 60) plainc T2_0
+  +> T2 (Rect 270 690 60 60) plainc T2_0
+  +> T2 (Rect 330 690 60 60) plainc T2_0
+  +> T2 (Rect 460 60 60 60) plainc T2_0
+  +> T2 (Rect 460 120 60 60) plainc T2_0
+  +> T2 (Rect 800 70 60 70) plainc T2_0
+  +> T2 (Rect 860 270 70 70) plainc T2_0
+  +> T2 (Rect 0 120 60 60) plainc T2_0
+  +> T2 (Rect 120 0 60 60) plainc T2_0
+  +> T2 (Rect 0 180 60 60) plainc T2_0
+  +> T2 (Rect 180 0 60 60) plainc T2_0
+  +> T2 (Rect 0 240 60 60) plainc T2_0
+  +> T2 (Rect 0 300 90 640) plainc T2_0
+  +> T2 (Rect 90 300 90 390) plainc T2_0
+  +> T2 (Rect 180 300 90 260) plainc T2_0
+  +> T2 (Rect 270 300 320 90) plainc T2_0
+  +> T2 (Rect 240 0 60 60) plainc T2_0
+  +> T2 (Rect 300 0 60 60) plainc T2_0
+  +> T2 (Rect 300 60 100 100) plainc T2_0
+  +> T2 (Rect 360 0 300 60) plainc T2_0
+  +> T2 (Rect 300 160 100 140) plainc T2_0
+  +> T2 (Rect 400 180 120 120) plainc T2_0
+  +> T2 (Rect 60 60 240 240) plainc T2_0
+  +> T2 (Rect 270 390 320 300) plainc T2_0
+  +> T2 (Rect 660 140 200 200) plainc T2_0
+  +> T2 (Rect 660 0 140 140) plainc T2_0
+  +> T2 (Rect 800 0 200 70) plainc T2_0
+  +> T2 (Rect 590 60 70 400) plainc T2_0
+  +> T2 (Rect 860 70 70 200) plainc T2_0
+  +> T2 (Rect 930 70 70 520) plainc T2_0
+  +> T2 (Rect 930 690 70 310) plainc T2_0
+  +> T2 (Rect 520 60 70 240) plainc T2_0
+  +> T2 (Rect 180 560 90 130) plainc T2_0
+  +> T2 (Rect 720 690 80 100) plainc T2_0
+  +> T2 (Rect 630 690 90 180) plainc T2_0
+  +> T2 (Rect 540 690 90 180) plainc T2_0
+  +> T2 (Rect 390 690 150 120) plainc T2_0
+  +> T2 (Rect 800 690 130 100) plainc T2_0
+  +> T2 (Rect 720 790 210 210) plainc T2_0
+  +> V.empty
+
+great = grate ((/\) <$> ((#) fst) <*> ((#) snd))
+tnt = over great toNumber
+
+c2s :: forall i w. Control -> Array (HH.HTML i w)
+c2s (Slider (Rect x y w h) color t) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
+c2s (T2 (Rect x y w h) color t) =
+  [ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
+  ] <> case t of
+    T2_0 -> []
+    T2_1 -> [ SE.circle [ SA.cx $ (toNumber x + (toNumber w / 2.0)), SA.cy $ (toNumber y + (toNumber h / 2.0)), SA.r $ toNumber ((min w h) - 20) / 2.0, SA.fill (RGB 10 10 10), SA.stroke (RGB 4 4 4) ] ]
+c2s (T3 (Rect x y w h) color t) = [ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ] ] <> case t of
+  T3_0 -> []
+  T3_1 -> []
+  T3_2 -> []
+--c2s (T4 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
+--c2s (T5 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
+--c2s (T6 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
+c2s (Pad (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
+c2s (Source (Rect x y w h) color) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
+
 render :: forall m. State -> H.ComponentHTML Action () m
 render _ =
   HH.div [ classes [ "w-screen", "h-screen" ] ]
-    [ HH.div [ classes [ "flex", "flex-col", "w-full", "h-full" ] ]
-        [ HH.div [ classes [ "flex-grow" ] ] []
-        , HH.div [ classes [ "flex-grow-0", "flex", "flex-row" ] ]
-            [ HH.div [ classes [ "flex-grow" ] ]
-                []
-            , HH.div [ classes [ "flex", "flex-col" ] ]
-                [ HH.h1 [ classes [ "text-center", "text-3xl", "font-bold" ] ]
-                    [ HH.text "ꦒꦩꦼꦭꦤ꧀" ]
-                , HH.button
-                    [ classes [ "text-2xl", "m-5", "bg-indigo-500", "p-3", "rounded-lg", "text-white", "hover:bg-indigo-400" ], HE.onClick \_ -> StartAudio ]
-                    [ HH.text "Start audio" ]
-                , HH.button
-                    [ classes [ "text-2xl", "m-5", "bg-pink-500", "p-3", "rounded-lg", "text-white", "hover:bg-pink-400" ], HE.onClick \_ -> StopAudio ]
-                    [ HH.text "Stop audio" ]
-                ]
-            , HH.div [ classes [ "flex-grow" ] ] []
-            ]
-        , HH.div [ classes [ "flex-grow" ] ] []
+    [ SE.svg
+        [ SA.classes $ map ClassName [ "w-full", "h-full" ]
+        , SA.viewBox 0.0 0.0 1000.0 1000.0
+        , SA.preserveAspectRatio Nothing SA.Slice
         ]
+        (join $ map c2s $ V.toArray controls)
     ]
 
 handleAction :: forall output m. MonadEffect m => MonadAff m => Action -> H.HalogenM State Action () output m Unit
