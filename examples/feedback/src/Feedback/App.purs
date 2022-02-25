@@ -146,8 +146,8 @@ data Control
   | Pad Rect Color Number
   | Source Rect Color
 
-plainc = RGB 100 100 100
-focusc = RGB 10 10 10
+plainc = RGB 100 100 100 :: Color
+focusc = RGB 10 10 10 :: Color
 
 -- SYNTH 1
 -- 3 config of oscillators
@@ -157,10 +157,13 @@ type Instructions (a :: Type) =
   , togglePadOsc0 :: a
   , togglePadOsc1 :: a
   , togglePadOsc2 :: a
+  , togglePadOsc3 :: a
+  , togglePadOsc4 :: a
   , detunePad :: a
   , gainLFO0Pad :: a
   , gainLFO1Pad :: a
   , filterBankChooserPad :: a
+  , waveshaperPad :: a
   , triggerLead :: a
   , synthForLead :: a
   , pitchLead :: a
@@ -170,7 +173,10 @@ type Instructions (a :: Type) =
   , leadDelayLine0 :: a
   , leadDelayLine1 :: a
   , leadDelayLine2 :: a
+  , leadCombinedDelay0 :: a
+  , leadDelayGainCarousel :: a
   , drone :: a
+  , droneChooser :: a
   , droneLowpass0Q :: a
   , droneBandpass0Q :: a
   , droneBandpass0LFO :: a
@@ -179,7 +185,9 @@ type Instructions (a :: Type) =
   , droneHighpass0Q :: a
   , droneHighpass0LFO :: a
   , droneActivationEnergyThreshold :: a
+  , droneRhythmicLoopingPiecewiseFunction :: a
   , droneDecay :: a
+  , droneFlange :: a
   , sampleOneShot :: a
   , sampleReverse :: a
   , sampleChooser :: a
@@ -187,12 +195,21 @@ type Instructions (a :: Type) =
   , sampleDelayLine0 :: a
   , sampleDelayLine1 :: a
   , sampleDelayLine2 :: a
+  , sampleCombinedDelayLine0 :: a
+  , sampleDelayGainCarousel :: a
   , leadSampleDelayLine0 :: a
+  , leadSampleDelayLine1 :: a
+  , leadSampleDelayLine2 :: a
+  , loopingBufferStartEndConstriction :: a
+  , loopingBufferGainDJ :: a
   , loopingBuffer0 :: a
   , loopingBuffer1 :: a
   , loopingBuffer2 :: a
+  , loopingBuffer3 :: a
+  , loopingBuffer4 :: a
   , radicalFlip :: a
   , greatAndMightyPan :: a
+  , globalDelay :: a
   )
 
 elts :: { | Instructions Control }
@@ -205,6 +222,10 @@ elts =
   , togglePadOsc1: T2 (Rect 540 940 60 60) focusc T2_0
   -- sawtooth wave in mix
   , togglePadOsc2: T2 (Rect 270 690 60 60) focusc T2_0
+  -- high sine in mix
+  , togglePadOsc3: T2 (Rect 0 60 60 60) focusc T2_0
+  -- square in mix
+  , togglePadOsc4: T2 (Rect 420 940 60 60) focusc T2_0
   -- three detuning factors + "normal" harmonic series
   , detunePad: T4 (Rect 800 690 130 100) focusc T4_0
   -- 0th lfo on the pad gain
@@ -213,6 +234,8 @@ elts =
   , gainLFO1Pad: Slider (Rect 630 690 90 180) focusc 0.0
   -- pad filter bank chooser
   , filterBankChooserPad: T5 (Rect 400 180 120 120) focusc T5_0 --
+  -- waveshaper on the pad
+  , waveshaperPad: Slider (Rect 800 0 200 70) focusc 0.0
   -- trigger synth
   , triggerLead: Source (Rect 720 790 210 210) focusc
   -- the synth we use for the lead
@@ -225,6 +248,10 @@ elts =
   , leadDelayLine1: T2 (Rect 460 120 60 60) focusc T2_0
   -- 2nd delay line for the lead synth
   , leadDelayLine2: T2 (Rect 90 690 60 60) focusc T2_0
+  -- combined delay line for the lead synth
+  , leadCombinedDelay0: T2 (Rect 300 0 60 60) focusc T2_0
+  -- shifts intensities of delays
+  , leadDelayGainCarousel: T2 (Rect 590 590 410 100) focusc T2_0
   -- n pitches played when pressed (fixed sequence always based on start)
   , nPitchesPlayedLead: DiscreteChooser (Rect 90 300 90 390) focusc 6 0
   -- one of three envelopes
@@ -233,6 +260,8 @@ elts =
   , octaveLead: T3 (Rect 800 70 60 70) focusc T3_0
   -- pad for a buffer
   , drone: Pad (Rect 270 390 320 300) focusc 0.0
+  -- choose drone
+  , droneChooser: T4 (Rect 390 690 150 120) focusc T4_0
   -- lowpass q for drone
   , droneLowpass0Q: Slider (Rect 540 690 90 180) focusc 0.0
   -- q of bandpass filter
@@ -249,8 +278,12 @@ elts =
   , droneHighpass0LFO: Slider (Rect 360 0 300 60) focusc 0.0
   -- how long does it take for the drone to ramp up?
   , droneActivationEnergyThreshold: Slider (Rect 90 750 300 60) focusc 0.0
+  -- looping pwf
+  , droneRhythmicLoopingPiecewiseFunction: T5 (Rect 660 340 270 120) focusc T5_0
   -- how long does the drone linger?
   , droneDecay: Slider (Rect 590 60 70 400) focusc 0.0
+  -- flange on the drone
+  , droneFlange: T2 (Rect 60 0 60 60) focusc T2_0
   -- a single sample
   , sampleOneShot: Source (Rect 660 140 200 200) focusc
   -- reverse the samples?
@@ -264,72 +297,90 @@ elts =
   , sampleDelayLine1: T2 (Rect 150 690 60 60) focusc T2_0
   -- 2nd delay line for the single sample
   , sampleDelayLine2: T2 (Rect 860 270 70 70) focusc T2_0
+  -- 0th sample combined delay line
+  , sampleCombinedDelayLine0: T2 (Rect 480 940 60 60) focusc T2_0
+  -- changes intensities of various delay lines
+  , sampleDelayGainCarousel: Slider (Rect 270 300 320 90) focusc 0.0
   -- 0th delay line for combined lead sample
   , leadSampleDelayLine0: T2 (Rect 660 940 60 60) focusc T2_0
+  -- 1st delay line for combined lead sample
+  , leadSampleDelayLine1: T2 (Rect 330 690 60 60) focusc T2_0
+  -- 2nd delay line for combined lead sample
+  , leadSampleDelayLine2: T2 (Rect 0 180 60 60) focusc T2_0
+  -- alternates between any looping buffers that are currently playing
+  , loopingBufferGainDJ: T2 (Rect 240 0 60 60) focusc T2_0
+  -- how close the start/end times are
+  , loopingBufferStartEndConstriction: Slider (Rect 300 160 100 140) focusc 0.0
   -- 0th looping buffer
   , loopingBuffer0: T2 (Rect 180 0 60 60) focusc T2_0
   -- 1st looping buffer
   , loopingBuffer1: T2 (Rect 210 690 60 60) focusc T2_0
   -- 2nd looping buffer
   , loopingBuffer2: T2 (Rect 360 940 60 60) focusc T2_0
+  -- 3rd looping buffer
+  , loopingBuffer3: T2 (Rect 300 940 60 60) focusc T2_0
+  -- 4th looping buffer
+  , loopingBuffer4: T2 (Rect 0 120 60 60) focusc T2_0
   -- substitutes entirely different sets of base parameters
   , radicalFlip: T2 (Rect 460 60 60 60) focusc T2_0
   -- global pan extravaganza
   , greatAndMightyPan:  Slider (Rect 90 870 630 70) focusc 0.0
+  -- global delay
+  , globalDelay: T2 (Rect 600 940 60 60) plainc T2_0
   }
 
 type Quads a = Vec D60 a
 
 controls :: Quads Control
 controls =
-  T2 (Rect 0 0 60 60) focusc T2_0 -- sample delay line 0
-    +> T2 (Rect 590 590 410 100) plainc T2_0
-    +> T3 (Rect 660 340 270 120) plainc T3_0
+  T2 (Rect 0 0 60 60) focusc T2_0 --
+    +> T2 (Rect 590 590 410 100) focusc T2_0 --
+    +> T2 (Rect 660 340 270 120) focusc T2_0 --
     +> T2 (Rect 590 460 340 130) focusc T2_0 --
     +> T2 (Rect 0 940 300 60) focusc T2_0 --
     +> T2 (Rect 90 750 300 60) focusc T2_0 --
     +> T2 (Rect 90 810 450 60) focusc T2_0 --
     +> T2 (Rect 90 870 630 70) focusc T2_0 --
-    +> T2 (Rect 0 60 60 60) plainc T2_0
-    +> T2 (Rect 60 0 60 60) plainc T2_0
+    +> T2 (Rect 0 60 60 60) focusc T2_0 --
+    +> T2 (Rect 60 0 60 60) focusc T2_0 --
     +> T2 (Rect 400 60 60 60) focusc T2_0 --
     +> T2 (Rect 400 120 60 60) focusc T2_0 --
     +> T2 (Rect 90 690 60 60) focusc T2_0 --
     +> T2 (Rect 150 690 60 60) focusc T2_0 --
-    +> T2 (Rect 300 940 60 60) plainc T2_0
+    +> T2 (Rect 300 940 60 60) focusc T2_0 --
     +> T2 (Rect 360 940 60 60) focusc T2_0 --
-    +> T2 (Rect 420 940 60 60) plainc T2_0
-    +> T2 (Rect 480 940 60 60) plainc T2_0
+    +> T2 (Rect 420 940 60 60) focusc T2_0 --
+    +> T2 (Rect 480 940 60 60) focusc T2_0 --
     +> T2 (Rect 540 940 60 60) focusc T2_0 --
-    +> T2 (Rect 600 940 60 60) plainc T2_0
+    +> T2 (Rect 600 940 60 60) focusc T2_0 --
     +> T2 (Rect 660 940 60 60) focusc T2_0 --
     +> T2 (Rect 210 690 60 60) focusc T2_0 --
     +> T2 (Rect 270 690 60 60) focusc T2_0 --
-    +> T2 (Rect 330 690 60 60) plainc T2_0
+    +> T2 (Rect 330 690 60 60) focusc T2_0 --
     +> T2 (Rect 460 60 60 60) focusc T2_0 --
     +> T2 (Rect 460 120 60 60) focusc T2_0 --
     +> T2 (Rect 800 70 60 70) focusc T2_0 --
     +> T2 (Rect 860 270 70 70) focusc T2_0 --
-    +> T2 (Rect 0 120 60 60) plainc T2_0
+    +> T2 (Rect 0 120 60 60) focusc T2_0 --
     +> T2 (Rect 120 0 60 60) plainc T2_0
-    +> T2 (Rect 0 180 60 60) plainc T2_0
+    +> T2 (Rect 0 180 60 60) focusc T2_0 --
     +> T2 (Rect 180 0 60 60) focusc T2_0 --
     +> T2 (Rect 0 240 60 60) focusc T2_0 --
     +> T2 (Rect 0 300 90 640) focusc T2_0 --
     +> T2 (Rect 90 300 90 390) focusc T2_0 --
     +> T2 (Rect 180 300 90 260) focusc T2_0 --
-    +> T2 (Rect 270 300 320 90) plainc T2_0
-    +> T2 (Rect 240 0 60 60) plainc T2_0
-    +> T2 (Rect 300 0 60 60) plainc T2_0
+    +> T2 (Rect 270 300 320 90) focusc T2_0 --
+    +> T2 (Rect 240 0 60 60) focusc T2_0 --
+    +> T2 (Rect 300 0 60 60) focusc T2_0 --
     +> T2 (Rect 300 60 100 100) plainc T2_0
     +> T2 (Rect 360 0 300 60) focusc T2_0 --
-    +> T2 (Rect 300 160 100 140) plainc T2_0
+    +> T2 (Rect 300 160 100 140) focusc T2_0 --
     +> T2 (Rect 400 180 120 120) focusc T2_0 --
     +> T2 (Rect 60 60 240 240) focusc T2_0 --
     +> T2 (Rect 270 390 320 300) focusc T2_0 --
     +> T2 (Rect 660 140 200 200) focusc T2_0 --
     +> T2 (Rect 660 0 140 140) focusc T2_0 --
-    +> T2 (Rect 800 0 200 70) plainc T2_0
+    +> T2 (Rect 800 0 200 70) focusc T2_0 --
     +> T2 (Rect 590 60 70 400) focusc T2_0 --
     +> T2 (Rect 860 70 70 200) focusc T2_0 --
     +> T2 (Rect 930 70 70 520) focusc T2_0 --
@@ -339,7 +390,7 @@ controls =
     +> T2 (Rect 720 690 80 100) focusc T2_0 --
     +> T2 (Rect 630 690 90 180) focusc T2_0 --
     +> T2 (Rect 540 690 90 180) focusc T2_0 --
-    +> T2 (Rect 390 690 150 120) plainc T2_0
+    +> T2 (Rect 390 690 150 120) focusc T2_0 --
     +> T2 (Rect 800 690 130 100) focusc T2_0 --
     +> T2 (Rect 720 790 210 210) focusc T2_0 --
     +> V.empty
