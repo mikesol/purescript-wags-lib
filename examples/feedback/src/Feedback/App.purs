@@ -76,7 +76,7 @@ type Graph =
   , master :: TGain /\ { bufferSource0 :: Unit }
   , bufferSource0 :: TPlayBuf /\ {}
   , bufferSource1 :: TPlayBuf /\ {}
-  , synthSource0 :: TPeriodicOsc /\ {}
+  , synthpad0 :: TPeriodicOsc /\ {}
   , synthSource1 :: TPeriodicOsc /\ {}
   )
 
@@ -130,18 +130,19 @@ classes = HP.classes <<< map H.ClassName
 data T2 = T2_0 | T2_1
 data T3 = T3_0 | T3_1 | T3_2
 data T4 = T4_0 | T4_1 | T4_2 | T4_3
---data T5 = T5_0 | T5_1 | T5_2 | T5_3 | T5_4
---data T6 = T6_0 | T6_1 | T6_2 | T6_3 | T6_4
+data T5 = T5_0 | T5_1 | T5_2 | T5_3 | T5_4
+data T6 = T6_0 | T6_1 | T6_2 | T6_3 | T6_4
 
 data Rect = Rect Int Int Int Int
 
 data Control
   = Slider Rect Color Number
+  | DiscreteChooser Rect Color Int Int
   | T2 Rect Color T2
   | T3 Rect Color T3
   | T4 Rect Color T4
-  -- | T5 Rect Color T5
-  -- | T6 Rect Color T6
+  | T5 Rect Color T5
+  | T6 Rect Color T6
   | Pad Rect Color Number
   | Source Rect Color
 
@@ -151,20 +152,48 @@ focusc = RGB 10 10 10
 -- SYNTH 1
 -- 3 config of oscillators
 -- 1 config of pitch (multiswitch)
-type Instructions a =
-  ( triggerSynthSource0 :: a
-  , toggleSynthSource0Osc0 :: a
-  , toggleSynthSource0Osc1 :: a
-  , toggleSynthSource0Osc2 :: a
-  --, detuneSynthSource0 :: a
+type Instructions (a :: Type) =
+  ( triggerSynthPad0 :: a
+  , toggleSynthPad0Osc0 :: a
+  , toggleSynthPad0Osc1 :: a
+  , toggleSynthPad0Osc2 :: a
+  , detuneSynthPad0 :: a
+  , triggerSynthSource1 :: a
+  , pitchSynthSource1 :: a
+  , nPitchesPlayedSource1 :: a
+  , envelopeSource1 :: a
+  , bufferPad0 :: a
+  , activationEnergyThresholdPad0 :: a
+  , decayPad0 :: a
+  , sampleOneShot :: a
   )
 
 elts :: { | Instructions Control }
 elts =
-  { triggerSynthSource0: Source (Rect 60 60 240 240) plainc
-  , toggleSynthSource0Osc0: T2 (Rect 400 60 60 60) plainc T2_0
-  , toggleSynthSource0Osc1: T2 (Rect 540 940 60 60) plainc T2_0
-  , toggleSynthSource0Osc2: T2 (Rect 270 690 60 60) plainc T2_0
+  { -- press to grow or shrink a pad
+    triggerSynthPad0: Pad (Rect 60 60 240 240) focusc 0.0
+    -- periodic wave in mix
+  , toggleSynthPad0Osc0: T2 (Rect 400 60 60 60) focusc T2_0
+  -- triangle wave in mix
+  , toggleSynthPad0Osc1: T2 (Rect 540 940 60 60) focusc T2_0
+  -- sawtooth wave in mix
+  , toggleSynthPad0Osc2: T2 (Rect 270 690 60 60) focusc T2_0
+  -- three detuning factors + "normal" harmonic series
+  , detuneSynthPad0: T4 (Rect 800 690 130 100) focusc T4_0
+  -- trigger synth
+  , triggerSynthSource1: Source (Rect 720 790 210 210) focusc
+  -- choose which pitch out of 14 to start at
+  , pitchSynthSource1: DiscreteChooser (Rect 930 70 70 520) focusc 14 0
+  -- n pitches played when pressed (fixed sequence always based on start)
+  , nPitchesPlayedSource1: DiscreteChooser (Rect 90 300 90 390) focusc 6 0
+  -- one of three envelopes
+  , envelopeSource1: T3 (Rect 660 0 140 140) focusc T3_0
+  -- pad for a buffer
+  , bufferPad0: Pad (Rect 270 390 320 300) focusc 0.0
+  -- activation energy threshold pad 0
+  , activationEnergyThresholdPad0: Slider (Rect 90 750 300 60) focusc 0.0
+  , decayPad0: Slider (Rect 590 60 70 400) focusc 0.0
+  , sampleOneShot: Source (Rect 660 140 200 200) focusc
   }
 
 type Quads a = Vec D60 a
@@ -176,7 +205,7 @@ controls =
     +> T3 (Rect 660 340 270 120) plainc T3_0
     +> T2 (Rect 590 460 340 130) plainc T2_0
     +> T2 (Rect 0 940 300 60) plainc T2_0
-    +> T2 (Rect 90 750 300 60) plainc T2_0
+    +> T2 (Rect 90 750 300 60) focusc T2_0 -- activation enery
     +> T2 (Rect 90 810 450 60) plainc T2_0
     +> T2 (Rect 90 870 630 70) plainc T2_0
     +> T2 (Rect 0 60 60 60) plainc T2_0
@@ -205,7 +234,7 @@ controls =
     +> T2 (Rect 180 0 60 60) plainc T2_0
     +> T2 (Rect 0 240 60 60) plainc T2_0
     +> T2 (Rect 0 300 90 640) plainc T2_0
-    +> T2 (Rect 90 300 90 390) plainc T2_0
+    +> T2 (Rect 90 300 90 390) focusc T2_0 --
     +> T2 (Rect 180 300 90 260) plainc T2_0
     +> T2 (Rect 270 300 320 90) plainc T2_0
     +> T2 (Rect 240 0 60 60) plainc T2_0
@@ -215,13 +244,13 @@ controls =
     +> T2 (Rect 300 160 100 140) plainc T2_0
     +> T2 (Rect 400 180 120 120) plainc T2_0
     +> T2 (Rect 60 60 240 240) focusc T2_0 --
-    +> T2 (Rect 270 390 320 300) plainc T2_0
-    +> T2 (Rect 660 140 200 200) plainc T2_0
-    +> T2 (Rect 660 0 140 140) plainc T2_0
+    +> T2 (Rect 270 390 320 300) focusc T2_0 --
+    +> T2 (Rect 660 140 200 200) focusc T2_0 --
+    +> T2 (Rect 660 0 140 140) focusc T2_0 --
     +> T2 (Rect 800 0 200 70) plainc T2_0
-    +> T2 (Rect 590 60 70 400) plainc T2_0
+    +> T2 (Rect 590 60 70 400) focusc T2_0 --
     +> T2 (Rect 860 70 70 200) plainc T2_0
-    +> T2 (Rect 930 70 70 520) plainc T2_0
+    +> T2 (Rect 930 70 70 520) focusc T2_0 --
     +> T2 (Rect 930 690 70 310) plainc T2_0
     +> T2 (Rect 520 60 70 240) plainc T2_0
     +> T2 (Rect 180 560 90 130) plainc T2_0
@@ -229,8 +258,8 @@ controls =
     +> T2 (Rect 630 690 90 180) plainc T2_0
     +> T2 (Rect 540 690 90 180) plainc T2_0
     +> T2 (Rect 390 690 150 120) plainc T2_0
-    +> T2 (Rect 800 690 130 100) plainc T2_0
-    +> T2 (Rect 720 790 210 210) plainc T2_0
+    +> T2 (Rect 800 690 130 100) focusc T2_0 --
+    +> T2 (Rect 720 790 210 210) focusc T2_0 --
     +> V.empty
 
 great = grate ((/\) <$> ((#) fst) <*> ((#) snd))
@@ -238,6 +267,7 @@ tnt = over great toNumber
 
 c2s :: forall i w. Control -> Array (HH.HTML i w)
 c2s (Slider (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
+c2s (DiscreteChooser (Rect x y w h) color _ _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
 c2s (T2 (Rect x y w h) color t) =
   [ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
   ] <> case t of
@@ -248,8 +278,8 @@ c2s (T3 (Rect x y w h) color t) = [ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber
   T3_1 -> [ SE.polygon [ HH.attr (wrap "points") (show x <> "," <> show y <> " " <> show (x + w) <> "," <> show y <> " " <> show (x + w) <> "," <> show (y + h) <> " ") ] ]
   T3_2 -> [ SE.polygon [ HH.attr (wrap "points") (show x <> "," <> show y <> " " <> show x <> "," <> show (y + h) <> " " <> show (x + w) <> "," <> show (y + h) <> " ") ] ]
 c2s (T4 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
---c2s (T5 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
---c2s (T6 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
+c2s (T5 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
+c2s (T6 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
 c2s (Pad (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
 c2s (Source (Rect x y w h) color) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
 
