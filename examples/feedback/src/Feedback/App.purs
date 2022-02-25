@@ -48,6 +48,13 @@ type FullGraph =
   ( speaker :: TSpeaker /\ { mainFader :: Unit }
   , mainFader ::
       TGain /\
+        { subMainDelay :: Unit
+        , subMainFader :: Unit
+        }
+  , subMainDelay :: TDelay /\ { subMainGain :: Unit }
+  , subMainGain :: TGain /\ { mainFader :: Unit }
+  , subMainFader ::
+      TGain /\
         { loopingBuffer0 :: Unit
         , loopingBuffer1 :: Unit
         , loopingBuffer2 :: Unit
@@ -276,7 +283,8 @@ type FullGraph =
   , leadSource3 :: TGain /\ { leadSource3Buf :: Unit }
   , leadSource3Buf :: TPlayBuf /\ {}
   , leadSource4 :: TGain /\ { leadSource4Buf :: Unit }
-  , leadSource4Buf :: TPlayBuf /\ {}  )
+  , leadSource4Buf :: TPlayBuf /\ {}
+  )
 
 type Acc = Unit
 
