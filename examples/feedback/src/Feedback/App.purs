@@ -2,70 +2,39 @@ module Feedback.App where
 
 import Prelude
 
-import Color (rgb)
-import Control.Applicative.Indexed ((:*>))
-import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
-import Control.Parallel (parallel, sequential)
-import Control.Plus (empty)
-import Data.Array as A
-import Data.Array.NonEmpty as NEA
-import Data.Int (floor, toNumber)
+import Data.Int (toNumber)
 import Data.Lens (over)
 import Data.Lens.Grate (grate)
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Monoid.Additive (Additive)
-import Data.Newtype (unwrap, wrap)
-import Data.Traversable (for_, traverse)
+import Data.Maybe (Maybe(..))
+import Data.Newtype (wrap)
+import Data.Profunctor.Closed (class Closed)
+import Data.Traversable (for_)
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested (type (/\), (/\))
-import Data.Typelevel.Num (D2, D7, D60, toInt')
+import Data.Typelevel.Num (D60)
 import Data.Vec (Vec, (+>))
 import Data.Vec as V
-import Data.Vec as Vec
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
 import Effect.Class.Console as Log
-import Effect.Random (random)
-import FRP.Behavior (Behavior, behavior)
-import FRP.Behavior.Mouse (position)
-import FRP.Event (makeEvent, subscribe)
-import FRP.Event.Mouse (getMouse)
+import FRP.Event (subscribe)
+import Foreign.Object (fromHomogeneous, values)
 import Halogen (ClassName(..))
 import Halogen as H
 import Halogen.HTML as HH
-import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Svg.Attributes (Color(..))
 import Halogen.Svg.Attributes as SA
 import Halogen.Svg.Elements as SE
-import Record.Builder as Record
-import Type.Proxy (Proxy(..))
-import Type.Row (type (+))
-import WAGS.Change (ichange)
-import WAGS.Control.Functions (imodifyRes)
-import WAGS.Control.Functions.Graph (iloop, loopUsingScene)
-import WAGS.Control.Functions.Subgraph as SG
+import WAGS.Control.Functions.Graph (loopUsingScene)
 import WAGS.Control.Types (Frame0, Scene)
-import WAGS.Create.Optionals (gain, playBuf, sinOsc, speaker, subgraph)
-import WAGS.Graph.AudioUnit (OnOff(..), TGain(..), TPeriodicOsc(..), TPlayBuf(..), TSpeaker(..), _off, _offOn, _on)
-import WAGS.Graph.Parameter (ff)
-import WAGS.Interpret (close, context, decodeAudioDataFromUri, makeFFIAudioSnapshot)
-import WAGS.Lib.BufferPool (Buffy(..), BuffyVec)
-import WAGS.Lib.BufferPool (Buffy(..), makeBufferPool)
-import WAGS.Lib.BufferPool (Buffy(..), makeBufferPool)
-import WAGS.Lib.Cofree (heads, tails)
-import WAGS.Lib.Cofree (heads, tails)
-import WAGS.Lib.Cofree (heads, tails)
-import WAGS.Lib.Latch (makeLatchAP)
-import WAGS.Lib.Rate (ARate, CfRate, MakeRate, Rate, makeRate, timeIs)
-import WAGS.Lib.Rate (ARate, CfRate, Rate, timeIs)
-import WAGS.Lib.SimpleBuffer (SimpleBuffer, SimpleBufferCf, SimpleBufferHead, actualizeSimpleBuffer)
-import WAGS.Math (calcSlope)
-import WAGS.Run (RunAudio, RunEngine, SceneI(..), Run, run)
-import WAGS.Subgraph (SubSceneSig)
-import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
+import WAGS.Create.Optionals (gain, sinOsc, speaker)
+import WAGS.Graph.AudioUnit (TGain, TPeriodicOsc, TPlayBuf, TSpeaker)
+import WAGS.Interpret (close, context, makeFFIAudioSnapshot)
+import WAGS.Run (Run, RunAudio, RunEngine, SceneI, run)
+import WAGS.WebAPI (AudioContext)
 
 type World = {}
 
@@ -191,7 +160,8 @@ type Instructions (a :: Type) =
   , sampleOneShot :: a
   , sampleReverse :: a
   , sampleChooser :: a
-  , samplePitchShift :: a
+  , sampleRateChange :: a
+  , sampleChorusEffect :: a
   , sampleDelayLine0 :: a
   , sampleDelayLine1 :: a
   , sampleDelayLine2 :: a
@@ -210,13 +180,15 @@ type Instructions (a :: Type) =
   , radicalFlip :: a
   , greatAndMightyPan :: a
   , globalDelay :: a
+  , echoingUncontrollableSingleton :: a
+  , distantBellsFader :: a
   )
 
 elts :: { | Instructions Control }
 elts =
   { -- press to grow or shrink a pad
     triggerPad: Pad (Rect 60 60 240 240) focusc 0.0
-    -- periodic wave in mix
+  -- periodic wave in mix
   , togglePadOsc0: T2 (Rect 400 60 60 60) focusc T2_0
   -- triangle wave in mix
   , togglePadOsc1: T2 (Rect 540 940 60 60) focusc T2_0
@@ -290,7 +262,8 @@ elts =
   , sampleReverse: T2 (Rect 400 120 60 60) focusc T2_0
   -- choose which sample to play
   , sampleChooser: DiscreteChooser (Rect 0 300 90 640) focusc 24 0
-  , samplePitchShift: T3 (Rect 720 690 80 100) focusc T3_0
+  , sampleChorusEffect: T2 (Rect 120 0 60 60) focusc T2_0
+  , sampleRateChange: T3 (Rect 720 690 80 100) focusc T3_0
   -- 0th delay line for the single sample
   , sampleDelayLine0: T2 (Rect 0 0 60 60) focusc T2_0
   -- 1st delay line for the single sample
@@ -324,9 +297,12 @@ elts =
   -- substitutes entirely different sets of base parameters
   , radicalFlip: T2 (Rect 460 60 60 60) focusc T2_0
   -- global pan extravaganza
-  , greatAndMightyPan:  Slider (Rect 90 870 630 70) focusc 0.0
+  , greatAndMightyPan: Slider (Rect 90 870 630 70) focusc 0.0
   -- global delay
-  , globalDelay: T2 (Rect 600 940 60 60) plainc T2_0
+  , globalDelay: T2 (Rect 600 940 60 60) focusc T2_0
+  -- echoing uncontrollable singleton
+  , echoingUncontrollableSingleton: Source (Rect 300 60 100 100) focusc
+  , distantBellsFader: Slider (Rect 180 560 90 130) focusc 0.0
   }
 
 type Quads a = Vec D60 a
@@ -334,6 +310,7 @@ type Quads a = Vec D60 a
 controls :: Quads Control
 controls =
   T2 (Rect 0 0 60 60) focusc T2_0 --
+
     +> T2 (Rect 590 590 410 100) focusc T2_0 --
     +> T2 (Rect 660 340 270 120) focusc T2_0 --
     +> T2 (Rect 590 460 340 130) focusc T2_0 --
@@ -362,7 +339,7 @@ controls =
     +> T2 (Rect 800 70 60 70) focusc T2_0 --
     +> T2 (Rect 860 270 70 70) focusc T2_0 --
     +> T2 (Rect 0 120 60 60) focusc T2_0 --
-    +> T2 (Rect 120 0 60 60) plainc T2_0
+    +> T2 (Rect 120 0 60 60) focusc T2_0 --
     +> T2 (Rect 0 180 60 60) focusc T2_0 --
     +> T2 (Rect 180 0 60 60) focusc T2_0 --
     +> T2 (Rect 0 240 60 60) focusc T2_0 --
@@ -372,7 +349,7 @@ controls =
     +> T2 (Rect 270 300 320 90) focusc T2_0 --
     +> T2 (Rect 240 0 60 60) focusc T2_0 --
     +> T2 (Rect 300 0 60 60) focusc T2_0 --
-    +> T2 (Rect 300 60 100 100) plainc T2_0
+    +> T2 (Rect 300 60 100 100) focusc T2_0 --
     +> T2 (Rect 360 0 300 60) focusc T2_0 --
     +> T2 (Rect 300 160 100 140) focusc T2_0 --
     +> T2 (Rect 400 180 120 120) focusc T2_0 --
@@ -386,7 +363,7 @@ controls =
     +> T2 (Rect 930 70 70 520) focusc T2_0 --
     +> T2 (Rect 930 690 70 310) focusc T2_0 --
     +> T2 (Rect 520 60 70 240) focusc T2_0 --
-    +> T2 (Rect 180 560 90 130) plainc T2_0
+    +> T2 (Rect 180 560 90 130) focusc T2_0 --
     +> T2 (Rect 720 690 80 100) focusc T2_0 --
     +> T2 (Rect 630 690 90 180) focusc T2_0 --
     +> T2 (Rect 540 690 90 180) focusc T2_0 --
@@ -395,7 +372,10 @@ controls =
     +> T2 (Rect 720 790 210 210) focusc T2_0 --
     +> V.empty
 
+great :: forall i o p. Closed p => p i o -> p (i /\ i) (o /\ o)
 great = grate ((/\) <$> ((#) fst) <*> ((#) snd))
+
+tnt :: Int /\ Int -> Number /\ Number
 tnt = over great toNumber
 
 c2s :: forall i w. Control -> Array (HH.HTML i w)
@@ -424,7 +404,7 @@ render _ =
         , SA.viewBox 0.0 0.0 1000.0 1000.0
         , SA.preserveAspectRatio Nothing SA.Slice
         ]
-        (join $ map c2s $ V.toArray controls)
+        (join $ map c2s $ values $ fromHomogeneous elts)
     ]
 
 handleAction :: forall output m. MonadEffect m => MonadAff m => Action -> H.HalogenM State Action () output m Unit
@@ -433,18 +413,6 @@ handleAction = case _ of
     handleAction StopAudio
     audioCtx <- H.liftEffect context
     ffiAudio <- H.liftEffect $ makeFFIAudioSnapshot audioCtx
-    let
-      sounds' = "https://freesound.org/data/previews/24/24620_130612-hq.mp3"
-        +> "https://freesound.org/data/previews/24/24622_130612-hq.mp3"
-        +> "https://freesound.org/data/previews/24/24623_130612-hq.mp3"
-        +> "https://freesound.org/data/previews/24/24624_130612-hq.mp3"
-        +> "https://freesound.org/data/previews/24/24625_130612-hq.mp3"
-        +> "https://freesound.org/data/previews/24/24626_130612-hq.mp3"
-        +> "https://freesound.org/data/previews/24/24627_130612-hq.mp3"
-        +> V.empty
-
-    sounds <- H.liftAff $ sequential $ traverse (parallel <<< decodeAudioDataFromUri audioCtx) sounds'
-    mouse' <- H.liftEffect getMouse
     unsubscribe <-
       H.liftEffect
         $ subscribe
