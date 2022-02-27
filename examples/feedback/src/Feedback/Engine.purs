@@ -40,16 +40,16 @@ import WAGS.Interpret (close, context, makeFFIAudioSnapshot)
 import WAGS.Patch (ipatch)
 import WAGS.Run (RunAudio, RunEngine, BehavingScene(..), run)
 import WAGS.WebAPI (AudioContext)
-import Feedback.Types (World, Res, Acc)
+import Feedback.Types (Trigger, World, Res, Acc)
 
-createFrame :: BehavingScene Res World () -> IxWAG RunAudio RunEngine Frame0 Res () FullGraph Acc
+createFrame :: BehavingScene Trigger World () -> IxWAG RunAudio RunEngine Frame0 Res () FullGraph Acc
 createFrame = \(BehavingScene {}) ->
   ( ipatch { microphone: empty, mediaElement: empty }
-      :*> (ichange {} $> unit)
+      :*> (ichange {} $> mempty)
   )
 
-piece :: Scene (BehavingScene Res World ()) RunAudio RunEngine Frame0 Res
+piece :: Scene (BehavingScene Trigger World ()) RunAudio RunEngine Frame0 Res
 piece =
   createFrame
     @!> iloop \(BehavingScene { time, headroomInSeconds }) a ->
-      ichange {} $> unit
+      ichange {} $> mempty

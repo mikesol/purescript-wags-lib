@@ -1,7 +1,6 @@
 module Feedback.Types where
 
-import Prelude
-
+type Trigger = {}
 type World = {}
-type Res = Unit
+type Res = {}
 type Acc = {}
