@@ -38,20 +38,20 @@ import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (OversampleTwoX, TBandpass, TDelay, TGain, THighpass, TLoopBuf, TLowpass, TPlayBuf, TSinOsc, TSpeaker, TStereoPanner, TWaveShaper)
 import WAGS.Interpret (close, context, makeFFIAudioSnapshot)
 import WAGS.Patch (ipatch)
-import WAGS.Run (Run, RunAudio, RunEngine, SceneI(..), run)
+import WAGS.Run (RunAudio, RunEngine, BehavingScene(..), run)
 import WAGS.WebAPI (AudioContext)
 
 type Acc = Unit
 type World = {}
 
-createFrame :: SceneI Unit World () -> IxWAG RunAudio RunEngine Frame0 Unit () FullGraph Acc
-createFrame = \(SceneI {}) ->
+createFrame :: BehavingScene Unit World () -> IxWAG RunAudio RunEngine Frame0 Unit () FullGraph Acc
+createFrame = \(BehavingScene {}) ->
   ( ipatch { microphone: empty, mediaElement: empty }
       :*> (ichange {} $> unit)
   )
 
-piece :: Scene (SceneI Unit World ()) RunAudio RunEngine Frame0 Unit
+piece :: Scene (BehavingScene Unit World ()) RunAudio RunEngine Frame0 Unit
 piece =
   createFrame
-    @!> iloop \(SceneI { time, headroomInSeconds }) a ->
+    @!> iloop \(BehavingScene { time, headroomInSeconds }) a ->
       ichange {} $> unit

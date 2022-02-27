@@ -4,8 +4,7 @@ import Prelude
 
 import Control.Comonad.Cofree (Cofree, (:<))
 import Data.Maybe (Maybe(..))
-import Data.Variant (match)
-import WAGS.Graph.Parameter (AudioParameter(..), AudioSingleNumber(..))
+import WAGS.Graph.Parameter (AudioSingleNumber(..))
 
 type Latch v
   = Maybe v
@@ -44,30 +43,19 @@ makeLatchWithoutInitialBlipEq = makeLatchWithoutInitialBlip eq
 --
 
 type MakeLatchAP a
-  = AudioParameter -> a
+  = AudioSingleNumber -> a
 
 type LatchAP
-  = Maybe AudioParameter
+  = Maybe AudioSingleNumber
 
 type CfLatchAP
-  = Cofree ((->) (AudioParameter)) (LatchAP)
+  = Cofree ((->) (AudioSingleNumber)) (LatchAP)
 
 type ALatchAP
-  = AudioParameter -> CfLatchAP
+  = AudioSingleNumber -> CfLatchAP
 
-cmpAP :: AudioParameter -> AudioParameter -> Boolean
-cmpAP (AudioParameter a) (AudioParameter b) = match
-  { singleNumber: \(AudioSingleNumber pa) ->
-      match
-        { singleNumber: \(AudioSingleNumber pb) -> pa.param == pb.param
-        , envelope: const false
-        , cancellation: const false
-        }
-        b
-  , envelope: const false
-  , cancellation: const false
-  }
-  a
+cmpAP :: AudioSingleNumber -> AudioSingleNumber -> Boolean
+cmpAP (AudioSingleNumber a) (AudioSingleNumber b) = a.param == b.param
 
 makeLatchAP :: ALatchAP
 makeLatchAP = makeLatch cmpAP

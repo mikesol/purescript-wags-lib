@@ -12,7 +12,7 @@ import Test.Spec (Spec, describe, it)
 import Test.Util (shouldEqualIsh)
 import WAGS.Graph.Parameter (ff)
 import WAGS.Lib.Latch (makeLatchAP)
-import WAGS.Lib.Piecewise (makeTerracedR)
+import WAGS.Lib.Piecewise (asSingleValue, makeTerracedR)
 
 testLatch :: Spec Unit
 testLatch = do
@@ -34,10 +34,10 @@ testLatch = do
 
         r6 = unwrapCofree r5 (pw { time: 2.3, headroomInSeconds: 0.02 })
 
-      extract r0 `shouldEqualIsh` (Just (pure 1.0))
+      extract r0 `shouldEqualIsh` (Just (asSingleValue 1.0))
       extract r1 `shouldEqualIsh` (Nothing)
-      extract r2 `shouldEqualIsh` (Just (ff 0.01 (pure 0.0)))
+      extract r2 `shouldEqualIsh` (Just (ff 0.01 (asSingleValue 0.0)))
       extract r3 `shouldEqualIsh` (Nothing)
       extract r4 `shouldEqualIsh` (Nothing)
-      extract r5 `shouldEqualIsh` (Just (pure 1.0))
+      extract r5 `shouldEqualIsh` (Just (asSingleValue 1.0))
       extract r6 `shouldEqualIsh` (Nothing)

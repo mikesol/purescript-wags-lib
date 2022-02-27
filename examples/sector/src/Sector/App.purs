@@ -49,7 +49,8 @@ import WAGS.Change (change)
 import WAGS.Control.Functions (start)
 import WAGS.Control.Functions.Graph ((@|>), loop)
 import WAGS.Control.Types (Frame0, Scene, WAG)
-import WAGS.Graph.AudioUnit (OnOff(..), TGain, TPlayBuf, TSpeaker, _offOn)
+import WAGS.Graph.Parameter (OnOff(..), _offOn)
+import WAGS.Graph.AudioUnit (TGain, TPlayBuf, TSpeaker)
 import WAGS.Interpret (class AudioInterpret, bufferDuration, close, context, decodeAudioDataFromUri, makeFFIAudioSnapshot)
 import WAGS.Lib.Lag (CfLag, makeLag)
 import WAGS.Lib.Latch (CfLatch, makeLatchEq)
@@ -58,7 +59,7 @@ import WAGS.Lib.Run (RunWag, ShortCircuit(..), rChange, rModifyrRes, runWag)
 import WAGS.Lib.Stream (cycle)
 import WAGS.Lib.Vec (indexMod)
 import WAGS.Patch (patch)
-import WAGS.Run (Run, RunAudio, RunEngine, SceneI(..), run)
+import WAGS.Run (BehavingRun, RunAudio, RunEngine, BehavingScene(..), run)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
 type Time = Number
@@ -99,7 +100,7 @@ type Graph =
   , buf :: TPlayBuf /\ {}
   )
 
-type Env = SceneI Unit World AnalyserCbs
+type Env = BehavingScene Unit World AnalyserCbs
 
 type Res = { currentSector :: Endo Function (Maybe Int) }
 
@@ -194,7 +195,7 @@ useRate rateF i a = do
     , sectorLatch
     , lastModifiedTime
     } <- get
-  SceneI { time, world: { buffer } } <- ask
+  BehavingScene { time, world: { buffer } } <- ask
   let
     latchF = latchToSectorSec sectorLatch
     currentRate = rateF
@@ -249,7 +250,7 @@ doAdvance
   -> { | RateInfo + CachedAcc audio engine r }
   -> SectorM audio engine { | RateInfo + CachedAcc audio engine r }
 doAdvance useModifiedTime px i a = do
-  SceneI { world: { buffer }, time, headroomInSeconds } <- ask
+  BehavingScene { world: { buffer }, time, headroomInSeconds } <- ask
   Acc { sectorStartsAtUsingModifiedTime, sectorStartsAtUsingClockTime } <- get
   let
     dur = bufferDuration buffer / toNumber (toInt' px)
@@ -294,7 +295,7 @@ doBufferAlignment
   -> V.Vec s (SectorM audio engine r)
 doBufferAlignment = asr \i -> voidLeft do
   Acc { prevSector, sectorLatch } <- get
-  SceneI { world: { buffer } } <- ask
+  BehavingScene { world: { buffer } } <- ask
   when (prevSector /= Just (i - 1) && isJust (extract sectorLatch))
     $ rChange
         { buf:
@@ -367,7 +368,7 @@ firstFrame
    . AudioInterpret audio engine
   => Acc audio engine
   -> Env -> WAG audio engine Frame0 Res Graph (Acc audio engine)
-firstFrame acc env@(SceneI { world: { buffer } }) =
+firstFrame acc env@(BehavingScene { world: { buffer } }) =
   start
     # patch { microphone: empty, mediaElement: empty }
     # voidRight { gain: 1.0, buf: buffer }
@@ -594,7 +595,7 @@ handleAction = case _ of
                 ffiAudio
                 (piece acc)
             )
-            (\({ res } :: Run Res ()) -> HS.notify listener (ReportRes res))
+            (\({ res } :: BehavingRun Res ()) -> HS.notify listener (ReportRes res))
     H.modify_ _
       { unsubscribe = unsubscribe
       , audioCtx = Just audioCtx

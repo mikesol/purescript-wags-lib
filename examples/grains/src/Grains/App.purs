@@ -29,7 +29,7 @@ import WAGS.Interpret (close, context, decodeAudioDataFromUri, makeFFIAudioSnaps
 import WAGS.Lib.BufferPool (AHotBufferPool, Buffy, BuffyVec, bOnOff, makeHotBufferPool)
 import WAGS.Lib.Cofree (tails)
 import WAGS.Lib.Record (applyRecord, unwrapRecord)
-import WAGS.Run (RunAudio, RunEngine, SceneI(..), Run, run)
+import WAGS.Run (RunAudio, RunEngine, BehavingScene(..), BehavingRun, run)
 import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
@@ -48,13 +48,13 @@ acc = { hbp: makeHotBufferPool { startsAt: 0.0 } }
 type World
   = { entropy :: Number, buffers :: { bells :: BrowserAudioBuffer } }
 
-piece :: Scene (SceneI Unit World ()) RunAudio RunEngine Frame0 Unit
+piece :: Scene (BehavingScene Unit World ()) RunAudio RunEngine Frame0 Unit
 piece =
   startUsingWithHint
     scene
     { microphone: Nothing, mediaElement: Nothing }
     (const acc)
-    ( iloop \(SceneI { time, headroomInSeconds, world: { entropy, buffers: { bells } } }) (a :: Acc) ->
+    ( iloop \(BehavingScene { time, headroomInSeconds, world: { entropy, buffers: { bells } } }) (a :: Acc) ->
         let
           actualized = { hbp: a.hbp { time, headroomInSeconds, freq: 12.0 * (entropy `pow` 6.0) } }
         in
@@ -144,7 +144,7 @@ handleAction = case _ of
       H.liftEffect
         $ subscribe
             (run (pure unit) ({ entropy: _, buffers: { bells } } <$> ntropi) { easingAlgorithm } (ffiAudio) piece)
-            (\(_ :: Run Unit ()) -> pure unit)
+            (\(_ :: BehavingRun Unit ()) -> pure unit)
     H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
   StopAudio -> do
     { unsubscribe, audioCtx } <- H.get

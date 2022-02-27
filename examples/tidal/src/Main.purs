@@ -47,7 +47,7 @@ import WAGS.Lib.Tidal.FX (fx, goodbye, hello)
 import WAGS.Lib.Tidal.Synth (synth)
 import WAGS.Lib.Tidal.Tidal (changeRate, changeVolume, i, ldv, lnr, lnv, addEffect, make, mseq, nefy, nl, onTag, fadeTo, oscWarp, parse, s)
 import WAGS.Lib.Tidal.Types (AFuture, BufferUrl(..), FoT, FoT_, Note, TidalRes)
-import WAGS.Run (Run)
+import WAGS.Run (BehavingRun)
 import WAGS.WebAPI (AudioContext)
 
 m2 = 4.0 * 1.0 * 60.0 / 111.0 :: Number
@@ -162,7 +162,7 @@ handleAction
   :: forall output m
    . MonadEffect m
   => MonadAff m
-  => Aff { audioCtx :: AudioContext, event :: Event (Run TidalRes Analysers) }
+  => Aff { audioCtx :: AudioContext, event :: Event (BehavingRun TidalRes Analysers) }
   -> Action
   -> H.HalogenM State Action () output m Unit
 handleAction aff = case _ of
@@ -173,7 +173,7 @@ handleAction aff = case _ of
     unsubscribeFromHalogen <- H.subscribe emitter
     H.modify_ _ { wagsState = WagsLoading }
     { audioCtx, event } <- H.liftAff aff
-    unsubscribe <- H.liftEffect $ subscribe event \({ res, analysers: { myAnalyser } } :: Run TidalRes Analysers) -> do
+    unsubscribe <- H.liftEffect $ subscribe event \({ res, analysers: { myAnalyser } } :: BehavingRun TidalRes Analysers) -> do
       HS.notify listener (UpdateRes res)
       for_ myAnalyser \myAnalyser' -> do
         frequencyData <- getByteFrequencyData myAnalyser'

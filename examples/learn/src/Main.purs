@@ -21,8 +21,8 @@ import Halogen.HTML as HH
 import Halogen.Storybook (Stories, runStorybook, proxy)
 import Type.Proxy (Proxy(..))
 import WAGS.Create.Optionals (speaker, playBuf, loopBuf)
-import WAGS.Graph.AudioUnit (OnOff, _on, _offOn)
-import WAGS.Graph.Parameter (ff)
+import WAGS.Graph.Paramable (onOffIze)
+import WAGS.Graph.Parameter (ff, OnOff, _on, _offOn)
 import WAGS.Lib.Cofree (ana)
 import WAGS.Lib.Comonad (rewrap)
 import WAGS.Lib.Emitter (makeEmitter)
@@ -35,7 +35,7 @@ import WAGS.Lib.Learn.Tempo (allegro)
 import WAGS.Lib.Learn.Transpose (transpose)
 import WAGS.Lib.Learn.Volume (mezzoForte)
 import WAGS.Lib.Lens (_NonEmptyT)
-import WAGS.Run (SceneI(..))
+import WAGS.Run (BehavingScene(..))
 
 type Slots = (audio :: forall q. H.Slot q Void Unit)
 
@@ -83,7 +83,7 @@ stories = Object.fromFoldable
           ( parent "Loop a buffer"
               ( component
                   $ using (buffers { loopy: "https://freesound.org/data/previews/24/24623_130612-hq.mp3" })
-                      \(SceneI { world: { buffers: { loopy } } }) -> speaker $ loopBuf loopy
+                      \(BehavingScene { world: { buffers: { loopy } } }) -> speaker $ loopBuf loopy
               )
           )
       )
@@ -92,7 +92,7 @@ stories = Object.fromFoldable
           ( parent "Change on emit"
               ( component
                   $ usingc (buffers { loopy: "https://freesound.org/data/previews/110/110212_1751865-hq.mp3" }) (const $ makeEmitter { startsAt: 0.0 })
-                      \( SceneI
+                      \( BehavingScene
                            { world: { buffers: { loopy } }
                            , time
                            , headroomInSeconds
@@ -105,7 +105,7 @@ stories = Object.fromFoldable
                           { control: unwrapCofree emitted
                           , scene:
                               speaker $
-                                playBuf { onOff: ff 0.04 $ pure $ if A.null (extract emitted) then _on else _offOn } loopy
+                                playBuf { onOff: ff 0.04 $ onOffIze $ if A.null (extract emitted) then _on else _offOn } loopy
                           }
               )
           )
