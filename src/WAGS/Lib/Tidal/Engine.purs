@@ -36,15 +36,15 @@ import Test.QuickCheck.Gen (evalGen)
 import Type.Proxy (Proxy(..))
 import WAGS.Control.Functions.Subgraph as SG
 import WAGS.Create.Optionals (analyser, gain, loopBuf, playBuf, recorder, speaker, subgraph, tumult)
-import WAGS.Graph.AudioUnit (_off, _offOn, _on)
-import WAGS.Graph.Parameter (ff)
+import WAGS.Graph.Paramable (onOffIze, paramize)
+import WAGS.Graph.Parameter (ff, _off, _offOn, _on)
 import WAGS.Interpret (bufferDuration)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), CfScoredBufferPool, makeScoredBufferPool)
 import WAGS.Lib.Learn (FullSceneBuilder, AnalysersCb, usingcr)
 import WAGS.Lib.Tidal.Download (downloadSilence, initialBuffers)
 import WAGS.Lib.Tidal.FX (calm, goodbye, hello)
 import WAGS.Lib.Tidal.Types (class HomogenousToVec, Acc, BufferUrl, ClockTimeIs(..), CycleInfo, DroneNote(..), ExternalControl, FXInput(..), Globals, IsFresh, NBuf, Next, NextCycle, RBuf, Sample(..), SampleCache, TheFuture, TidalRes, TimeIs(..), TimeIsAndWasAndHadBeen(..), UnsampledTimeIs(..), h2v')
-import WAGS.Run (SceneI(..))
+import WAGS.Run (BehavingScene(..))
 import WAGS.Subgraph (SubSceneSig)
 import WAGS.Tumult.Make (tumultuously)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer, MediaRecorderCb)
@@ -55,7 +55,7 @@ globalSize = 5 :: Int
 acc
   :: forall event
    . Monoid event
-  => SceneI
+  => BehavingScene
        { interactivity :: event
        }
        { buffers :: SampleCache
@@ -70,7 +70,7 @@ acc
        }
        AnalysersCb
   -> Acc event
-acc (SceneI { time: time', trigger, world: { theFuture: theFutureFromWorld } }) =
+acc (BehavingScene { time: time', trigger, world: { theFuture: theFutureFromWorld } }) =
   { buffers: fromHomogeneous
       $ map (emptyPool <<< _.next <<< unwrap)
       $ homogeneous ewf
@@ -215,7 +215,7 @@ internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0
             , initialEntropy: initialEntropy'
             , entropy: entropy'
             }
-        vol = ff globalFF $ pure $ volumeFoT (thisIsTime initialEntropies.volume volumeEntropy)
+        vol = ff globalFF $ paramize $ volumeFoT (thisIsTime initialEntropies.volume volumeEntropy)
       pure
         { control: { initialEntropies }
         , scene:
@@ -230,11 +230,11 @@ internal0 = (const { initialEntropies: { volume: 0.5, rate: 0.5, bufferOffset: 0
                                     ff globalFF
                                       $
                                         if starting then
-                                          ff (max 0.0 (startTime - time)) (pure _offOn)
+                                          ff (max 0.0 (startTime - time)) (onOffIze _offOn)
                                         else
-                                          pure _on
+                                          onOffIze _on
                                 , bufferOffset: bufferOffsetFoT (thisIsTime initialEntropies.bufferOffset offsetEntropy)
-                                , playbackRate: ff globalFF $ pure $ rateFoT (thisIsTime initialEntropies.rate rateEntropy)
+                                , playbackRate: ff globalFF $ paramize $ rateFoT (thisIsTime initialEntropies.rate rateEntropy)
                                 }
                                 buf
                             )
@@ -415,7 +415,7 @@ droneSg = (const emptyLags)
                 prevTumult0 = extract tumultLag0
                 prevTumult1 = extract tumultLag1
                 tumultNow = tumultFoT $ TimeIsAndWasAndHadBeen $ calcWithLag (FXInput $ Record.union { buffers, silence } (thisIsTime tumultEntropy)) (map (FXInput <<< Record.union { buffers, silence } <<< unwrap) prevTime0) (map (FXInput <<< Record.union { buffers, silence } <<< unwrap) prevTime1) prevTumult0 prevTumult1
-                vol = ff globalFF $ pure $ volumeNow
+                vol = ff globalFF $ paramize $ volumeNow
               pure
                 { control:
                     { rateLag0: unwrapCofree rateLag0 (VM.just rateNow)
@@ -436,12 +436,12 @@ droneSg = (const emptyLags)
                 , scene:
                     { singleton:
                         gain vol
-                          { dronetmlt: tumult tumultNow 
+                          { dronetmlt: tumult tumultNow
                               { voice: loopBuf
-                                  { onOff: ff globalFF $ pure _on
+                                  { onOff: ff globalFF $ onOffIze _on
                                   , loopStart: loopStartNow
                                   , loopEnd: loopEndNow
-                                  , playbackRate: ff globalFF $ pure $ rateNow
+                                  , playbackRate: ff globalFF $ paramize $ rateNow
                                   }
                                   buf
                               }
@@ -604,7 +604,7 @@ engine dmo evt ctrl mrc bsc = usingcr
       <<< downloadSilence
   )
   acc
-  \( SceneI
+  \( BehavingScene
        { time: time'
        , headroomInSeconds
        , trigger

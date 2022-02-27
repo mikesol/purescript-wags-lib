@@ -17,7 +17,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.VDom.Driver (runUI)
 import WAGS.Interpret (close, context)
-import WAGS.Run (Run)
+import WAGS.Run (BehavingRun)
 import WAGS.WebAPI (AudioContext)
 
 easingAlgorithm :: Cofree ((->) Int) Int
@@ -37,7 +37,7 @@ data Action
   = StartAudio
   | StopAudio
 
-component :: forall res analyserCallbacks query input output m. MonadEffect m => MonadAff m => Event (Run res analyserCallbacks) -> H.Component query input output m
+component :: forall res analyserCallbacks query input output m. MonadEffect m => MonadAff m => Event (BehavingRun res analyserCallbacks) -> H.Component query input output m
 component run =
   H.mkComponent
     { initialState
@@ -68,7 +68,7 @@ handleAction
   :: forall res analyserCallbacks output m
    . MonadEffect m
   => MonadAff m
-  => Event (Run res analyserCallbacks)
+  => Event (BehavingRun res analyserCallbacks)
   -> Action
   -> H.HalogenM State Action () output m Unit
 handleAction run = case _ of
@@ -76,7 +76,7 @@ handleAction run = case _ of
     audioCtx <- H.liftEffect context
     unsubscribe <-
       H.liftEffect
-        $ subscribe run (\(_ :: Run res analyserCallbacks) -> pure unit)
+        $ subscribe run (\(_ :: BehavingRun res analyserCallbacks) -> pure unit)
     H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
   StopAudio -> do
     { unsubscribe, audioCtx } <- H.get
@@ -86,7 +86,7 @@ handleAction run = case _ of
 
 withSimpleControlsRun
   :: forall res analyserCallbacks
-   . Event (Run res analyserCallbacks)
+   . Event (BehavingRun res analyserCallbacks)
   -> Effect Unit
 withSimpleControlsRun run =
   runHalogenAff do

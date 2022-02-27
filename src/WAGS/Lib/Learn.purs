@@ -50,9 +50,9 @@ import WAGS.Control.Functions.Subgraph as SG
 import WAGS.Control.Types (Frame0, Scene, SubScene)
 import WAGS.Create (class Create)
 import WAGS.Create.Optionals (constant, gain, playBuf, sinOsc, speaker, subgraph)
-import WAGS.Graph.AudioUnit (APOnOff)
 import WAGS.Graph.AudioUnit as CTOR
-import WAGS.Graph.Parameter (AudioParameter_, AudioParameter, ff)
+import WAGS.Graph.Paramable (paramize)
+import WAGS.Graph.Parameter (class Timed, AudioOnOff, AudioParameter, ff, lensParam)
 import WAGS.Interpret (class AudioInterpret, close, constant0Hack, context, contextResume, contextState, decodeAudioDataFromUri, makeFFIAudioSnapshot)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeBufferPoolWithAnchor)
 import WAGS.Lib.Learn.Duration (Duration(..), Rest(..), longest)
@@ -63,12 +63,12 @@ import WAGS.Lib.Learn.Volume (Volume(..))
 import WAGS.Lib.Piecewise (APFofT, makePiecewise)
 import WAGS.Lib.Score (makeScore)
 import WAGS.Lib.Stream (deadEnd)
-import WAGS.Run (Run, RunAudio, RunEngine, SceneI(..), run)
+import WAGS.Run (BehavingRun, RunAudio, RunEngine, BehavingScene(..), run)
 import WAGS.Validation (class GraphIsRenderable)
 import WAGS.WebAPI (AnalyserNode, AnalyserNodeCb, AudioContext, BrowserAudioBuffer)
 
 -- global fast forward to avoid clicks and pops
-gff :: AudioParameter_ ~> AudioParameter_
+gff :: forall timed. Timed timed => timed -> timed
 gff = ff 0.03
 
 type Analysers
@@ -78,12 +78,12 @@ type AnalysersCb
   = (myAnalyser :: AnalyserNodeCb)
 
 class ToScene a res | a -> res where
-  toScene :: a -> Aff { audioCtx :: AudioContext, event :: Event (Run res Analysers) }
+  toScene :: a -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun res Analysers) }
 
 newtype FullScene trigger world res
   = FullScene
   { triggerWorld :: AudioContext -> Aff (Event { | trigger } /\ Behavior { | world })
-  , piece :: Scene (SceneI { | trigger } { | world } AnalysersCb) RunAudio RunEngine Frame0 res
+  , piece :: Scene (BehavingScene { | trigger } { | world } AnalysersCb) RunAudio RunEngine Frame0 res
   }
 
 easingAlgorithm :: Cofree ((->) Int) Int
@@ -96,7 +96,7 @@ easingAlgorithm =
 defaultTriggerWorld :: AudioContext -> Aff (Event {} /\ Behavior {})
 defaultTriggerWorld = pure (pure (pure {} /\ pure {}))
 
-nothing :: Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+nothing :: Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 nothing =
   makeFullScene
     $ FullScene
@@ -108,7 +108,7 @@ makePitch
   :: forall pitchF
    . FofT pitchF
   => Pitch pitchF
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 makePitch = makeNote <<< (\p -> noteFromDefaults_ (_ { duration = longest, pitch = p }))
 
 instance toScenePitch :: FofT pitchF => ToScene (Pitch pitchF) Unit where
@@ -120,7 +120,7 @@ makeNote
   => FofT durationF
   => FofT volumeF
   => Note pitchF durationF volumeF
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 makeNote (Note n) =
   makeFunctionOfTimeLoop \time ->
     let
@@ -132,8 +132,8 @@ makeNote (Note n) =
     in
       speaker
         { gain:
-            gain (gff $ pure (if time < (duration time) then (volume time) else 0.0))
-              (sinOsc (gff $ pure $ (pitch time)))
+            gain (gff $ paramize (if time < (duration time) then (volume time) else 0.0))
+              (sinOsc (gff $ paramize $ (pitch time)))
         }
 
 instance toSceneNote ::
@@ -150,7 +150,7 @@ makeArrayPitch
   => Array (Pitch pitchF)
   -> Aff
        { audioCtx :: AudioContext
-       , event :: Event (Run Unit Analysers)
+       , event :: Event (BehavingRun Unit Analysers)
        }
 makeArrayPitch =
   A.uncons
@@ -168,7 +168,7 @@ makeArrayNote
   => Array (Note pitchF Identity volumeF)
   -> Aff
        { audioCtx :: AudioContext
-       , event :: Event (Run Unit Analysers)
+       , event :: Event (BehavingRun Unit Analysers)
        }
 makeArrayNote =
   A.uncons
@@ -188,7 +188,7 @@ makeArrayNoteOrRest
    . FofT pitchF
   => FofT volumeF
   => Array (NoteOrRest pitchF Identity volumeF Identity)
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 makeArrayNoteOrRest =
   A.uncons
     >>> case _ of
@@ -207,7 +207,7 @@ makeArraySequencedNote
    . FofT volumeF
   => FofT pitchF
   => Array (Sequenced (Note volumeF Identity pitchF))
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 makeArraySequencedNote =
   A.uncons
     >>> case _ of
@@ -225,7 +225,7 @@ makeNonEmptyArrayPitch
   :: forall pitchF
    . FofT pitchF
   => NonEmpty Array (Pitch pitchF)
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 makeNonEmptyArrayPitch = makeNonEmptyArrayNote <<< map (noteFromDefaults_ <<< set (prop (Proxy :: _ "pitch")))
 
 instance toSceneNonEmptyArrayPitch :: FofT pitchF => ToScene (NonEmpty Array (Pitch pitchF)) Unit where
@@ -236,7 +236,7 @@ makeNonEmptyArrayNote
    . FofT volumeF
   => FofT pitchF
   => NonEmpty Array (Note volumeF Identity pitchF)
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 makeNonEmptyArrayNote = makeNonEmptyArraySequencedNote <<< seq
 
 instance toSceneNonEmptyArrayNote ::
@@ -251,7 +251,7 @@ makeNonEmptyArrayNoteOrRest
    . FofT volumeF
   => FofT pitchF
   => NonEmpty Array (NoteOrRest volumeF Identity pitchF Identity)
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 makeNonEmptyArrayNoteOrRest = makeArraySequencedNote <<< seq
 
 instance toSceneNonEmptyArrayNoteOrRest ::
@@ -266,7 +266,7 @@ makeNonEmptyArraySequencedNote
    . FofT volumeF
   => FofT pitchF
   => NonEmpty Array (Sequenced (Note volumeF Identity pitchF))
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 makeNonEmptyArraySequencedNote (a@(Sequenced { note: n' }) :| b) =
   makeCofreeSequencedNote
     $ deadEnd
@@ -285,7 +285,7 @@ makeCofreePitch
   :: forall pitchF
    . FofT pitchF
   => Cofree Identity (Pitch pitchF)
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 makeCofreePitch = makeCofreeNote <<< map (noteFromDefaults_ <<< set (prop (Proxy :: _ "pitch")))
 
 instance toSceneCofreePitch :: FofT pitchF => ToScene (Cofree Identity (Pitch pitchF)) Unit where
@@ -296,7 +296,7 @@ makeCofreeNote
    . FofT volumeF
   => FofT pitchF
   => Cofree Identity (Note volumeF Identity pitchF)
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 makeCofreeNote = makeCofreeSequencedNote <<< noteStreamToSequence (Rest $ Identity 0.0)
 
 instance toSceneCofreeNote ::
@@ -306,7 +306,7 @@ instance toSceneCofreeNote ::
   ToScene (Cofree Identity (Note volumeF Identity pitchF)) Unit where
   toScene = makeCofreeNote
 
-noSine :: CTOR.Gain AudioParameter /\ (CTOR.SinOsc APOnOff AudioParameter /\ {})
+noSine :: CTOR.Gain AudioParameter /\ (CTOR.SinOsc AudioOnOff AudioParameter /\ {})
 noSine = gain 0.0 (sinOsc 0.1)
 
 {-
@@ -331,21 +331,21 @@ makeCofreeSequencedNote
   => FofT durationF
   => FofT pitchF
   => Cofree Identity (Sequenced (Note volumeF durationF pitchF))
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 makeCofreeSequencedNote notes' =
   makeFullScene
     $ FullScene
         { triggerWorld: defaultTriggerWorld
         , piece:
             loopUsingScene
-              ( \(SceneI { time: time', headroomInSeconds: headroomInSeconds }) { oscSimple } ->
+              ( \(BehavingScene { time: time', headroomInSeconds: headroomInSeconds }) { oscSimple } ->
                   let
                     actualized = oscSimple { time: time', headroomInSeconds, input: unit }
 
                     internal
                       :: forall audio engine
                        . AudioInterpret audio engine
-                      => SubScene "singleton" () { time :: Number, buf :: Maybe (Buffy ({ note :: Note volumeF durationF pitchF, pw :: APFofT Number })) } audio engine Frame0 Unit
+                      => SubScene "singleton" () { time :: Number, buf :: Maybe (Buffy ({ note :: Note volumeF durationF pitchF, pw :: APFofT })) } audio engine Frame0 Unit
                     internal =
                       mempty
                         # SG.loopUsingScene \{ time, buf } _ ->
@@ -355,8 +355,10 @@ makeCofreeSequencedNote notes' =
                                     case buf of
                                       Just (Buffy { rest: { note: Note { pitch: Pitch pitch, volume: Volume volume }, pw } }) ->
                                         gain
-                                          ((gff (pw { time, headroomInSeconds })) * (pure (toFofT volume time)))
-                                          (sinOsc (gff $ pure $ (toFofT pitch time)))
+                                          ( (gff (pw { time, headroomInSeconds }))
+                                              * (set lensParam (toFofT volume time) mempty)
+                                          )
+                                          (sinOsc (gff $ paramize $ (toFofT pitch time)))
                                       Nothing -> noSine
                                 }
                             }
@@ -373,7 +375,7 @@ makeCofreeSequencedNote notes' =
   where
   pwl dr v = ((0.0 /\ 0.0) :| ((min (dr * 0.3) 0.1) /\ v) : ((min (dr * 0.45) 0.3) /\ v * 0.3) : (dr /\ 0.0) : Nil)
 
-  emitter :: AScoredBufferPool Unit D4 ({ note :: Note volumeF durationF pitchF, pw :: APFofT Number })
+  emitter :: AScoredBufferPool Unit D4 ({ note :: Note volumeF durationF pitchF, pw :: APFofT })
   emitter =
     makeBufferPoolWithAnchor
       ( (map <<< map <<< map)
@@ -396,7 +398,7 @@ makeLoop
   => GraphIsRenderable graph
   => Change scene graph
   => { | scene }
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 makeLoop scene =
   makeFullScene
     $ FullScene
@@ -418,12 +420,12 @@ makeFunctionOfTimeLoop
   => GraphIsRenderable graph
   => Change scene graph
   => (Number -> { | scene })
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 makeFunctionOfTimeLoop scene =
   makeFullScene
     $ FullScene
         { triggerWorld: defaultTriggerWorld
-        , piece: loopUsingScene (\(SceneI { time }) -> const $ { control: unit, scene: scene time }) mempty
+        , piece: loopUsingScene (\(BehavingScene { time }) -> const $ { control: unit, scene: scene time }) mempty
         }
 
 instance toSceneFunctionOfTimeLoop ::
@@ -449,12 +451,12 @@ makeFunctionOfTimeAndControlLoop
   => GraphIsRenderable graph
   => Change scene graph
   => (WithControl control scene)
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 makeFunctionOfTimeAndControlLoop (WithControl (control /\ scene)) =
   makeFullScene
     $ FullScene
         { triggerWorld: defaultTriggerWorld
-        , piece: loopUsingScene (\(SceneI { time }) -> scene time) (const control)
+        , piece: loopUsingScene (\(BehavingScene { time }) -> scene time) (const control)
         }
 
 instance toSceneFunctionOfTimeAndControlLoop ::
@@ -465,7 +467,7 @@ instance toSceneFunctionOfTimeAndControlLoop ::
   ToScene (WithControl control scene) Unit where
   toScene = makeFunctionOfTimeAndControlLoop
 
-makeString :: String -> Aff { audioCtx :: AudioContext, event :: Event (Run Unit Analysers) }
+makeString :: String -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun Unit Analysers) }
 makeString url =
   makeFullScene
     $ FullScene
@@ -475,7 +477,7 @@ makeString url =
               pure (pure {} /\ pure { buffer })
         , piece:
             loopUsingScene
-              ( \(SceneI { world: { buffer } }) ->
+              ( \(BehavingScene { world: { buffer } }) ->
                   const $ { control: unit, scene: speaker { b: playBuf buffer } }
               )
               mempty
@@ -519,7 +521,7 @@ instance matchBuffersAll ::
 newtype FullSceneBuilder trigger world res
   = FullSceneBuilder
   { triggerWorld :: AudioContext /\ Aff (Event {} /\ Behavior {}) -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
-  , piece :: Scene (SceneI { | trigger } { | world } AnalysersCb) RunAudio RunEngine Frame0 res
+  , piece :: Scene (BehavingScene { | trigger } { | world } AnalysersCb) RunAudio RunEngine Frame0 res
   }
 
 using
@@ -530,7 +532,7 @@ using
   => ( AudioContext /\ Aff (Event {} /\ Behavior {})
        -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
      )
-  -> (SceneI { | trigger } { | world } AnalysersCb -> { | scene })
+  -> (BehavingScene { | trigger } { | world } AnalysersCb -> { | scene })
   -> FullSceneBuilder trigger world Unit
 using triggerWorld = usingc triggerWorld mempty <<< map (const <<< { control: unit, scene: _ })
 
@@ -542,8 +544,8 @@ usingc
   => ( AudioContext /\ Aff (Event {} /\ Behavior {})
        -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
      )
-  -> (SceneI { | trigger } { | world } AnalysersCb -> control)
-  -> (SceneI { | trigger } { | world } AnalysersCb -> control -> { scene :: { | scene }, control :: control })
+  -> (BehavingScene { | trigger } { | world } AnalysersCb -> control)
+  -> (BehavingScene { | trigger } { | world } AnalysersCb -> control -> { scene :: { | scene }, control :: control })
   -> FullSceneBuilder trigger world Unit
 usingc triggerWorld control piece = FullSceneBuilder { triggerWorld, piece: loopUsingScene piece control }
 
@@ -556,8 +558,8 @@ usingcr
   => ( AudioContext /\ Aff (Event {} /\ Behavior {})
        -> AudioContext /\ Aff (Event { | trigger } /\ Behavior { | world })
      )
-  -> (SceneI { | trigger } { | world } AnalysersCb -> control)
-  -> (SceneI { | trigger } { | world } AnalysersCb -> control -> { scene :: { | scene }, control :: control, res :: res })
+  -> (BehavingScene { | trigger } { | world } AnalysersCb -> control)
+  -> (BehavingScene { | trigger } { | world } AnalysersCb -> control -> { scene :: { | scene }, control :: control, res :: res })
   -> FullSceneBuilder trigger world res
 usingcr triggerWorld control piece = FullSceneBuilder { triggerWorld, piece: loopUsingSceneWithRes piece control }
 
@@ -581,7 +583,7 @@ makeFullSceneUsing
   :: forall trigger world res
    . Monoid res
   => FullSceneBuilder trigger world res
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run res Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun res Analysers) }
 makeFullSceneUsing (FullSceneBuilder { triggerWorld, piece }) =
   makeFullScene
     $ FullScene
@@ -599,7 +601,7 @@ makeFullScene
   :: forall trigger world res
    . Monoid res
   => FullScene trigger world res
-  -> Aff { audioCtx :: AudioContext, event :: Event (Run res Analysers) }
+  -> Aff { audioCtx :: AudioContext, event :: Event (BehavingRun res Analysers) }
 makeFullScene (FullScene { triggerWorld, piece }) = do
   audioCtx <- liftEffect context
   waStatus <- liftEffect $ contextState audioCtx
@@ -679,7 +681,7 @@ player i loadingCb loadedCb errorCb = do
           acb2Aff loadingCb
           { audioCtx, event } <- aff
           acb2Aff loadedCb
-          unsubscribe <- liftEffect $ subscribe event (\(_ :: Run res Analysers) -> pure unit)
+          unsubscribe <- liftEffect $ subscribe event (\(_ :: BehavingRun res Analysers) -> pure unit)
           pure { audioCtx, unsubscribe }
       pure
         $ launchAff_ do
@@ -792,14 +794,14 @@ handleAction
   :: forall res analysers output m
    . MonadEffect m
   => MonadAff m
-  => Aff { audioCtx :: AudioContext, event :: Event (Run res analysers) }
+  => Aff { audioCtx :: AudioContext, event :: Event (BehavingRun res analysers) }
   -> Action
   -> H.HalogenM State Action () output m Unit
 handleAction aff = case _ of
   StartAudio -> do
     H.modify_ _ { wagsState = WagsLoading }
     { audioCtx, event } <- H.liftAff aff
-    unsubscribe <- H.liftEffect $ subscribe event (\(_ :: Run res analysers) -> pure unit)
+    unsubscribe <- H.liftEffect $ subscribe event (\(_ :: BehavingRun res analysers) -> pure unit)
     H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx, wagsState = WagsPlaying }
   StopAudio -> do
     { unsubscribe, audioCtx } <- H.get

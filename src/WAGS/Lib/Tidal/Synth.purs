@@ -346,12 +346,12 @@ defaultPw =
           : (0.25 /\ 0.1)
           : (0.45 /\ 0.0)
           : Nil
-    ) :: APFofT Number
+    ) :: APFofT
 
 triangleSynth ∷ Note ~> Note
 triangleSynth = triangleSynth_ defaultPw
 
-triangleSynth_ :: APFofT Number -> Note ~> Note
+triangleSynth_ :: APFofT -> Note ~> Note
 triangleSynth_ pw = synth
   { synth: \ifo (TimeIs { sampleTime, headroomInSeconds }) -> fx
       $ goodbye
@@ -365,7 +365,7 @@ triangleSynth_ pw = synth
 squareSynth ∷ Note ~> Note
 squareSynth = squareSynth_ defaultPw
 
-squareSynth_ :: APFofT Number -> Note ~> Note
+squareSynth_ :: APFofT -> Note ~> Note
 squareSynth_ pw = synth
   { synth: \ifo (TimeIs { sampleTime, headroomInSeconds }) -> fx
       $ goodbye
@@ -379,7 +379,7 @@ squareSynth_ pw = synth
 sawtoothSynth ∷ Note ~> Note
 sawtoothSynth = sawtoothSynth_ defaultPw
 
-sawtoothSynth_ :: APFofT Number -> Note ~> Note
+sawtoothSynth_ :: APFofT -> Note ~> Note
 sawtoothSynth_ pw = synth
   { synth: \ifo (TimeIs { sampleTime, headroomInSeconds }) -> fx
       $ goodbye
@@ -393,7 +393,7 @@ sawtoothSynth_ pw = synth
 sineSynth ∷ Note ~> Note
 sineSynth = sineSynth_ defaultPw
 
-sineSynth_ :: APFofT Number -> Note ~> Note
+sineSynth_ :: APFofT -> Note ~> Note
 sineSynth_ pw = synth
   { synth: \ifo (TimeIs { sampleTime, headroomInSeconds }) -> fx
       $ goodbye
@@ -407,7 +407,7 @@ sineSynth_ pw = synth
 periodicSynth ∷ ∀ size. Lt D1 size ⇒ (Vec size Number /\ Vec size Number) → Note ~> Note
 periodicSynth = periodicSynth_ defaultPw
 
-periodicSynth_ :: forall size. Lt D1 size => APFofT Number -> (Vec size Number /\ Vec size Number) -> Note ~> Note
+periodicSynth_ :: forall size. Lt D1 size => APFofT -> (Vec size Number /\ Vec size Number) -> Note ~> Note
 periodicSynth_ pw v = synth
   { synth: \ifo (TimeIs { sampleTime, headroomInSeconds }) -> fx
       $ goodbye

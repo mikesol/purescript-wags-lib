@@ -20,17 +20,16 @@ import Control.Semigroupoid (composeFlipped)
 import Data.Lens (_1, _2, over, traversed)
 import Data.List (List(..), (:))
 import Data.Maybe (Maybe(..))
-import Data.Variant.Maybe (just)
 import Data.NonEmpty (NonEmpty, (:|))
 import Data.Tuple.Nested ((/\), type (/\))
-import WAGS.Graph.Parameter (AudioParameter, AudioParameter_(..), _linearRamp)
+import WAGS.Graph.Parameter (AudioSingleNumber(..), _linearRamp)
 import WAGS.Math (calcSlope)
 
 type TimeHeadroom
   = { time :: Number, headroomInSeconds :: Number }
 
 type SAPFofT
-  = TimeHeadroom -> Cofree ((->) TimeHeadroom) AudioParameter
+  = TimeHeadroom -> Cofree ((->) TimeHeadroom) AudioSingleNumber
 
 -- | From a non-empty list of times and values, make a cofree comonad that emits audio parameters
 -- | the first number is how much time to add when looping
@@ -49,14 +48,14 @@ makeLoopingPiecewise v0 v1 = go v0 v1 v1
         let
           lookahead = time + headroomInSeconds
         in
-          ( if lookahead >= c then
-              AudioParameter
-                { param: just d
+          (if lookahead >= c then
+              AudioSingleNumber
+                { param: d
                 , timeOffset: c - time
                 , transition: _linearRamp
                 }
             else
-              AudioParameter { param: just (calcSlope a b c d time), timeOffset: 0.0, transition: _linearRamp }
+              AudioSingleNumber { param: calcSlope a b c d time, timeOffset: 0.0, transition: _linearRamp }
           )
             :< go n l v
     | otherwise = go n l (c /\ d :| e) { time, headroomInSeconds }
@@ -67,11 +66,11 @@ infixl 6 makeLoopingPiecewise as /@:<
 -- | Based on a current time and a look-ahead
 makePiecewise :: NonEmpty List (Number /\ Number) -> SAPFofT
 makePiecewise (a /\ b :| Nil) _ =
-  AudioParameter
-    { param: just b
+  (AudioSingleNumber
+    { param: b
     , timeOffset: 0.0
     , transition: _linearRamp
-    }
+    })
     :< makePiecewise (a /\ b :| Nil)
 
 makePiecewise v@(a /\ b :| (Cons (c /\ d) e)) { time, headroomInSeconds }
@@ -80,13 +79,13 @@ makePiecewise v@(a /\ b :| (Cons (c /\ d) e)) { time, headroomInSeconds }
         lookahead = time + headroomInSeconds
       in
         ( if lookahead >= c then
-            AudioParameter
-              { param: just d
+            AudioSingleNumber
+              { param: d
               , timeOffset: c - time
               , transition: _linearRamp
               }
           else
-            AudioParameter { param: just (calcSlope a b c d time), timeOffset: 0.0, transition: _linearRamp }
+            AudioSingleNumber { param: calcSlope a b c d time, timeOffset: 0.0, transition: _linearRamp }
         )
           :< makePiecewise v
   | otherwise = makePiecewise (c /\ d :| e) { time, headroomInSeconds }

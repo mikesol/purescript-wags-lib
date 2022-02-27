@@ -16,8 +16,8 @@ import Data.Typelevel.Num (class Pos)
 import Data.Vec as V
 import Record as Record
 import Type.Proxy (Proxy(..))
-import WAGS.Graph.AudioUnit (APOnOff, _off, _offOn, _on)
-import WAGS.Graph.Parameter (ff)
+import WAGS.Graph.Paramable (onOffIze)
+import WAGS.Graph.Parameter (ff, AudioOnOff, _off, _offOn, _on)
 import WAGS.Lib.Blip (makeBlip)
 import WAGS.Lib.Cofree (ana, combineComonadCofreeChooseB)
 import WAGS.Lib.Emitter (fEmitter, makeEmitter')
@@ -342,5 +342,5 @@ makeSnappyBufferPool = combineComonadCofreeChooseB
 type Time
   = Number
 
-bOnOff :: forall r. Time -> Maybe (Buffy r) -> APOnOff
-bOnOff time = maybe (pure _off) (unwrap >>> \{ starting, startTime } -> if starting then ff (max (startTime - time) 0.0) (pure _offOn) else pure _on)
+bOnOff :: forall r. Time -> Maybe (Buffy r) -> AudioOnOff
+bOnOff time = maybe (onOffIze _off) (unwrap >>> \{ starting, startTime } -> if starting then ff (max (startTime - time) 0.0) (onOffIze _offOn) else onOffIze _on)

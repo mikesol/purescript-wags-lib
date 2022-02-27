@@ -4,9 +4,11 @@ module WAGS.Lib.Rate where
 import Prelude
 
 import Control.Comonad.Cofree (Cofree, (:<))
+import Data.Lens (set)
+import Data.Lens.Record (prop)
 import Data.Monoid.Additive (Additive)
-import Data.Newtype (wrap)
-import WAGS.Run (SceneI(..))
+import Data.Newtype (class Newtype, unwrap, wrap)
+import Type.Proxy (Proxy(..))
 
 type MakeRate a
   = { time :: Number, rate :: Number } -> a
@@ -29,5 +31,11 @@ makeRate { startsAt, prevTime } = go startsAt prevTime
     in
       wrap tnow :< go tnow time
 
-timeIs :: forall trigger world analyserCallbacks. Number -> SceneI trigger world analyserCallbacks -> SceneI trigger world analyserCallbacks
-timeIs time (SceneI x) = SceneI (x { time = time })
+timeIs :: forall ntype r oldTime time.
+  Newtype
+    { time :: time
+    | r
+    }
+    ntype
+   => time -> { time :: oldTime  | r  } -> ntype
+timeIs time = unwrap <<< set (prop (Proxy :: _ "time")) time

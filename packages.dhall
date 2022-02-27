@@ -167,11 +167,12 @@ let additions =
           , "typelevel"
           , "typelevel-peano"
           , "unsafe-coerce"
+          , "untagged-union"
           , "web-events"
           , "simple-json"
           ]
         , repo = "https://github.com/mikesol/purescript-wags.git"
-        , version = "v0.6.9"
+        , version = "v0.7.0"
         }
       , halogen-svg = {
         dependencies = ["aff"

@@ -5,6 +5,7 @@ import Prelude
 
 import Data.Array.NonEmpty as NEA
 import Data.Foldable (foldl)
+import Data.Lens (set)
 import Data.List (List(..))
 import Data.List as List
 import Data.List.NonEmpty (NonEmptyList(..), sortBy)
@@ -17,56 +18,55 @@ import Data.Set (Set, toMap)
 import Data.Set as Set
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\), type (/\))
-import Data.Variant.Maybe (just)
 import Math ((%))
-import WAGS.Graph.Parameter (AudioParameter_(..), _linearRamp)
+import WAGS.Graph.Parameter (AudioSingleNumber(..), AudioSingleNumber, _linearRamp, lensParam, singleNumber)
 import WAGS.Math (calcSlope)
 
 type TimeHeadroom
   = { time :: Number, headroomInSeconds :: Number }
 
-type APFofT v
-  = TimeHeadroom -> AudioParameter_ v
+type APFofT
+  = TimeHeadroom -> AudioSingleNumber
 
-data PWChunk v
-  = PWChunk { left :: Number, right :: Number, apfot :: (APFofT v) }
+data PWChunk
+  = PWChunk { left :: Number, right :: Number, apfot :: APFofT }
   | Beacon Number
 
-getLeft :: forall v. PWChunk v -> Number
+getLeft :: PWChunk -> Number
 getLeft = case _ of
   PWChunk { left } -> left
   Beacon left -> left
 
-newtype PWRealized v
-  = PWRealized { left :: Number, right :: Number, apfot :: (APFofT v) }
+newtype PWRealized
+  = PWRealized { left :: Number, right :: Number, apfot :: APFofT }
 
 minValue = -5e300 :: Number
 
 maxValue = 5e300 :: Number
 
-instance eqPWChunk :: Eq (PWChunk v) where
+instance eqPWChunk :: Eq PWChunk where
   eq a b = eq (getLeft a) (getLeft b)
 
-instance ordPWChunk :: Ord (PWChunk v) where
+instance ordPWChunk :: Ord PWChunk where
   compare a b = compare (getLeft a) (getLeft b)
 
-lookupLE :: forall v. PWChunk v -> Set (PWChunk v) -> Maybe (PWRealized v)
+lookupLE :: PWChunk -> Set (PWChunk) -> Maybe (PWRealized)
 lookupLE a s = (map _.key (Map.lookupLE a (toMap s))) >>= case _ of
   PWChunk x -> Just (PWRealized x)
   _ -> Nothing
 
-type TLR_AP v
-  = { time :: Number, left :: Number /\ v, right :: Number /\ v } -> AudioParameter_ v
+type TLR_AP
+  = { time :: Number, left :: Number /\ Number, right :: Number /\ Number } -> AudioSingleNumber
 
-makeChunks' :: forall v. TLR_AP v -> TLR_AP v -> MakeChunks v
+makeChunks' :: TLR_AP -> TLR_AP -> MakeChunks
 makeChunks' spillover inChunk l' = (snd shead) /\ map PWChunk (go sorted)
   where
   (NonEmptyList sorted@(shead :| _)) = sortBy (\a b -> compare (fst a) (fst b)) (NonEmptyList l')
 
-  go (_ /\ b :| Nil) = { left: minValue, right: maxValue, apfot: const (pure b) } :| Nil
+  go (_ /\ b :| Nil) = { left: minValue, right: maxValue, apfot: const (asSingleValue b) } :| Nil
 
   go l@(_ :| tol) =
-    { left: minValue, right: (fst $ NEL.head (wrap l)), apfot: const (pure (snd $ NEL.head (wrap l))) }
+    { left: minValue, right: (fst $ NEL.head (wrap l)), apfot: const (asSingleValue (snd $ NEL.head (wrap l))) }
       :|
         ( ( foldl
               ( \{ acc, cur } a ->
@@ -93,70 +93,77 @@ makeChunks' spillover inChunk l' = (snd shead) /\ map PWChunk (go sorted)
               { cur: NEL.head (wrap l), acc: Nil }
               tol
           ).acc
-            <> pure { right: maxValue, left: (fst $ NEL.last (wrap l)), apfot: const (pure (snd $ NEL.last (wrap l))) }
+            <> pure
+              { right: maxValue
+              , left: (fst $ NEL.last (wrap l))
+              , apfot: const (asSingleValue (snd $ NEL.last (wrap l)))
+              }
         )
 
-type MakeChunks v
-  = NonEmpty List (Number /\ v) -> v /\ NonEmpty List (PWChunk v)
+type MakeChunks
+  = NonEmpty List (Number /\ Number) -> Number /\ NonEmpty List PWChunk
 
-makeChunks :: MakeChunks Number
+makeChunks :: MakeChunks
 makeChunks =
   makeChunks'
     ( \{ time, right } ->
-        AudioParameter
-          { param: just (snd right)
+         AudioSingleNumber
+          { param: (snd right)
           , timeOffset: (fst right) - time
           , transition: _linearRamp
           }
     )
     \{ time, left, right } ->
-      AudioParameter
-        { param: just (calcSlope (fst left) (snd left) (fst right) (snd right) time)
+       AudioSingleNumber
+        { param: (calcSlope (fst left) (snd left) (fst right) (snd right) time)
         , timeOffset: 0.0
         , transition: _linearRamp
         }
 
-makeChunksL :: forall v. MakeChunks v
+makeChunksL :: MakeChunks
 makeChunksL =
   makeChunks'
     ( \{ time, left, right } ->
-        AudioParameter
-          { param: just (snd left)
+         AudioSingleNumber
+          { param: snd left
           , timeOffset: (fst right) - time
           , transition: _linearRamp
           }
     )
     \{ left } ->
-      AudioParameter
-        { param: just (snd left)
+       AudioSingleNumber
+        { param: snd left
         , timeOffset: 0.0
         , transition: _linearRamp
         }
 
-makeChunksR :: forall v. MakeChunks v
+makeChunksR :: MakeChunks
 makeChunksR =
   makeChunks'
     ( \{ time, right } ->
-        AudioParameter
-          { param: just (snd right)
+         AudioSingleNumber
+          { param: snd right
           , timeOffset: (fst right) - time
           , transition: _linearRamp
           }
     )
     \{ left } ->
-      AudioParameter
-        { param: just (snd left)
+       AudioSingleNumber
+        { param: snd left
         , timeOffset: 0.0
         , transition: _linearRamp
         }
 
-type MakePiecewise v
-  = NonEmpty List (Number /\ v) -> (APFofT v)
+type MakePiecewise
+  = NonEmpty List (Number /\ Number) -> APFofT
 
-type MakePiecewiseA v
-  = Array (Number /\ v) -> (APFofT v)
+type MakePiecewiseA
+  = Array (Number /\ Number) -> APFofT
 
-makePiecewise' :: forall v. MakeChunks v -> MakePiecewise v
+asSingleValue :: Number -> AudioSingleNumber
+asSingleValue = flip (set lensParam) mempty
+
+makePiecewise' :: MakeChunks -> MakePiecewise
 makePiecewise' mkc l = go
   where
   defaultV /\ chunks = mkc l
@@ -164,33 +171,33 @@ makePiecewise' mkc l = go
   asSet = Set.fromFoldable chunks
 
   go th@{ time } = case lookupLE (Beacon time) asSet of
-    Nothing -> pure defaultV
+    Nothing -> asSingleValue defaultV
     Just (PWRealized { apfot }) -> apfot th
 
-makeLoopingPiecewise' :: MakePiecewise ~> MakePiecewise
+makeLoopingPiecewise' :: MakePiecewise -> MakePiecewise
 makeLoopingPiecewise' mpw l { time, headroomInSeconds } = mpw l { time: time % (foldl max 0.0 (map fst l)), headroomInSeconds }
 
-makePiecewise :: MakePiecewise Number
+makePiecewise :: MakePiecewise
 makePiecewise = makePiecewise' makeChunks
 
-makePiecewiseA :: MakePiecewiseA Number
+makePiecewiseA :: MakePiecewiseA
 makePiecewiseA = NEA.fromArray >>> map NEA.toNonEmpty >>> case _ of
   Just (aa :| bb) -> makePiecewise (aa :| List.fromFoldable bb)
   Nothing -> makePiecewise (0.0 /\ 0.0 :| Nil)
 
-makeLoopingPiecewise :: MakePiecewise Number
+makeLoopingPiecewise :: MakePiecewise
 makeLoopingPiecewise = makeLoopingPiecewise' makePiecewise
 
-makeTerracedL :: forall v. MakePiecewise v
+makeTerracedL :: MakePiecewise
 makeTerracedL = makePiecewise' makeChunksL
 
-makeLoopingTerracedL :: forall v. MakePiecewise v
+makeLoopingTerracedL :: MakePiecewise
 makeLoopingTerracedL = makeLoopingPiecewise' makeTerracedL
 
-makeTerracedR :: forall v. MakePiecewise v
+makeTerracedR :: MakePiecewise
 makeTerracedR = makePiecewise' makeChunksR
 
-makeLoopingTerracedR :: forall v. MakePiecewise v
+makeLoopingTerracedR :: MakePiecewise
 makeLoopingTerracedR = makeLoopingPiecewise' makeTerracedR
 
 simplePiecewise :: Array (Number /\ Number) -> Number -> Number
