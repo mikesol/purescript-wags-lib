@@ -22,6 +22,7 @@ import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
 import Effect.Class.Console as Log
 import FRP.Event (subscribe)
+import Feedback.Engine (piece)
 import Foreign.Object (fromHomogeneous, values)
 import Halogen (ClassName(..))
 import Halogen as H
@@ -37,9 +38,8 @@ import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (OversampleTwoX, TBandpass, TDelay, TGain, THighpass, TLoopBuf, TLowpass, TPlayBuf, TSinOsc, TSpeaker, TStereoPanner, TWaveShaper)
 import WAGS.Interpret (close, context, makeFFIAudioSnapshot)
 import WAGS.Patch (ipatch)
-import WAGS.Run (Run, RunAudio, RunEngine, SceneI(..), run)
+import WAGS.Run (BehavingRun, BehavingScene(..), RunAudio, RunEngine, run)
 import WAGS.WebAPI (AudioContext)
-import Feedback.Engine (piece)
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =
@@ -101,7 +101,7 @@ handleAction = case _ of
                 ffiAudio
                 piece
             )
-            (\({ res } :: Run Res ()) -> Log.info $ show res)
+            (\({ res } :: BehavingRun Res ()) -> Log.info $ show res)
     H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
   StopAudio -> do
     { unsubscribe, audioCtx } <- H.get
