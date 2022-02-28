@@ -40,7 +40,7 @@ import WAGS.Interpret (close, context, makeFFIAudioSnapshot)
 import WAGS.Patch (ipatch)
 import WAGS.Run (BehavingRun, BehavingScene(..), RunAudio, RunEngine, run)
 import WAGS.WebAPI (AudioContext)
-import Feedback.Control (c2s)
+import Feedback.Control (c2s, elts)
 import Feedback.Types (World, Res, Acc)
 
 easingAlgorithm :: Cofree ((->) Int) Int

@@ -32,7 +32,9 @@ import Halogen.Svg.Attributes (Color(..))
 import Halogen.Svg.Attributes as SA
 import Halogen.Svg.Elements as SE
 import WAGS.Change (ichange)
-import WAGS.Control.Functions.Graph (iloop, (@!>))
+--import WAGS.Control.Functions.Graph (iloop, (@!>))
+-- slightly faster? disable if graph changes
+import WAGS.Control.Functions (iloop, (@!>))
 import WAGS.Control.Indexed (IxWAG)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (OversampleTwoX, TBandpass, TDelay, TGain, THighpass, TLoopBuf, TLowpass, TPlayBuf, TSinOsc, TSpeaker, TStereoPanner, TWaveShaper)
