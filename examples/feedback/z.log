@@ -1,0 +1,861 @@
+Compiling Feedback.Oracle
+Error found:
+in module Feedback.Oracle
+at src/Feedback/Oracle.purs:19:54 - 19:68 (line 19, column 54 - line 19, column 68)
+
+  No type class instance was found for
+
+    Data.Monoid.Monoid (IxWAG (Tuple Unit FFIAudioSnapshot) (Tuple Instruction (Effect Unit)) proof2 (Record ())
+                          ( distantBells :: Tuple TGain
+                                              { distantBellsPan :: Unit
+                                              }
+                          , distantBellsPan :: Tuple TStereoPanner
+                                                 { distantBellsPlayBuf :: Unit
+                                                 }
+                          , distantBellsPlayBuf :: Tuple TLoopBuf (Record ())
+                          , drone :: Tuple TGain
+                                       { droneFilter0 :: Unit
+                                       , droneFilter1 :: Unit
+                                       , droneFilter2 :: Unit
+                                       , droneFilter3 :: Unit
+                                       }
+                          , droneFilter0 :: Tuple TLowpass
+                                              { droneSources :: Unit
+                                              }
+                          , droneFilter1 :: Tuple TBandpass
+                                              { droneSources :: Unit
+                                              }
+                          , droneFilter2 :: Tuple TBandpass
+                                              { droneSources :: Unit
+                                              }
+                          , droneFilter3 :: Tuple THighpass
+                                              { droneSources :: Unit
+                                              }
+                          , droneSource0 :: Tuple TGain
+                                              { droneSource0Buf :: Unit
+                                              }
+                          , droneSource0Buf :: Tuple TLoopBuf (Record ())
+                          , droneSource1 :: Tuple TGain
+                                              { droneSource1Buf :: Unit
+                                              }
+                          , droneSource1Buf :: Tuple TLoopBuf (Record ())
+                          , droneSource2 :: Tuple TGain
+                                              { droneSource2Buf :: Unit
+                                              }
+                          , droneSource2Buf :: Tuple TLoopBuf (Record ())
+                          , droneSource3 :: Tuple TGain
+                                              { droneSource3Buf :: Unit
+                                              }
+                          , droneSource3Buf :: Tuple TLoopBuf (Record ())
+                          , droneSource4 :: Tuple TGain
+                                              { droneSource4Buf :: Unit
+                                              }
+                          , droneSource4Buf :: Tuple TLoopBuf (Record ())
+                          , droneSources :: Tuple TGain
+                                              { droneSource0 :: Unit
+                                              , droneSource1 :: Unit
+                                              , droneSource2 :: Unit
+                                              , droneSource3 :: Unit
+                                              , droneSource4 :: Unit
+                                              }
+                          , lead :: Tuple TStereoPanner
+                                      { leadMain :: Unit
+                                      }
+                          , leadDelay0 :: Tuple TGain
+                                            { leadDelay0Gain :: Unit
+                                            , leadSourcesGain0 :: Unit
+                                            }
+                          , leadDelay0Gain :: Tuple TGain
+                                                { leadHighpass0 :: Unit
+                                                }
+                          , leadDelay1 :: Tuple TGain
+                                            { leadDelay1Gain :: Unit
+                                            , leadSourcesGain1 :: Unit
+                                            }
+                          , leadDelay1Gain :: Tuple TGain
+                                                { leadHighpass1 :: Unit
+                                                }
+                          , leadDelay2 :: Tuple TGain
+                                            { leadDelay2Gain :: Unit
+                                            , leadSourcesGain2 :: Unit
+                                            }
+                          , leadDelay2Gain :: Tuple TGain
+                                                { leadHighpass2 :: Unit
+                                                }
+                          , leadDelayCbnd :: Tuple TGain
+                                               { leadDelayCbndGain :: Unit
+                                               , leadSourcesGainCbnd :: Unit
+                                               }
+                          , leadDelayCbndGain :: Tuple TGain
+                                                   { leadHighpassCbnd :: Unit
+                                                   }
+                          , leadDelayD0 :: Tuple TDelay
+                                             { leadDelay0 :: Unit
+                                             }
+                          , leadDelayD1 :: Tuple TDelay
+                                             { leadDelay1 :: Unit
+                                             }
+                          , leadDelayD2 :: Tuple TDelay
+                                             { leadDelay2 :: Unit
+                                             }
+                          , leadDelayDCbnd :: Tuple TDelay
+                                                { leadDelayCbnd :: Unit
+                                                }
+                          , leadHighpass0 :: Tuple THighpass
+                                               { leadDelayD0 :: Unit
+                                               }
+                          , leadHighpass1 :: Tuple THighpass
+                                               { leadDelayD1 :: Unit
+                                               }
+                          , leadHighpass2 :: Tuple THighpass
+                                               { leadDelayD2 :: Unit
+                                               }
+                          , leadHighpassCbnd :: Tuple THighpass
+                                                  { leadDelayDCbnd :: Unit
+                                                  }
+                          , leadMain :: Tuple TGain
+                                          { leadDelay0 :: Unit
+                                          , leadDelay1 :: Unit
+                                          , leadDelay2 :: Unit
+                                          }
+                          , leadSource0 :: Tuple TGain
+                                             { leadSource0Buf :: Unit
+                                             }
+                          , leadSource0Buf :: Tuple TPlayBuf (Record ())
+                          , leadSource1 :: Tuple TGain
+                                             { leadSource1Buf :: Unit
+                                             }
+                          , leadSource1Buf :: Tuple TPlayBuf (Record ())
+                          , leadSource2 :: Tuple TGain
+                                             { leadSource2Buf :: Unit
+                                             }
+                          , leadSource2Buf :: Tuple TPlayBuf (Record ())
+                          , leadSource3 :: Tuple TGain
+                                             { leadSource3Buf :: Unit
+                                             }
+                          , leadSource3Buf :: Tuple TPlayBuf (Record ())
+                          , leadSource4 :: Tuple TGain
+                                             { leadSource4Buf :: Unit
+                                             }
+                          , leadSource4Buf :: Tuple TPlayBuf (Record ())
+                          , leadSources :: Tuple TGain
+                                             { leadSource0 :: Unit
+                                             , leadSource1 :: Unit
+                                             , leadSource2 :: Unit
+                                             , leadSource3 :: Unit
+                                             , leadSource4 :: Unit
+                                             }
+                          , leadSourcesGain0 :: Tuple TGain
+                                                  { leadSources :: Unit
+                                                  }
+                          , leadSourcesGain1 :: Tuple TGain
+                                                  { leadSources :: Unit
+                                                  }
+                          , leadSourcesGain2 :: Tuple TGain
+                                                  { leadSources :: Unit
+                                                  }
+                          , leadSourcesGainCbnd :: Tuple TGain
+                                                     { leadDelay0 :: Unit
+                                                     , leadDelay1 :: Unit
+                                                     }
+                          , loopingBuffer0 :: Tuple TGain
+                                                { loopingBuffer0Pan :: Unit
+                                                }
+                          , loopingBuffer0Pan :: Tuple TStereoPanner
+                                                   { loopingBuffer0PlayBuf :: Unit
+                                                   }
+                          , loopingBuffer0PlayBuf :: Tuple TLoopBuf (Record ())
+                          , loopingBuffer1 :: Tuple TGain
+                                                { loopingBuffer1Pan :: Unit
+                                                }
+                          , loopingBuffer1Pan :: Tuple TStereoPanner
+                                                   { loopingBuffer1PlayBuf :: Unit
+                                                   }
+                          , loopingBuffer1PlayBuf :: Tuple TLoopBuf (Record ())
+                          , loopingBuffer2 :: Tuple TGain
+                                                { loopingBuffer2Pan :: Unit
+                                                }
+                          , loopingBuffer2Pan :: Tuple TStereoPanner
+                                                   { loopingBuffer2PlayBuf :: Unit
+                                                   }
+                          , loopingBuffer2PlayBuf :: Tuple TLoopBuf (Record ())
+                          , loopingBuffer3 :: Tuple TGain
+                                                { loopingBuffer3Pan :: Unit
+                                                }
+                          , loopingBuffer3Pan :: Tuple TStereoPanner
+                                                   { loopingBuffer3PlayBuf :: Unit
+                                                   }
+                          , loopingBuffer3PlayBuf :: Tuple TLoopBuf (Record ())
+                          , loopingBuffer4 :: Tuple TGain
+                                                { loopingBuffer4Pan :: Unit
+                                                }
+                          , loopingBuffer4Pan :: Tuple TStereoPanner
+                                                   { loopingBuffer4PlayBuf :: Unit
+                                                   }
+                          , loopingBuffer4PlayBuf :: Tuple TLoopBuf (Record ())
+                          , mainFader :: Tuple TGain
+                                           { subMainDelay :: Unit
+                                           , subMainFader :: Unit
+                                           }
+                          , pad :: Tuple TGain
+                                     { padDry :: Unit
+                                     , padWaveshaped :: Unit
+                                     }
+                          , padDry :: Tuple TGain
+                                        { padMix :: Unit
+                                        }
+                          , padFilter0 :: Tuple TBandpass
+                                            { padSources :: Unit
+                                            }
+                          , padFilter1 :: Tuple TBandpass
+                                            { padSources :: Unit
+                                            }
+                          , padFilter2 :: Tuple TBandpass
+                                            { padSources :: Unit
+                                            }
+                          , padFilter3 :: Tuple TBandpass
+                                            { padSources :: Unit
+                                            }
+                          , padMix :: Tuple TGain
+                                        { padFilter0 :: Unit
+                                        , padFilter1 :: Unit
+                                        , padFilter2 :: Unit
+                                        , padFilter3 :: Unit
+                                        }
+                          , padSource0 :: Tuple TGain
+                                            { padSource0Pan :: Unit
+                                            }
+                          , padSource0Osc :: Tuple TSinOsc (Record ())
+                          , padSource0Pan :: Tuple TStereoPanner
+                                               { padSource0Osc :: Unit
+                                               }
+                          , padSource1 :: Tuple TGain
+                                            { padSource1Pan :: Unit
+                                            }
+                          , padSource1Osc :: Tuple TSinOsc (Record ())
+                          , padSource1Pan :: Tuple TStereoPanner
+                                               { padSource1Osc :: Unit
+                                               }
+                          , padSource2 :: Tuple TGain
+                                            { padSource2Pan :: Unit
+                                            }
+                          , padSource2Osc :: Tuple TSinOsc (Record ())
+                          , padSource2Pan :: Tuple TStereoPanner
+                                               { padSource2Osc :: Unit
+                                               }
+                          , padSource3 :: Tuple TGain
+                                            { padSource3Pan :: Unit
+                                            }
+                          , padSource3Osc :: Tuple TSinOsc (Record ())
+                          , padSource3Pan :: Tuple TStereoPanner
+                                               { padSource3Osc :: Unit
+                                               }
+                          , padSource4 :: Tuple TGain
+                                            { padSource4Pan :: Unit
+                                            }
+                          , padSource4Osc :: Tuple TSinOsc (Record ())
+                          , padSource4Pan :: Tuple TStereoPanner
+                                               { padSource4Osc :: Unit
+                                               }
+                          , padSources :: Tuple TGain
+                                            { padSource0 :: Unit
+                                            , padSource1 :: Unit
+                                            , padSource2 :: Unit
+                                            , padSource3 :: Unit
+                                            , padSource4 :: Unit
+                                            }
+                          , padWaveshaped :: Tuple TGain
+                                               { padWaveshaper :: Unit
+                                               }
+                          , padWaveshaper :: Tuple (TWaveShaper OversampleTwoX)
+                                               { padMix :: Unit
+                                               }
+                          , smplr :: Tuple TStereoPanner
+                                       { smplrMain :: Unit
+                                       }
+                          , smplrDelay0 :: Tuple TGain
+                                             { smplrDelay0Gain :: Unit
+                                             , smplrSourcesGain0 :: Unit
+                                             }
+                          , smplrDelay0Gain :: Tuple TGain
+                                                 { smplrHighpass0 :: Unit
+                                                 }
+                          , smplrDelay1 :: Tuple TGain
+                                             { smplrDelay1Gain :: Unit
+                                             , smplrSourcesGain1 :: Unit
+                                             }
+                          , smplrDelay1Gain :: Tuple TGain
+                                                 { smplrHighpass1 :: Unit
+                                                 }
+                          , smplrDelay2 :: Tuple TGain
+                                             { smplrDelay2Gain :: Unit
+                                             , smplrSourcesGain2 :: Unit
+                                             }
+                          , smplrDelay2Gain :: Tuple TGain
+                                                 { smplrHighpass2 :: Unit
+                                                 }
+                          , smplrDelayCbnd :: Tuple TGain
+                                                { smplrDelayCbndGain :: Unit
+                                                , smplrSourcesGainCbnd :: Unit
+                                                }
+                          , smplrDelayCbndGain :: Tuple TGain
+                                                    { smplrHighpassCbnd :: Unit
+                                                    }
+                          , smplrDelayD0 :: Tuple TDelay
+                                              { smplrDelay0 :: Unit
+                                              }
+                          , smplrDelayD1 :: Tuple TDelay
+                                              { smplrDelay1 :: Unit
+                                              }
+                          , smplrDelayD2 :: Tuple TDelay
+                                              { smplrDelay2 :: Unit
+                                              }
+                          , smplrDelayDCbnd :: Tuple TDelay
+                                                 { smplrDelayCbnd :: Unit
+                                                 }
+                          , smplrHighpass0 :: Tuple THighpass
+                                                { smplrDelayD0 :: Unit
+                                                }
+                          , smplrHighpass1 :: Tuple THighpass
+                                                { smplrDelayD1 :: Unit
+                                                }
+                          , smplrHighpass2 :: Tuple THighpass
+                                                { smplrDelayD2 :: Unit
+                                                }
+                          , smplrHighpassCbnd :: Tuple THighpass
+                                                   { smplrDelayDCbnd :: Unit
+                                                   }
+                          , smplrMain :: Tuple TGain
+                                           { smplrDelay0 :: Unit
+                                           , smplrDelay1 :: Unit
+                                           , smplrDelay2 :: Unit
+                                           }
+                          , smplrSource0 :: Tuple TGain
+                                              { smplrSource0Buf :: Unit
+                                              }
+                          , smplrSource0Buf :: Tuple TPlayBuf (Record ())
+                          , smplrSource1 :: Tuple TGain
+                                              { smplrSource1Buf :: Unit
+                                              }
+                          , smplrSource1Buf :: Tuple TPlayBuf (Record ())
+                          , smplrSource2 :: Tuple TGain
+                                              { smplrSource2Buf :: Unit
+                                              }
+                          , smplrSource2Buf :: Tuple TPlayBuf (Record ())
+                          , smplrSource3 :: Tuple TGain
+                                              { smplrSource3Buf :: Unit
+                                              }
+                          , smplrSource3Buf :: Tuple TPlayBuf (Record ())
+                          , smplrSource4 :: Tuple TGain
+                                              { smplrSource4Buf :: Unit
+                                              }
+                          , smplrSource4Buf :: Tuple TPlayBuf (Record ())
+                          , smplrSources :: Tuple TGain
+                                              { smplrSource0 :: Unit
+                                              , smplrSource1 :: Unit
+                                              , smplrSource2 :: Unit
+                                              , smplrSource3 :: Unit
+                                              , smplrSource4 :: Unit
+                                              }
+                          , smplrSourcesGain0 :: Tuple TGain
+                                                   { smplrSources :: Unit
+                                                   }
+                          , smplrSourcesGain1 :: Tuple TGain
+                                                   { smplrSources :: Unit
+                                                   }
+                          , smplrSourcesGain2 :: Tuple TGain
+                                                   { smplrSources :: Unit
+                                                   }
+                          , smplrSourcesGainCbnd :: Tuple TGain
+                                                      { smplrDelay0 :: Unit
+                                                      , smplrDelay1 :: Unit
+                                                      }
+                          , speaker :: Tuple TSpeaker
+                                         { mainFader :: Unit
+                                         }
+                          , subMainDelay :: Tuple TDelay
+                                              { subMainGain :: Unit
+                                              }
+                          , subMainFader :: Tuple TGain
+                                              { distantBells :: Unit
+                                              , drone :: Unit
+                                              , lead :: Unit
+                                              , loopingBuffer0 :: Unit
+                                              , loopingBuffer1 :: Unit
+                                              , loopingBuffer2 :: Unit
+                                              , loopingBuffer3 :: Unit
+                                              , loopingBuffer4 :: Unit
+                                              , pad :: Unit
+                                              , smplr :: Unit
+                                              , uSingleton :: Unit
+                                              }
+                          , subMainGain :: Tuple TGain
+                                             { mainFader :: Unit
+                                             }
+                          , uSingleton :: Tuple TStereoPanner
+                                            { uSingletonGain :: Unit
+                                            }
+                          , uSingletonGain :: Tuple TGain
+                                                { uSingletonHGain :: Unit
+                                                , uSingletonSource :: Unit
+                                                }
+                          , uSingletonHDelay :: Tuple TDelay
+                                                  { uSingletonGain :: Unit
+                                                  }
+                          , uSingletonHGain :: Tuple TGain
+                                                 { uSingletonHHPF :: Unit
+                                                 }
+                          , uSingletonHHPF :: Tuple THighpass
+                                                { uSingletonHDelay :: Unit
+                                                }
+                          , uSingletonPlayBuf0 :: Tuple TPlayBuf (Record ())
+                          , uSingletonPlayBuf1 :: Tuple TPlayBuf (Record ())
+                          , uSingletonPlayBuf2 :: Tuple TPlayBuf (Record ())
+                          , uSingletonPlayBuf3 :: Tuple TPlayBuf (Record ())
+                          , uSingletonPlayBuf4 :: Tuple TPlayBuf (Record ())
+                          , uSingletonSource :: Tuple TGain
+                                                  { uSingletonPlayBuf0 :: Unit
+                                                  , uSingletonPlayBuf1 :: Unit
+                                                  , uSingletonPlayBuf2 :: Unit
+                                                  , uSingletonPlayBuf3 :: Unit
+                                                  , uSingletonPlayBuf4 :: Unit
+                                                  }
+                          )
+                          ( distantBells :: Tuple TGain
+                                              { distantBellsPan :: Unit
+                                              }
+                          , distantBellsPan :: Tuple TStereoPanner
+                                                 { distantBellsPlayBuf :: Unit
+                                                 }
+                          , distantBellsPlayBuf :: Tuple TLoopBuf (Record ())
+                          , drone :: Tuple TGain
+                                       { droneFilter0 :: Unit
+                                       , droneFilter1 :: Unit
+                                       , droneFilter2 :: Unit
+                                       , droneFilter3 :: Unit
+                                       }
+                          , droneFilter0 :: Tuple TLowpass
+                                              { droneSources :: Unit
+                                              }
+                          , droneFilter1 :: Tuple TBandpass
+                                              { droneSources :: Unit
+                                              }
+                          , droneFilter2 :: Tuple TBandpass
+                                              { droneSources :: Unit
+                                              }
+                          , droneFilter3 :: Tuple THighpass
+                                              { droneSources :: Unit
+                                              }
+                          , droneSource0 :: Tuple TGain
+                                              { droneSource0Buf :: Unit
+                                              }
+                          , droneSource0Buf :: Tuple TLoopBuf (Record ())
+                          , droneSource1 :: Tuple TGain
+                                              { droneSource1Buf :: Unit
+                                              }
+                          , droneSource1Buf :: Tuple TLoopBuf (Record ())
+                          , droneSource2 :: Tuple TGain
+                                              { droneSource2Buf :: Unit
+                                              }
+                          , droneSource2Buf :: Tuple TLoopBuf (Record ())
+                          , droneSource3 :: Tuple TGain
+                                              { droneSource3Buf :: Unit
+                                              }
+                          , droneSource3Buf :: Tuple TLoopBuf (Record ())
+                          , droneSource4 :: Tuple TGain
+                                              { droneSource4Buf :: Unit
+                                              }
+                          , droneSource4Buf :: Tuple TLoopBuf (Record ())
+                          , droneSources :: Tuple TGain
+                                              { droneSource0 :: Unit
+                                              , droneSource1 :: Unit
+                                              , droneSource2 :: Unit
+                                              , droneSource3 :: Unit
+                                              , droneSource4 :: Unit
+                                              }
+                          , lead :: Tuple TStereoPanner
+                                      { leadMain :: Unit
+                                      }
+                          , leadDelay0 :: Tuple TGain
+                                            { leadDelay0Gain :: Unit
+                                            , leadSourcesGain0 :: Unit
+                                            }
+                          , leadDelay0Gain :: Tuple TGain
+                                                { leadHighpass0 :: Unit
+                                                }
+                          , leadDelay1 :: Tuple TGain
+                                            { leadDelay1Gain :: Unit
+                                            , leadSourcesGain1 :: Unit
+                                            }
+                          , leadDelay1Gain :: Tuple TGain
+                                                { leadHighpass1 :: Unit
+                                                }
+                          , leadDelay2 :: Tuple TGain
+                                            { leadDelay2Gain :: Unit
+                                            , leadSourcesGain2 :: Unit
+                                            }
+                          , leadDelay2Gain :: Tuple TGain
+                                                { leadHighpass2 :: Unit
+                                                }
+                          , leadDelayCbnd :: Tuple TGain
+                                               { leadDelayCbndGain :: Unit
+                                               , leadSourcesGainCbnd :: Unit
+                                               }
+                          , leadDelayCbndGain :: Tuple TGain
+                                                   { leadHighpassCbnd :: Unit
+                                                   }
+                          , leadDelayD0 :: Tuple TDelay
+                                             { leadDelay0 :: Unit
+                                             }
+                          , leadDelayD1 :: Tuple TDelay
+                                             { leadDelay1 :: Unit
+                                             }
+                          , leadDelayD2 :: Tuple TDelay
+                                             { leadDelay2 :: Unit
+                                             }
+                          , leadDelayDCbnd :: Tuple TDelay
+                                                { leadDelayCbnd :: Unit
+                                                }
+                          , leadHighpass0 :: Tuple THighpass
+                                               { leadDelayD0 :: Unit
+                                               }
+                          , leadHighpass1 :: Tuple THighpass
+                                               { leadDelayD1 :: Unit
+                                               }
+                          , leadHighpass2 :: Tuple THighpass
+                                               { leadDelayD2 :: Unit
+                                               }
+                          , leadHighpassCbnd :: Tuple THighpass
+                                                  { leadDelayDCbnd :: Unit
+                                                  }
+                          , leadMain :: Tuple TGain
+                                          { leadDelay0 :: Unit
+                                          , leadDelay1 :: Unit
+                                          , leadDelay2 :: Unit
+                                          }
+                          , leadSource0 :: Tuple TGain
+                                             { leadSource0Buf :: Unit
+                                             }
+                          , leadSource0Buf :: Tuple TPlayBuf (Record ())
+                          , leadSource1 :: Tuple TGain
+                                             { leadSource1Buf :: Unit
+                                             }
+                          , leadSource1Buf :: Tuple TPlayBuf (Record ())
+                          , leadSource2 :: Tuple TGain
+                                             { leadSource2Buf :: Unit
+                                             }
+                          , leadSource2Buf :: Tuple TPlayBuf (Record ())
+                          , leadSource3 :: Tuple TGain
+                                             { leadSource3Buf :: Unit
+                                             }
+                          , leadSource3Buf :: Tuple TPlayBuf (Record ())
+                          , leadSource4 :: Tuple TGain
+                                             { leadSource4Buf :: Unit
+                                             }
+                          , leadSource4Buf :: Tuple TPlayBuf (Record ())
+                          , leadSources :: Tuple TGain
+                                             { leadSource0 :: Unit
+                                             , leadSource1 :: Unit
+                                             , leadSource2 :: Unit
+                                             , leadSource3 :: Unit
+                                             , leadSource4 :: Unit
+                                             }
+                          , leadSourcesGain0 :: Tuple TGain
+                                                  { leadSources :: Unit
+                                                  }
+                          , leadSourcesGain1 :: Tuple TGain
+                                                  { leadSources :: Unit
+                                                  }
+                          , leadSourcesGain2 :: Tuple TGain
+                                                  { leadSources :: Unit
+                                                  }
+                          , leadSourcesGainCbnd :: Tuple TGain
+                                                     { leadDelay0 :: Unit
+                                                     , leadDelay1 :: Unit
+                                                     }
+                          , loopingBuffer0 :: Tuple TGain
+                                                { loopingBuffer0Pan :: Unit
+                                                }
+                          , loopingBuffer0Pan :: Tuple TStereoPanner
+                                                   { loopingBuffer0PlayBuf :: Unit
+                                                   }
+                          , loopingBuffer0PlayBuf :: Tuple TLoopBuf (Record ())
+                          , loopingBuffer1 :: Tuple TGain
+                                                { loopingBuffer1Pan :: Unit
+                                                }
+                          , loopingBuffer1Pan :: Tuple TStereoPanner
+                                                   { loopingBuffer1PlayBuf :: Unit
+                                                   }
+                          , loopingBuffer1PlayBuf :: Tuple TLoopBuf (Record ())
+                          , loopingBuffer2 :: Tuple TGain
+                                                { loopingBuffer2Pan :: Unit
+                                                }
+                          , loopingBuffer2Pan :: Tuple TStereoPanner
+                                                   { loopingBuffer2PlayBuf :: Unit
+                                                   }
+                          , loopingBuffer2PlayBuf :: Tuple TLoopBuf (Record ())
+                          , loopingBuffer3 :: Tuple TGain
+                                                { loopingBuffer3Pan :: Unit
+                                                }
+                          , loopingBuffer3Pan :: Tuple TStereoPanner
+                                                   { loopingBuffer3PlayBuf :: Unit
+                                                   }
+                          , loopingBuffer3PlayBuf :: Tuple TLoopBuf (Record ())
+                          , loopingBuffer4 :: Tuple TGain
+                                                { loopingBuffer4Pan :: Unit
+                                                }
+                          , loopingBuffer4Pan :: Tuple TStereoPanner
+                                                   { loopingBuffer4PlayBuf :: Unit
+                                                   }
+                          , loopingBuffer4PlayBuf :: Tuple TLoopBuf (Record ())
+                          , mainFader :: Tuple TGain
+                                           { subMainDelay :: Unit
+                                           , subMainFader :: Unit
+                                           }
+                          , pad :: Tuple TGain
+                                     { padDry :: Unit
+                                     , padWaveshaped :: Unit
+                                     }
+                          , padDry :: Tuple TGain
+                                        { padMix :: Unit
+                                        }
+                          , padFilter0 :: Tuple TBandpass
+                                            { padSources :: Unit
+                                            }
+                          , padFilter1 :: Tuple TBandpass
+                                            { padSources :: Unit
+                                            }
+                          , padFilter2 :: Tuple TBandpass
+                                            { padSources :: Unit
+                                            }
+                          , padFilter3 :: Tuple TBandpass
+                                            { padSources :: Unit
+                                            }
+                          , padMix :: Tuple TGain
+                                        { padFilter0 :: Unit
+                                        , padFilter1 :: Unit
+                                        , padFilter2 :: Unit
+                                        , padFilter3 :: Unit
+                                        }
+                          , padSource0 :: Tuple TGain
+                                            { padSource0Pan :: Unit
+                                            }
+                          , padSource0Osc :: Tuple TSinOsc (Record ())
+                          , padSource0Pan :: Tuple TStereoPanner
+                                               { padSource0Osc :: Unit
+                                               }
+                          , padSource1 :: Tuple TGain
+                                            { padSource1Pan :: Unit
+                                            }
+                          , padSource1Osc :: Tuple TSinOsc (Record ())
+                          , padSource1Pan :: Tuple TStereoPanner
+                                               { padSource1Osc :: Unit
+                                               }
+                          , padSource2 :: Tuple TGain
+                                            { padSource2Pan :: Unit
+                                            }
+                          , padSource2Osc :: Tuple TSinOsc (Record ())
+                          , padSource2Pan :: Tuple TStereoPanner
+                                               { padSource2Osc :: Unit
+                                               }
+                          , padSource3 :: Tuple TGain
+                                            { padSource3Pan :: Unit
+                                            }
+                          , padSource3Osc :: Tuple TSinOsc (Record ())
+                          , padSource3Pan :: Tuple TStereoPanner
+                                               { padSource3Osc :: Unit
+                                               }
+                          , padSource4 :: Tuple TGain
+                                            { padSource4Pan :: Unit
+                                            }
+                          , padSource4Osc :: Tuple TSinOsc (Record ())
+                          , padSource4Pan :: Tuple TStereoPanner
+                                               { padSource4Osc :: Unit
+                                               }
+                          , padSources :: Tuple TGain
+                                            { padSource0 :: Unit
+                                            , padSource1 :: Unit
+                                            , padSource2 :: Unit
+                                            , padSource3 :: Unit
+                                            , padSource4 :: Unit
+                                            }
+                          , padWaveshaped :: Tuple TGain
+                                               { padWaveshaper :: Unit
+                                               }
+                          , padWaveshaper :: Tuple (TWaveShaper OversampleTwoX)
+                                               { padMix :: Unit
+                                               }
+                          , smplr :: Tuple TStereoPanner
+                                       { smplrMain :: Unit
+                                       }
+                          , smplrDelay0 :: Tuple TGain
+                                             { smplrDelay0Gain :: Unit
+                                             , smplrSourcesGain0 :: Unit
+                                             }
+                          , smplrDelay0Gain :: Tuple TGain
+                                                 { smplrHighpass0 :: Unit
+                                                 }
+                          , smplrDelay1 :: Tuple TGain
+                                             { smplrDelay1Gain :: Unit
+                                             , smplrSourcesGain1 :: Unit
+                                             }
+                          , smplrDelay1Gain :: Tuple TGain
+                                                 { smplrHighpass1 :: Unit
+                                                 }
+                          , smplrDelay2 :: Tuple TGain
+                                             { smplrDelay2Gain :: Unit
+                                             , smplrSourcesGain2 :: Unit
+                                             }
+                          , smplrDelay2Gain :: Tuple TGain
+                                                 { smplrHighpass2 :: Unit
+                                                 }
+                          , smplrDelayCbnd :: Tuple TGain
+                                                { smplrDelayCbndGain :: Unit
+                                                , smplrSourcesGainCbnd :: Unit
+                                                }
+                          , smplrDelayCbndGain :: Tuple TGain
+                                                    { smplrHighpassCbnd :: Unit
+                                                    }
+                          , smplrDelayD0 :: Tuple TDelay
+                                              { smplrDelay0 :: Unit
+                                              }
+                          , smplrDelayD1 :: Tuple TDelay
+                                              { smplrDelay1 :: Unit
+                                              }
+                          , smplrDelayD2 :: Tuple TDelay
+                                              { smplrDelay2 :: Unit
+                                              }
+                          , smplrDelayDCbnd :: Tuple TDelay
+                                                 { smplrDelayCbnd :: Unit
+                                                 }
+                          , smplrHighpass0 :: Tuple THighpass
+                                                { smplrDelayD0 :: Unit
+                                                }
+                          , smplrHighpass1 :: Tuple THighpass
+                                                { smplrDelayD1 :: Unit
+                                                }
+                          , smplrHighpass2 :: Tuple THighpass
+                                                { smplrDelayD2 :: Unit
+                                                }
+                          , smplrHighpassCbnd :: Tuple THighpass
+                                                   { smplrDelayDCbnd :: Unit
+                                                   }
+                          , smplrMain :: Tuple TGain
+                                           { smplrDelay0 :: Unit
+                                           , smplrDelay1 :: Unit
+                                           , smplrDelay2 :: Unit
+                                           }
+                          , smplrSource0 :: Tuple TGain
+                                              { smplrSource0Buf :: Unit
+                                              }
+                          , smplrSource0Buf :: Tuple TPlayBuf (Record ())
+                          , smplrSource1 :: Tuple TGain
+                                              { smplrSource1Buf :: Unit
+                                              }
+                          , smplrSource1Buf :: Tuple TPlayBuf (Record ())
+                          , smplrSource2 :: Tuple TGain
+                                              { smplrSource2Buf :: Unit
+                                              }
+                          , smplrSource2Buf :: Tuple TPlayBuf (Record ())
+                          , smplrSource3 :: Tuple TGain
+                                              { smplrSource3Buf :: Unit
+                                              }
+                          , smplrSource3Buf :: Tuple TPlayBuf (Record ())
+                          , smplrSource4 :: Tuple TGain
+                                              { smplrSource4Buf :: Unit
+                                              }
+                          , smplrSource4Buf :: Tuple TPlayBuf (Record ())
+                          , smplrSources :: Tuple TGain
+                                              { smplrSource0 :: Unit
+                                              , smplrSource1 :: Unit
+                                              , smplrSource2 :: Unit
+                                              , smplrSource3 :: Unit
+                                              , smplrSource4 :: Unit
+                                              }
+                          , smplrSourcesGain0 :: Tuple TGain
+                                                   { smplrSources :: Unit
+                                                   }
+                          , smplrSourcesGain1 :: Tuple TGain
+                                                   { smplrSources :: Unit
+                                                   }
+                          , smplrSourcesGain2 :: Tuple TGain
+                                                   { smplrSources :: Unit
+                                                   }
+                          , smplrSourcesGainCbnd :: Tuple TGain
+                                                      { smplrDelay0 :: Unit
+                                                      , smplrDelay1 :: Unit
+                                                      }
+                          , speaker :: Tuple TSpeaker
+                                         { mainFader :: Unit
+                                         }
+                          , subMainDelay :: Tuple TDelay
+                                              { subMainGain :: Unit
+                                              }
+                          , subMainFader :: Tuple TGain
+                                              { distantBells :: Unit
+                                              , drone :: Unit
+                                              , lead :: Unit
+                                              , loopingBuffer0 :: Unit
+                                              , loopingBuffer1 :: Unit
+                                              , loopingBuffer2 :: Unit
+                                              , loopingBuffer3 :: Unit
+                                              , loopingBuffer4 :: Unit
+                                              , pad :: Unit
+                                              , smplr :: Unit
+                                              , uSingleton :: Unit
+                                              }
+                          , subMainGain :: Tuple TGain
+                                             { mainFader :: Unit
+                                             }
+                          , uSingleton :: Tuple TStereoPanner
+                                            { uSingletonGain :: Unit
+                                            }
+                          , uSingletonGain :: Tuple TGain
+                                                { uSingletonHGain :: Unit
+                                                , uSingletonSource :: Unit
+                                                }
+                          , uSingletonHDelay :: Tuple TDelay
+                                                  { uSingletonGain :: Unit
+                                                  }
+                          , uSingletonHGain :: Tuple TGain
+                                                 { uSingletonHHPF :: Unit
+                                                 }
+                          , uSingletonHHPF :: Tuple THighpass
+                                                { uSingletonHDelay :: Unit
+                                                }
+                          , uSingletonPlayBuf0 :: Tuple TPlayBuf (Record ())
+                          , uSingletonPlayBuf1 :: Tuple TPlayBuf (Record ())
+                          , uSingletonPlayBuf2 :: Tuple TPlayBuf (Record ())
+                          , uSingletonPlayBuf3 :: Tuple TPlayBuf (Record ())
+                          , uSingletonPlayBuf4 :: Tuple TPlayBuf (Record ())
+                          , uSingletonSource :: Tuple TGain
+                                                  { uSingletonPlayBuf0 :: Unit
+                                                  , uSingletonPlayBuf1 :: Unit
+                                                  , uSingletonPlayBuf2 :: Unit
+                                                  , uSingletonPlayBuf3 :: Unit
+                                                  , uSingletonPlayBuf4 :: Unit
+                                                  }
+                          )
+                          t3
+                       )
+
+  The instance head contains unknown type variables. Consider adding a type annotation.
+
+while checking that expression mempty
+  has type t0
+while applying a function default
+  of type t0 -> Variant t1 -> t0
+  to argument mempty
+in value declaration oracle
+
+where proof2 is a rigid type variable
+        bound at (line 0, column 0 - line 0, column 0)
+      t3 is an unknown type
+      t0 is an unknown type
+      t1 is an unknown type
+
+See https://github.com/purescript/documentation/blob/master/errors/NoInstanceFound.md for more information,
+or to contribute content related to this error.
+
+
+[error] Failed to build.

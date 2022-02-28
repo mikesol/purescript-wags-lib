@@ -1,0 +1,1 @@
+exports.onElts = function(v) { return function(i) { return v[i];}}

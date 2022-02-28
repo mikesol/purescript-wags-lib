@@ -5,6 +5,7 @@ import Prelude
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Typelevel.Num (class Pos, D14, D2, D24, D3, D4, D5, D6, toInt')
 import Data.Variant (Variant)
+import Data.Vec (Vec)
 import Foreign (ForeignError(..), fail)
 import Simple.JSON (readImpl, undefined, writeImpl)
 import Simple.JSON as JSON
@@ -86,9 +87,11 @@ instance toJsonZeroToOne :: JSON.WriteForeign ZeroToOne where
 instance fromJsonZeroToOne :: JSON.ReadForeign ZeroToOne where
   readImpl = readImpl >=>
     (if _ then _ else _)
-      <$> ((_ > 1.0) || (_ < 0.0))
+      <$> ((_ <= 1.0) && (_ >= 0.0))
       <*> (pure <<< wrap)
       <*> (fail <<< ForeignError <<< (<>) "Not between zero and one: " <<< show)
+
+foreign import onElts :: forall n a. Vec n a -> Elts n -> a
 
 newtype Elts (t :: Type) = Elts Int
 derive instance newtypeElts :: Newtype (Elts n) _
@@ -101,7 +104,7 @@ instance fromJsonElts :: Pos n => JSON.ReadForeign (Elts n) where
       ti = toInt' (Proxy :: _ n)
     in
       (if _ then _ else _)
-        <$> ((==) ti)
+        <$> ((_ < ti) && (_ >= 0))
         <*> (pure <<< wrap)
         <*>
           ( fail <<< ForeignError
