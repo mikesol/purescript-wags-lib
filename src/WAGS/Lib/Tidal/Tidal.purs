@@ -130,7 +130,7 @@ import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D1)
 import Data.Unfoldable (replicate)
-import Data.Variant (Variant, prj, match)
+import Data.Variant (Variant, match, prj)
 import Data.Variant.Either (left, right)
 import Data.Variant.Either as VE
 import Data.Variant.Maybe (just, nothing)
@@ -149,7 +149,7 @@ import Text.Parsing.StringParser.CodeUnits (alphaNum, anyDigit, char, oneOf, sat
 import Text.Parsing.StringParser.Combinators (between, many, many1, optionMaybe, sepBy1, sepEndBy, sepEndBy1)
 import Type.Equality (class TypeEquals, proof)
 import Type.Proxy (Proxy(..))
-import WAGS.Graph.Parameter (AudioParameter(..))
+import WAGS.Graph.Parameter (AudioParameter)
 import WAGS.Lib.Tidal.Cycle (Cycle(..), singleton, branching, simultaneous, internal, flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
 import WAGS.Lib.Tidal.FX (goodbye, hello, calm, fx)
 import WAGS.Lib.Tidal.Samples (sample2drone, urls)
@@ -1292,7 +1292,7 @@ fadeTo { n: nn, duration: t } = unwrap >>> match
   duration = 1.0 / (max 0.001 t)
 
 numericTumult
-  :: forall t984 t1036 r t1061 action instruction' n terminus inputs
+  :: forall r proxy action instruction' n terminus inputs
    . Row.Cons action
        { id :: String
        | r
@@ -1301,7 +1301,7 @@ numericTumult
        Instruction'
   => IsSymbol action
   => Number
-  -> t1061 action
+  -> proxy action
   -> String
   -> ({ id :: String | r } -> AudioParameter)
   -> Tumultuous n terminus inputs
@@ -1313,8 +1313,11 @@ numericTumult dflt pxy idd fnc = fromMaybe dflt
         <<< map
           ( fnc
               >>> unwrap
-              >>> _.param
-              >>> VM.maybe Nothing Just
+              >>> match
+                { singleNumber: Just <<< _.param <<< unwrap
+                , cancellation: const Nothing
+                , envelope: const Nothing
+                }
           )
         <<< filter (eq idd <<< _.id)
         <<< prj pxy
