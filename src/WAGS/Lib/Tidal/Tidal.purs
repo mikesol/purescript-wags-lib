@@ -452,7 +452,7 @@ when_ cond func aa = if cond aa then func aa else aa
 focus :: forall a. (a -> Boolean) -> Prism' a a
 focus = prism' identity <<< maybeBool
 
-weightedChoice :: forall a. NonEmpty Array (Number /\ a) -> Number ->  a
+weightedChoice :: forall a. NonEmpty Array (Number /\ a) -> Number -> a
 weightedChoice ii = go (L.fromFoldable uscd.init) uscd.last 0.0
   where
   full = foldl (+) 0.0 (map fst ii)
@@ -467,6 +467,7 @@ weightedChoice ii = go (L.fromFoldable uscd.init) uscd.last 0.0
         | otherwise = go cc df tt nn
     in
       oo
+
 ---
 b :: forall event a. Cycle a -> Array (Cycle a) -> Cycle a
 b bx by = branching { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (bx :| by) }
@@ -1302,7 +1303,7 @@ numericTumult
   => Number
   -> t1061 action
   -> String
-  -> ( { id :: String  | r  }       -> AudioParameter)
+  -> ({ id :: String | r } -> AudioParameter)
   -> Tumultuous n terminus inputs
   -> Number
 numericTumult dflt pxy idd fnc = fromMaybe dflt
