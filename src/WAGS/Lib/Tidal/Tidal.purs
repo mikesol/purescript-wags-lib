@@ -130,7 +130,7 @@ import Data.Tuple (fst, snd)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (D1)
 import Data.Unfoldable (replicate)
-import Data.Variant (Variant, prj, match)
+import Data.Variant (Variant, match, prj)
 import Data.Variant.Either (left, right)
 import Data.Variant.Either as VE
 import Data.Variant.Maybe (just, nothing)
@@ -149,6 +149,7 @@ import Text.Parsing.StringParser.CodeUnits (alphaNum, anyDigit, char, oneOf, sat
 import Text.Parsing.StringParser.Combinators (between, many, many1, optionMaybe, sepBy1, sepEndBy, sepEndBy1)
 import Type.Equality (class TypeEquals, proof)
 import Type.Proxy (Proxy(..))
+import WAGS.Graph.Parameter (AudioParameter)
 import WAGS.Lib.Tidal.Cycle (Cycle(..), singleton, branching, simultaneous, internal, flattenCycle, intentionalSilenceForInternalUseOnly_, reverse)
 import WAGS.Lib.Tidal.FX (goodbye, hello, calm, fx)
 import WAGS.Lib.Tidal.Samples (sample2drone, urls)
@@ -451,7 +452,7 @@ when_ cond func aa = if cond aa then func aa else aa
 focus :: forall a. (a -> Boolean) -> Prism' a a
 focus = prism' identity <<< maybeBool
 
-weightedChoice :: forall a. NonEmpty Array (Number /\ a) -> Number ->  a
+weightedChoice :: forall a. NonEmpty Array (Number /\ a) -> Number -> a
 weightedChoice ii = go (L.fromFoldable uscd.init) uscd.last 0.0
   where
   full = foldl (+) 0.0 (map fst ii)
@@ -466,6 +467,7 @@ weightedChoice ii = go (L.fromFoldable uscd.init) uscd.last 0.0
         | otherwise = go cc df tt nn
     in
       oo
+
 ---
 b :: forall event a. Cycle a -> Array (Cycle a) -> Cycle a
 b bx by = branching { env: { weight: 1.0, tag: VM.nothing }, cycles: NEA.fromNonEmpty (bx :| by) }
@@ -1290,29 +1292,20 @@ fadeTo { n: nn, duration: t } = unwrap >>> match
   duration = 1.0 / (max 0.001 t)
 
 numericTumult
-  :: forall t984 t1021 t1036 t1051 t1055 t1061 t1062 t1064 t1079 t1080 t1081
-   . Newtype t1021
-       { param :: VM.Maybe t984
-       | t1036
+  :: forall r proxy action instruction' n terminus inputs
+   . Row.Cons action
+       { id :: String
+       | r
        }
-  => Eq t1051
-  => Row.Cons t1062
-       { id :: t1051
-       | t1055
-       }
-       t1064
+       instruction'
        Instruction'
-  => IsSymbol t1062
-  => t984
-  -> t1061 t1062
-  -> t1051
-  -> ( { id :: t1051
-       | t1055
-       }
-       -> t1021
-     )
-  -> Tumultuous t1079 t1080 t1081
-  -> t984
+  => IsSymbol action
+  => Number
+  -> proxy action
+  -> String
+  -> ({ id :: String | r } -> AudioParameter)
+  -> Tumultuous n terminus inputs
+  -> Number
 numericTumult dflt pxy idd fnc = fromMaybe dflt
   <<< flip A.index 0
   <<< filterMap
@@ -1320,8 +1313,11 @@ numericTumult dflt pxy idd fnc = fromMaybe dflt
         <<< map
           ( fnc
               >>> unwrap
-              >>> _.param
-              >>> VM.maybe Nothing Just
+              >>> match
+                { singleNumber: Just <<< _.param <<< unwrap
+                , cancellation: const Nothing
+                , envelope: const Nothing
+                }
           )
         <<< filter (eq idd <<< _.id)
         <<< prj pxy
