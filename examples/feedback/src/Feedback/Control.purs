@@ -13,6 +13,8 @@ import Halogen.HTML as HH
 import Halogen.Svg.Attributes (Color(..))
 import Halogen.Svg.Attributes as SA
 import Halogen.Svg.Elements as SE
+import Feedback.Types (Instructions)
+
 
 data T2 = T2_0 | T2_1
 data T3 = T3_0 | T3_1 | T3_2
@@ -35,72 +37,6 @@ data Control
 
 plainc = RGB 100 100 100 :: Color
 focusc = RGB 10 10 10 :: Color
-
--- SYNTH 1
--- 3 config of oscillators
--- 1 config of pitch (multiswitch)
-type Instructions (a :: Type) =
-  ( triggerPad :: a
-  , togglePadOsc0 :: a
-  , togglePadOsc1 :: a
-  , togglePadOsc2 :: a
-  , togglePadOsc3 :: a
-  , togglePadOsc4 :: a
-  , detunePad :: a
-  , gainLFO0Pad :: a
-  , gainLFO1Pad :: a
-  , filterBankChooserPad :: a
-  , waveshaperPad :: a
-  , triggerLead :: a
-  , synthForLead :: a
-  , pitchLead :: a
-  , nPitchesPlayedLead :: a
-  , envelopeLead :: a
-  , octaveLead :: a
-  , leadDelayLine0 :: a
-  , leadDelayLine1 :: a
-  , leadDelayLine2 :: a
-  , leadCombinedDelay0 :: a
-  , leadDelayGainCarousel :: a
-  , drone :: a
-  , droneChooser :: a
-  , droneLowpass0Q :: a
-  , droneBandpass0Q :: a
-  , droneBandpass0LFO :: a
-  , droneBandpass1Q :: a
-  , droneBandpass1LFO :: a
-  , droneHighpass0Q :: a
-  , droneHighpass0LFO :: a
-  , droneActivationEnergyThreshold :: a
-  , droneRhythmicLoopingPiecewiseFunction :: a
-  , droneDecay :: a
-  , droneFlange :: a
-  , sampleOneShot :: a
-  , sampleReverse :: a
-  , sampleChooser :: a
-  , sampleRateChange :: a
-  , sampleChorusEffect :: a
-  , sampleDelayLine0 :: a
-  , sampleDelayLine1 :: a
-  , sampleDelayLine2 :: a
-  , sampleCombinedDelayLine0 :: a
-  , sampleDelayGainCarousel :: a
-  , leadSampleDelayLine0 :: a
-  , leadSampleDelayLine1 :: a
-  , leadSampleDelayLine2 :: a
-  , loopingBufferStartEndConstriction :: a
-  , loopingBufferGainDJ :: a
-  , loopingBuffer0 :: a
-  , loopingBuffer1 :: a
-  , loopingBuffer2 :: a
-  , loopingBuffer3 :: a
-  , loopingBuffer4 :: a
-  , radicalFlip :: a
-  , greatAndMightyPan :: a
-  , globalDelay :: a
-  , echoingUncontrollableSingleton :: a
-  , distantBellsFader :: a
-  )
 
 elts :: { | Instructions Control }
 elts =
@@ -141,7 +77,7 @@ elts =
   -- combined delay line for the lead synth
   , leadCombinedDelay0: T2 (Rect 300 0 60 60) focusc T2_0
   -- shifts intensities of delays
-  , leadDelayGainCarousel: T2 (Rect 590 590 410 100) focusc T2_0
+  , leadDelayGainCarousel: Slider (Rect 590 590 410 100) focusc 0.0
   -- n pitches played when pressed (fixed sequence always based on start)
   , nPitchesPlayedLead: DiscreteChooser (Rect 90 300 90 390) focusc 6 0
   -- one of three envelopes
@@ -157,7 +93,7 @@ elts =
   -- q of bandpass filter
   , droneBandpass0Q: Slider (Rect 0 940 300 60) focusc 0.0
   -- lfo controlling freq of bandpass
-  , droneBandpass0LFO: T2 (Rect 520 60 70 240) focusc T2_0
+  , droneBandpass0LFO: Slider (Rect 520 60 70 240) focusc 0.0
   -- q of bandpass filter
   , droneBandpass1Q: Slider (Rect 930 690 70 310) focusc 0.0
   -- lfo of bandpass filter

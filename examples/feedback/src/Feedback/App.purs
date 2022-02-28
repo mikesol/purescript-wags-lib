@@ -22,7 +22,10 @@ import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
 import Effect.Class.Console as Log
 import FRP.Event (subscribe)
+import Feedback.Control (c2s, elts)
 import Feedback.Engine (piece)
+import Feedback.PubNub (pubnubEvent)
+import Feedback.Types (World, Res, Acc)
 import Foreign.Object (fromHomogeneous, values)
 import Halogen (ClassName(..))
 import Halogen as H
@@ -38,10 +41,8 @@ import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (OversampleTwoX, TBandpass, TDelay, TGain, THighpass, TLoopBuf, TLowpass, TPlayBuf, TSinOsc, TSpeaker, TStereoPanner, TWaveShaper)
 import WAGS.Interpret (close, context, makeFFIAudioSnapshot)
 import WAGS.Patch (ipatch)
-import WAGS.Run (BehavingRun, BehavingScene(..), RunAudio, RunEngine, run)
+import WAGS.Run (BehavingRun, BehavingScene(..), RunAudio, RunEngine, TriggeredRun, run, runNoLoop)
 import WAGS.WebAPI (AudioContext)
-import Feedback.Control (c2s, elts)
-import Feedback.Types (World, Res, Acc)
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =
@@ -91,19 +92,15 @@ render _ =
 handleAction :: forall output m. MonadEffect m => MonadAff m => Action -> H.HalogenM State Action () output m Unit
 handleAction = case _ of
   StartAudio -> do
+    pne <- H.liftEffect pubnubEvent
     handleAction StopAudio
     audioCtx <- H.liftEffect context
     ffiAudio <- H.liftEffect $ makeFFIAudioSnapshot audioCtx
     unsubscribe <-
       H.liftEffect
         $ subscribe
-            ( run (pure mempty)
-                (pure mempty)
-                { easingAlgorithm }
-                ffiAudio
-                piece
-            )
-            (\({ res } :: BehavingRun Res ()) -> Log.info $ show res)
+            (runNoLoop (fst pne) (pure mempty) {} ffiAudio piece)
+            (\({ res } :: TriggeredRun Res ()) -> Log.info $ show res)
     H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
   StopAudio -> do
     { unsubscribe, audioCtx } <- H.get
