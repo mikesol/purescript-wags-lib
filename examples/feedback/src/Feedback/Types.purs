@@ -122,7 +122,7 @@ instance fromJsonBang :: JSON.ReadForeign Bang where
   readImpl = const $ unsafeCoerce undefined
 
 
-type PadT = { time :: Number, switch :: Boolean }
+type PadT = ZeroToOne
 type SliderT = ZeroToOne
 --
 type TriggerPad = PadT
