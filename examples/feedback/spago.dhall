@@ -11,6 +11,8 @@ in      conf
               , "behaviors"
               , "console"
               , "effect"
+              , "foreign"
+              , "simple-json"
               , "record"
               , "event"
               , "foreign-object"

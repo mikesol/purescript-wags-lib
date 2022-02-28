@@ -23,6 +23,7 @@ import Effect.Class (class MonadEffect)
 import Effect.Class.Console as Log
 import FRP.Event (subscribe)
 import Feedback.FullGraph (FullGraph)
+import Feedback.Types (Trigger, World, Res, Acc)
 import Foreign.Object (fromHomogeneous, values)
 import Halogen (ClassName(..))
 import Halogen as H
@@ -32,26 +33,19 @@ import Halogen.Svg.Attributes (Color(..))
 import Halogen.Svg.Attributes as SA
 import Halogen.Svg.Elements as SE
 import WAGS.Change (ichange)
---import WAGS.Control.Functions.Graph (iloop, (@!>))
--- slightly faster? disable if graph changes
 import WAGS.Control.Functions (iloop, (@!>))
 import WAGS.Control.Indexed (IxWAG)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (OversampleTwoX, TBandpass, TDelay, TGain, THighpass, TLoopBuf, TLowpass, TPlayBuf, TSinOsc, TSpeaker, TStereoPanner, TWaveShaper)
 import WAGS.Interpret (close, context, makeFFIAudioSnapshot)
 import WAGS.Patch (ipatch)
-import WAGS.Run (RunAudio, RunEngine, BehavingScene(..), run)
+import Feedback.Oracle (oracle)
+import Feedback.Acc (initialAcc)
+import WAGS.Run (RunAudio, RunEngine, TriggeredScene)
 import WAGS.WebAPI (AudioContext)
-import Feedback.Types (Trigger, World, Res, Acc)
 
-createFrame :: BehavingScene Trigger World () -> IxWAG RunAudio RunEngine Frame0 Res () FullGraph Acc
-createFrame = \(BehavingScene {}) ->
-  ( ipatch { microphone: empty, mediaElement: empty }
-      :*> (ichange {} $> mempty)
-  )
+createFrame :: TriggeredScene Trigger World () -> IxWAG RunAudio RunEngine Frame0 Res () FullGraph Acc
+createFrame = const $ (ipatch { microphone: empty, mediaElement: empty } $> initialAcc)
 
-piece :: Scene (BehavingScene Trigger World ()) RunAudio RunEngine Frame0 Res
-piece =
-  createFrame
-    @!> iloop \(BehavingScene { time, headroomInSeconds }) a ->
-      ichange {} $> mempty
+piece :: Scene (TriggeredScene Trigger World ()) RunAudio RunEngine Frame0 Res
+piece = createFrame @!> iloop oracle

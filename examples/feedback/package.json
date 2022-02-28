@@ -24,5 +24,9 @@
     "start": "webpack serve --mode=development",
     "build": "webpack",
     "clean": "rm -rf node_modules && rm -rf .spago && rm -rf output"
+  },
+  "dependencies": {
+    "pubnub": "^5.0.0",
+    "uuid": "^8.3.2"
   }
 }
