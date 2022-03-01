@@ -94,6 +94,7 @@ instance fromJsonZeroToOne :: JSON.ReadForeign ZeroToOne where
 foreign import onElts :: forall n a. Vec n a -> Elts n -> a
 
 newtype Elts (t :: Type) = Elts Int
+
 derive instance newtypeElts :: Newtype (Elts n) _
 instance toJSONElts :: JSON.WriteForeign (Elts n) where
   writeImpl = unwrap >>> writeImpl
@@ -123,7 +124,6 @@ instance toJsonBang :: JSON.WriteForeign Bang where
 
 instance fromJsonBang :: JSON.ReadForeign Bang where
   readImpl = const $ unsafeCoerce undefined
-
 
 type PadT = ZeroToOne
 type SliderT = ZeroToOne
@@ -189,12 +189,21 @@ type GlobalDelay = Elts D2
 type EchoingUncontrollableSingleton = Elts D2
 type DistantBellsFader = SliderT
 
-newtype Trigger = Trigger (Variant (AllEvents TriggerPad TogglePadOsc0 TogglePadOsc1 TogglePadOsc2 TogglePadOsc3 TogglePadOsc4 DetunePad GainLFO0Pad GainLFO1Pad FilterBankChooserPad WaveshaperPad TriggerLead SynthForLead PitchLead NPitchesPlayedLead EnvelopeLead OctaveLead LeadDelayLine0 LeadDelayLine1 LeadDelayLine2 LeadCombinedDelay0 LeadDelayGainCarousel Drone DroneChooser DroneLowpass0Q DroneBandpass0Q DroneBandpass0LFO DroneBandpass1Q DroneBandpass1LFO DroneHighpass0Q DroneHighpass0LFO DroneActivationEnergyThreshold DroneRhythmicLoopingPiecewiseFunction DroneDecay DroneFlange SampleOneShot SampleReverse SampleChooser SampleRateChange SampleChorusEffect SampleDelayLine0 SampleDelayLine1 SampleDelayLine2 SampleCombinedDelayLine0 SampleDelayGainCarousel LeadSampleDelayLine0 LeadSampleDelayLine1 LeadSampleDelayLine2 LoopingBufferStartEndConstriction LoopingBufferGainDJ LoopingBuffer0 LoopingBuffer1 LoopingBuffer2 LoopingBuffer3 LoopingBuffer4 RadicalFlip GreatAndMightyPan GlobalDelay EchoingUncontrollableSingleton DistantBellsFader))
+newtype IncomingEvent = IncomingEvent
+  ( Variant (AllEvents TriggerPad TogglePadOsc0 TogglePadOsc1 TogglePadOsc2 TogglePadOsc3 TogglePadOsc4 DetunePad GainLFO0Pad GainLFO1Pad FilterBankChooserPad WaveshaperPad TriggerLead SynthForLead PitchLead NPitchesPlayedLead EnvelopeLead OctaveLead LeadDelayLine0 LeadDelayLine1 LeadDelayLine2 LeadCombinedDelay0 LeadDelayGainCarousel Drone DroneChooser DroneLowpass0Q DroneBandpass0Q DroneBandpass0LFO DroneBandpass1Q DroneBandpass1LFO DroneHighpass0Q DroneHighpass0LFO DroneActivationEnergyThreshold DroneRhythmicLoopingPiecewiseFunction DroneDecay DroneFlange SampleOneShot SampleReverse SampleChooser SampleRateChange SampleChorusEffect SampleDelayLine0 SampleDelayLine1 SampleDelayLine2 SampleCombinedDelayLine0 SampleDelayGainCarousel LeadSampleDelayLine0 LeadSampleDelayLine1 LeadSampleDelayLine2 LoopingBufferStartEndConstriction LoopingBufferGainDJ LoopingBuffer0 LoopingBuffer1 LoopingBuffer2 LoopingBuffer3 LoopingBuffer4 RadicalFlip GreatAndMightyPan GlobalDelay EchoingUncontrollableSingleton DistantBellsFader)
+  )
+
+newtype Trigger = Trigger
+  ( Variant
+      ( thunk :: Unit
+      , event :: IncomingEvent
+      )
+  )
 
 type World = {}
 type Res = {}
 type Acc = {}
 
-derive instance newtypeTrigger :: Newtype Trigger _
-derive newtype instance toJSONTrigger :: JSON.ReadForeign Trigger
-derive newtype instance fromJSONTrigger :: JSON.WriteForeign Trigger
+derive instance newtypeTrigger :: Newtype IncomingEvent _
+derive newtype instance toJSONTrigger :: JSON.ReadForeign IncomingEvent
+derive newtype instance fromJSONTrigger :: JSON.WriteForeign IncomingEvent

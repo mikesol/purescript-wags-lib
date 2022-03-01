@@ -3,7 +3,7 @@ module Feedback.FullGraph where
 import Prelude
 
 import Data.Tuple.Nested (type (/\))
-import WAGS.Graph.AudioUnit (OversampleTwoX, TBandpass, TDelay, TGain, THighpass, TLoopBuf, TLowpass, TPlayBuf, TSinOsc, TSpeaker, TStereoPanner, TWaveShaper)
+import WAGS.Graph.AudioUnit (OversampleTwoX, TBandpass, TDelay, TGain, THighpass, TLoopBuf, TLowpass, TPeriodicOsc(..), TPlayBuf, TSawtoothOsc(..), TSinOsc, TSpeaker, TSquareOsc(..), TStereoPanner, TTriangleOsc(..), TWaveShaper)
 
 type FullGraph =
   ( speaker :: TSpeaker /\ { mainFader :: Unit }
@@ -99,19 +99,24 @@ type FullGraph =
         , padSource3 :: Unit
         , padSource4 :: Unit
         }
-  , padSource0 :: TGain /\ { padSource0Pan :: Unit }
+  , padSource0 :: TGain /\ { padSource0LFO :: Unit }
+  , padSource0LFO :: TGain /\ { padSource0Pan :: Unit }
   , padSource0Pan :: TStereoPanner /\ { padSource0Osc :: Unit }
-  , padSource0Osc :: TSinOsc /\ {}
-  , padSource1 :: TGain /\ { padSource1Pan :: Unit }
+  , padSource0Osc :: TPeriodicOsc /\ {}
+  , padSource1 :: TGain /\ { padSource1LFO :: Unit }
+  , padSource1LFO :: TGain /\ { padSource1Pan :: Unit }
   , padSource1Pan :: TStereoPanner /\ { padSource1Osc :: Unit }
-  , padSource1Osc :: TSinOsc /\ {}
-  , padSource2 :: TGain /\ { padSource2Pan :: Unit }
+  , padSource1Osc :: TTriangleOsc /\ {}
+  , padSource2 :: TGain /\ { padSource2LFO :: Unit }
+  , padSource2LFO :: TGain /\ { padSource2Pan :: Unit }
   , padSource2Pan :: TStereoPanner /\ { padSource2Osc :: Unit }
-  , padSource2Osc :: TSinOsc /\ {}
-  , padSource3 :: TGain /\ { padSource3Pan :: Unit }
+  , padSource2Osc :: TSawtoothOsc /\ {}
+  , padSource3 :: TGain /\ { padSource3LFO :: Unit }
+  , padSource3LFO :: TGain /\ { padSource3Pan :: Unit }
   , padSource3Pan :: TStereoPanner /\ { padSource3Osc :: Unit }
-  , padSource3Osc :: TSinOsc /\ {}
-  , padSource4 :: TGain /\ { padSource4Pan :: Unit }
+  , padSource3Osc :: TSquareOsc /\ {}
+  , padSource4 :: TGain /\ { padSource4LFO :: Unit }
+  , padSource4LFO :: TGain /\ { padSource4Pan :: Unit }
   , padSource4Pan :: TStereoPanner /\ { padSource4Osc :: Unit }
   , padSource4Osc :: TSinOsc /\ {}
   -- drone

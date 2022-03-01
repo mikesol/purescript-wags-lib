@@ -2,6 +2,7 @@ module Feedback.App where
 
 import Prelude
 
+import Control.Alt ((<|>))
 import Control.Comonad.Cofree (Cofree, mkCofree)
 import Control.Monad.Indexed ((:*>))
 import Control.Plus (empty)
@@ -15,17 +16,21 @@ import Data.Traversable (for_)
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested (type (/\), (/\))
 import Data.Typelevel.Num (D60)
+import Data.Variant (inj)
 import Data.Vec (Vec, (+>))
 import Data.Vec as V
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
 import Effect.Class.Console as Log
-import FRP.Event (subscribe)
+import FRP.Event (Event, subscribe)
+import Feedback.Acc (initialAcc)
 import Feedback.Control (c2s, elts)
 import Feedback.Engine (piece)
-import Feedback.PubNub (pubnubEvent)
-import Feedback.Types (World, Res, Acc)
+import Feedback.Oracle (oracle)
+import Feedback.PubNub (PubNub, pubnubEvent)
+import Feedback.Setup (setup)
+import Feedback.Types (Acc, IncomingEvent(..), Res, Trigger(..), World)
 import Foreign.Object (fromHomogeneous, values)
 import Halogen (ClassName(..))
 import Halogen as H
@@ -34,6 +39,7 @@ import Halogen.HTML.Properties as HP
 import Halogen.Svg.Attributes (Color(..))
 import Halogen.Svg.Attributes as SA
 import Halogen.Svg.Elements as SE
+import Type.Proxy (Proxy(..))
 import WAGS.Change (ichange)
 import WAGS.Control.Functions.Graph (iloop, (@!>))
 import WAGS.Control.Indexed (IxWAG)
@@ -61,12 +67,12 @@ data Action
   = StartAudio
   | StopAudio
 
-component :: forall query input output m. MonadEffect m => MonadAff m => H.Component query input output m
-component =
+component :: forall query input output m. MonadEffect m => MonadAff m => Event IncomingEvent -> PubNub -> H.Component query input output m
+component event pubnub =
   H.mkComponent
     { initialState
     , render
-    , eval: H.mkEval $ H.defaultEval { handleAction = handleAction }
+    , eval: H.mkEval $ H.defaultEval { handleAction = handleAction event pubnub }
     }
 
 initialState :: forall input. input -> State
@@ -89,17 +95,26 @@ render _ =
         (join $ map c2s $ values $ fromHomogeneous elts)
     ]
 
-handleAction :: forall output m. MonadEffect m => MonadAff m => Action -> H.HalogenM State Action () output m Unit
-handleAction = case _ of
+handleAction :: forall output m. MonadEffect m => MonadAff m => Event IncomingEvent -> PubNub -> Action -> H.HalogenM State Action () output m Unit
+handleAction event pubnub = case _ of
   StartAudio -> do
-    pne <- H.liftEffect pubnubEvent
-    handleAction StopAudio
+    handleAction event pubnub StopAudio
     audioCtx <- H.liftEffect context
     ffiAudio <- H.liftEffect $ makeFFIAudioSnapshot audioCtx
     unsubscribe <-
       H.liftEffect
         $ subscribe
-            (runNoLoop (fst pne) (pure mempty) {} ffiAudio piece)
+            ( runNoLoop
+                ( Trigger <$>
+                    ( (inj (Proxy :: _ "event") <$> event)
+                        <|> (pure $ inj (Proxy :: _ "thunk") unit)
+                    )
+                )
+                (pure mempty)
+                {}
+                ffiAudio
+                (piece initialAcc setup oracle)
+            )
             (\({ res } :: TriggeredRun Res ()) -> Log.info $ show res)
     H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
   StopAudio -> do

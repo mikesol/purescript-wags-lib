@@ -48,9 +48,9 @@ elts =
   , togglePadOsc1: T2 (Rect 540 940 60 60) focusc T2_0
   -- sawtooth wave in mix
   , togglePadOsc2: T2 (Rect 270 690 60 60) focusc T2_0
-  -- high sine in mix
-  , togglePadOsc3: T2 (Rect 0 60 60 60) focusc T2_0
   -- square in mix
+  , togglePadOsc3: T2 (Rect 0 60 60 60) focusc T2_0
+  -- high sine in mix
   , togglePadOsc4: T2 (Rect 420 940 60 60) focusc T2_0
   -- three detuning factors + "normal" harmonic series
   , detunePad: T4 (Rect 800 690 130 100) focusc T4_0

@@ -23,7 +23,7 @@ import Effect.Class (class MonadEffect)
 import Effect.Class.Console as Log
 import FRP.Event (subscribe)
 import Feedback.FullGraph (FullGraph)
-import Feedback.Types (Trigger, World, Res, Acc)
+import Feedback.Types (Trigger, World, Res)
 import Foreign.Object (fromHomogeneous, values)
 import Halogen (ClassName(..))
 import Halogen as H
@@ -33,19 +33,27 @@ import Halogen.Svg.Attributes (Color(..))
 import Halogen.Svg.Attributes as SA
 import Halogen.Svg.Elements as SE
 import WAGS.Change (ichange)
-import WAGS.Control.Functions (iloop, (@!>))
+import WAGS.Control.Functions.Graph (iloop, (@!>))
 import WAGS.Control.Indexed (IxWAG)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (OversampleTwoX, TBandpass, TDelay, TGain, THighpass, TLoopBuf, TLowpass, TPlayBuf, TSinOsc, TSpeaker, TStereoPanner, TWaveShaper)
 import WAGS.Interpret (close, context, makeFFIAudioSnapshot)
 import WAGS.Patch (ipatch)
-import Feedback.Oracle (oracle)
-import Feedback.Acc (initialAcc)
 import WAGS.Run (RunAudio, RunEngine, TriggeredScene)
 import WAGS.WebAPI (AudioContext)
 
-createFrame :: TriggeredScene Trigger World () -> IxWAG RunAudio RunEngine Frame0 Res () FullGraph Acc
-createFrame = const $ (ipatch { microphone: empty, mediaElement: empty } $> initialAcc)
+createFrame :: IxWAG RunAudio RunEngine Frame0 Res () FullGraph Unit
+createFrame = ipatch { microphone: empty, mediaElement: empty }
 
-piece :: Scene (TriggeredScene Trigger World ()) RunAudio RunEngine Frame0 Res
-piece = createFrame @!> iloop oracle
+-- we inject oracle and initial acc to avoid rebuilding the engine whenever we change these
+piece
+  :: forall acc
+  . acc
+  -> (forall proof. IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit)
+  -> ( forall proof
+        . TriggeredScene Trigger World ()
+       -> acc
+       -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph acc
+     )
+  -> Scene (TriggeredScene Trigger World ()) RunAudio RunEngine Frame0 Res
+piece initialAcc setup oracle = (const (createFrame :*> (setup $> initialAcc))) @!> iloop oracle
