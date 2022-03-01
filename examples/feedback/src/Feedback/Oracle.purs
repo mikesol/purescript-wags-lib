@@ -103,9 +103,6 @@ gainLFO1Pad (ZeroToOne n) = ichange
       }
   }
 
-flaaap :: forall f g a b. Functor f => Functor g => f (g (a -> b)) -> a -> f (g b)
-flaaap ff x = map (\f -> map (\g -> g x) f) ff
-
 -- todo: ugh, singleNumber is a hack
 -- change should be overloaded to handle that natively
 filterBankChooserPad :: ChangeSig (Elts D5)
@@ -113,7 +110,7 @@ filterBankChooserPad = ichange
   <<< fromHomogeneous
   <<< map fromHomogeneous
   <<< (map <<< map) singleNumber
-  <<< flaaap
+  <<< flip (map <<< flip flap)
     ( (map <<< map) (flip cyclingTransitions C.detuneDuration) $ homogeneous
         { padFilter0: homogeneous
             { freq: C.padFilter0Freq +> C.padFilter0Freq +> C.padFilter0Freq +> C.padFilter0Freq +> C.padFilter0Freq +> empty
