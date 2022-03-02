@@ -16,8 +16,10 @@ import Halogen (ClassName(..))
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
+import Record (union)
 import Type.Proxy (Proxy(..))
-import WAGS.Interpret (context, decodeAudioDataFromUri)
+import WAGS.Interpret (context, close, decodeAudioDataFromUri)
+import WAGS.Lib.Tidal.Download (reverseAudioBuffer)
 
 type State =
   { event :: Event IncomingEvent
@@ -25,8 +27,7 @@ type State =
   , buffers :: Maybe Buffers
   }
 
-data Action
-  = Initialize
+data Action = Initialize
 
 component :: forall query input output m. MonadEffect m => MonadAff m => Event IncomingEvent -> PubNub -> H.Component query input output m
 component event pubnub =
@@ -49,13 +50,13 @@ render :: forall m. MonadEffect m => MonadAff m => State -> H.ComponentHTML Acti
 render { pubnub, event, buffers } =
   HH.div [ HP.classes $ map ClassName [ "w-screen", "h-screen" ] ] $
     maybe
-    [ HH.text "Loading" ]
-    ( append []
-        <<< pure
-        <<< flip (HH.slot_ _svg unit) unit
-        <<< InnerComponent.component event pubnub
-    )
-    buffers
+      [ HH.text "Loading" ]
+      ( append []
+          <<< pure
+          <<< flip (HH.slot_ _svg unit) unit
+          <<< InnerComponent.component event pubnub
+      )
+      buffers
 
 handleAction :: forall output m. MonadEffect m => MonadAff m => Action -> H.HalogenM State Action Slots output m Unit
 handleAction = case _ of
@@ -63,108 +64,160 @@ handleAction = case _ of
     audioCtx <- H.liftEffect context
     buffers <-
       H.liftAff
-        $ map fromHomogeneous
-        $ (map <<< map) fromHomogeneous
         $ sequential
-        $ sequence
-        $ (map <<< traverse) (parallel <<< decodeAudioDataFromUri audioCtx)
-        $ map homogeneous
-        $ homogeneous
-            { synth0:
-                { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
-                , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
-                , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
-                , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
-                , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
-                , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
-                , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
-                , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
-                , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
-                , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
-                , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
-                , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
-                , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
-                , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
-                }
-            , synth1:
-                { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
-                , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
-                , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
-                , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
-                , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
-                , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
-                , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
-                , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
-                , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
-                , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
-                , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
-                , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
-                , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
-                , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
-                }
-            , synth2:
-                { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
-                , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
-                , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
-                , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
-                , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
-                , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
-                , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
-                , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
-                , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
-                , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
-                , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
-                , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
-                , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
-                , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
-                }
-            , synth3:
-                { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
-                , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
-                , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
-                , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
-                , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
-                , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
-                , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
-                , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
-                , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
-                , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
-                , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
-                , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
-                , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
-                , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
-                }
-            , synth4:
-                { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
-                , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
-                , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
-                , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
-                , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
-                , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
-                , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
-                , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
-                , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
-                , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
-                , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
-                , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
-                , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
-                , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
-                }
-            , synth5:
-                { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
-                , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
-                , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
-                , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
-                , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
-                , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
-                , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
-                , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
-                , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
-                , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
-                , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
-                , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
-                , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
-                , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
-                }
-            }
-    H.modify_ (_ { buffers = Just buffers })
+        $
+          ( { synths: _, drones: _, oneShots: _ }
+              <$>
+                ( map fromHomogeneous
+                    $ (map <<< map) fromHomogeneous
+                    $ sequence
+                    $ (map <<< traverse) (parallel <<< decodeAudioDataFromUri audioCtx)
+                    $ map homogeneous
+                    $ homogeneous
+                        { synth0:
+                            { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                            , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
+                            , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
+                            , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
+                            , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
+                            , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
+                            , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
+                            , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
+                            , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
+                            , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
+                            , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
+                            , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
+                            , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
+                            , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
+                            }
+                        , synth1:
+                            { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                            , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
+                            , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
+                            , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
+                            , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
+                            , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
+                            , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
+                            , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
+                            , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
+                            , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
+                            , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
+                            , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
+                            , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
+                            , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
+                            }
+                        , synth2:
+                            { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                            , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
+                            , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
+                            , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
+                            , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
+                            , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
+                            , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
+                            , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
+                            , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
+                            , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
+                            , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
+                            , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
+                            , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
+                            , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
+                            }
+                        , synth3:
+                            { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                            , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
+                            , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
+                            , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
+                            , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
+                            , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
+                            , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
+                            , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
+                            , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
+                            , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
+                            , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
+                            , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
+                            , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
+                            , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
+                            }
+                        , synth4:
+                            { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                            , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
+                            , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
+                            , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
+                            , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
+                            , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
+                            , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
+                            , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
+                            , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
+                            , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
+                            , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
+                            , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
+                            , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
+                            , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
+                            }
+                        , synth5:
+                            { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                            , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
+                            , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
+                            , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
+                            , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
+                            , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
+                            , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
+                            , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
+                            , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
+                            , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
+                            , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
+                            , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
+                            , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
+                            , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
+                            }
+                        }
+                )
+              <*>
+                ( map fromHomogeneous
+                    $ traverse (parallel <<< decodeAudioDataFromUri audioCtx)
+                    $ homogeneous
+                        { d0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , d1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
+                        , d2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
+                        , d3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
+                        , d4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
+                        }
+                )
+              <*>
+                ( map fromHomogeneous
+                    $ traverse (parallel <<< decodeAudioDataFromUri audioCtx)
+                    $ homogeneous
+                        { o0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o1: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o2: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o3: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o4: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o5: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o6: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o7: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o8: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o9: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o10: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o11: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o12: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o13: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o14: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o15: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o16: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o17: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o18: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o19: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o20: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o21: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o22: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , o23: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        }
+                )
+          )
+    oneShotsBackwards <- H.liftEffect $ map fromHomogeneous $ traverse (reverseAudioBuffer audioCtx) $ homogeneous buffers.oneShots
+    H.liftEffect $ close audioCtx
+    H.modify_
+      ( _
+          { buffers = Just (union buffers { oneShotsBackwards })
+          }
+      )

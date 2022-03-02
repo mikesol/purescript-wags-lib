@@ -132,7 +132,7 @@ instance toJsonBang :: JSON.WriteForeign Bang where
 instance fromJsonBang :: JSON.ReadForeign Bang where
   readImpl = const $ unsafeCoerce undefined
 
-type PadT = ZeroToOne
+type PadT = { v :: ZeroToOne, ud :: Boolean }
 type SliderT = ZeroToOne
 --
 type TriggerPad = PadT
@@ -224,13 +224,53 @@ type Synths =
   , p13 :: BrowserAudioBuffer
   }
 
+type Drones =
+  { d0 :: BrowserAudioBuffer
+  , d1 :: BrowserAudioBuffer
+  , d2 :: BrowserAudioBuffer
+  , d3 :: BrowserAudioBuffer
+  , d4 :: BrowserAudioBuffer
+  }
+
+type OneShots =
+  { o0 :: BrowserAudioBuffer
+  , o1 :: BrowserAudioBuffer
+  , o2 :: BrowserAudioBuffer
+  , o3 :: BrowserAudioBuffer
+  , o4 :: BrowserAudioBuffer
+  , o5 :: BrowserAudioBuffer
+  , o6 :: BrowserAudioBuffer
+  , o7 :: BrowserAudioBuffer
+  , o8 :: BrowserAudioBuffer
+  , o9 :: BrowserAudioBuffer
+  , o10 :: BrowserAudioBuffer
+  , o11 :: BrowserAudioBuffer
+  , o12 :: BrowserAudioBuffer
+  , o13 :: BrowserAudioBuffer
+  , o14 :: BrowserAudioBuffer
+  , o15 :: BrowserAudioBuffer
+  , o16 :: BrowserAudioBuffer
+  , o17 :: BrowserAudioBuffer
+  , o18 :: BrowserAudioBuffer
+  , o19 :: BrowserAudioBuffer
+  , o20 :: BrowserAudioBuffer
+  , o21 :: BrowserAudioBuffer
+  , o22 :: BrowserAudioBuffer
+  , o23 :: BrowserAudioBuffer
+  }
+
 type Buffers =
-  { synth0 :: Synths
-  , synth1 :: Synths
-  , synth2 :: Synths
-  , synth3 :: Synths
-  , synth4 :: Synths
-  , synth5 :: Synths
+  { synths ::
+      { synth0 :: Synths
+      , synth1 :: Synths
+      , synth2 :: Synths
+      , synth3 :: Synths
+      , synth4 :: Synths
+      , synth5 :: Synths
+      }
+  , drones :: Drones
+  , oneShots :: OneShots
+  , oneShotsBackwards :: OneShots
   }
 
 type World =
@@ -245,6 +285,8 @@ derive newtype instance fromJSONTrigger :: JSON.WriteForeign IncomingEvent
 
 data LeadSynth = Synth0 | Synth1 | Synth2 | Synth3 | Synth4 | Synth5
 data PitchSynth = P0 | P1 | P2 | P3 | P4 | P5 | P6 | P7 | P8 | P9 | P10 | P11 | P12 | P13
+data WhichSample = Sm0 | Sm1 | Sm2 | Sm3 | Sm4 | Sm5 | Sm6 | Sm7 | Sm8 | Sm9 | Sm10 | Sm11 | Sm12 | Sm13 | Sm14 | Sm15 | Sm16 | Sm17 | Sm18 | Sm19 | Sm20 | Sm21 | Sm22 | Sm23
+data SampleRate = Sr0 | Sr1 | Sr2
 data EnvelopeType = Env0 | Env1 | Env2
 data OctaveType = Oct0 | Oct1 | Oct2
 
@@ -256,6 +298,14 @@ type TriggerLeadInfo =
   , buffers :: Buffers
   , envType :: EnvelopeType
   , octaveLead :: OctaveType
+  }
+
+type TriggerOneShotInfo =
+  { sampleReverse :: Boolean
+  , sampleChooser :: WhichSample
+  , sampleChorusEffect :: Boolean
+  , sampleRateChange :: SampleRate
+  , buffers :: Buffers
   }
 
 newtype TriggerLeadNT = TriggerLeadNT
@@ -271,18 +321,45 @@ unTriggerLeadNT
   -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit
 unTriggerLeadNT (TriggerLeadNT f) = f
 
+newtype TriggerOneShotNT = TriggerOneShotNT
+  ( forall proof
+     . TriggerOneShotInfo
+    -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit
+  )
+
+unTriggerOneShotNT
+  :: TriggerOneShotNT
+  -> forall proof
+   . TriggerOneShotInfo
+  -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit
+unTriggerOneShotNT (TriggerOneShotNT f) = f
+
 type Acc =
   { triggerLead :: Cofree Identity TriggerLeadNT
+  , triggerOneShot :: Cofree Identity TriggerOneShotNT
   , synthPrefix :: LeadSynth
   , synthPitchProfile :: PitchSynth
   , nPitches :: Int
   , envType :: EnvelopeType
   , octaveLead :: OctaveType
+  , droneActivationEnergyThreshold :: ZeroToOne
+  , droneDecay :: ZeroToOne
   , leadDelayInfo ::
       { leadDelayLine0 :: Boolean
       , leadDelayLine1 :: Boolean
       , leadDelayLine2 :: Boolean
       , leadCombinedDelay0 :: Boolean
       , leadDelayGainCarousel :: ZeroToOne
+      }
+  , sampleReverse :: Boolean
+  , sampleChooser :: WhichSample
+  , sampleChorusEffect :: Boolean
+  , sampleRateChange :: SampleRate
+  , sampleDelayInfo ::
+      { sampleDelayLine0 :: Boolean
+      , sampleDelayLine1 :: Boolean
+      , sampleDelayLine2 :: Boolean
+      , sampleCombinedDelay0 :: Boolean
+      , sampleDelayGainCarousel :: ZeroToOne
       }
   }

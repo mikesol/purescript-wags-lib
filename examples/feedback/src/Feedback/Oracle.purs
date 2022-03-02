@@ -10,12 +10,12 @@ import Data.Array ((..))
 import Data.Foldable (foldl)
 import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
 import Data.Newtype (unwrap)
-import Data.Typelevel.Num (class Pos, D14, D2, D3, D4, D5, D6, D7)
+import Data.Typelevel.Num (class Pos, D14, D2, D3, D4, D5, D6, D7, D24)
 import Data.Variant (default, match, onMatch)
 import Data.Vec (Vec, empty, replicate', zipWithE, (+>))
 import Feedback.Constants as C
 import Feedback.FullGraph (FullGraph)
-import Feedback.Types (Acc, Bang, Elts(..), EnvelopeType(..), LeadSynth(..), OctaveType(..), PitchSynth(..), Res, Trigger(..), TriggerLeadInfo, World, ZeroToOne(..), onElts, unTriggerLeadNT, updateAtElt)
+import Feedback.Types (Acc, Bang, Elts(..), WhichSample(..), EnvelopeType(..), LeadSynth(..), OctaveType(..), PadT, PitchSynth(..), Res, SampleRate(..), Trigger(..), TriggerLeadInfo, World, ZeroToOne(..), onElts, unTriggerLeadNT, unTriggerOneShotNT, updateAtElt)
 import Math (sin, pi, pow)
 import Math as M
 import Type.Proxy (Proxy(..))
@@ -39,8 +39,8 @@ unChangeWrapper (ChangeWrapper x) = x
 
 type ChangeSig arg = arg -> TriggeredScene Trigger World () -> Acc -> ChangeWrapper
 
-triggerPad :: ChangeSig ZeroToOne
-triggerPad e _ a = ChangeWrapper (ichange' (Proxy :: _ "pad") (unwrap e) $> a)
+triggerPad :: ChangeSig PadT
+triggerPad { v } _ a = ChangeWrapper (ichange' (Proxy :: _ "pad") (unwrap v) $> a)
 
 togglePadOsc0 :: ChangeSig (Elts D2)
 togglePadOsc0 e _ a = ChangeWrapper
@@ -173,7 +173,6 @@ waveshaperPad (ZeroToOne n) _ a = ChangeWrapper
       } $> a
   )
 
--- 7.0 magic number
 triggerLead :: ChangeSig Bang
 triggerLead _ (TriggeredScene { world: { buffers } }) acc =
   ChangeWrapper o
@@ -326,8 +325,13 @@ octaveLead e _ a = ChangeWrapper
       }
   )
 
-drone :: ChangeSig ZeroToOne
-drone e _ a = ChangeWrapper (ichange' (Proxy :: _ "drone") (unwrap e) $> a)
+drone :: ChangeSig PadT
+drone { v, ud } _ a = ChangeWrapper
+  ( ichange' (Proxy :: _ "drone")
+      ( if ud then (unwrap v * (1.0 - 0.99 * unwrap a.droneActivationEnergyThreshold))
+        else ((unwrap v) `pow` (1.0 - unwrap a.droneDecay))
+      ) $> a
+  )
 
 droneSources :: forall proof. Vec D5 (Number -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit)
 droneSources = (\p -> ichange' (Proxy :: _ "droneSource0") (AudioSingleNumber { param: p, timeOffset: C.droneFade, transition: _linearRamp }))
@@ -388,6 +392,151 @@ droneHighpass0LFO (ZeroToOne n) _ a = ChangeWrapper
       ) $> a
   )
 
+droneActivationEnergyThreshold :: ChangeSig ZeroToOne
+droneActivationEnergyThreshold n _ a = ChangeWrapper (ipure unit $> (a { droneActivationEnergyThreshold = n }))
+
+droneRhythmicLoopingPiecewiseFunction :: ChangeSig (Elts D5)
+droneRhythmicLoopingPiecewiseFunction n _ a = ChangeWrapper
+  ( ichange' (Proxy :: _ "dronePiecewiseGain")
+      ( AudioEnvelope
+          { duration: 10000.0 + (onElts (0.0 +> 1.0 +> 0.5 +> 0.25 +> 0.1 +> empty) n) * 15000.0
+          , timeOffset: C.lfoTimeOffset
+          , values: onElts (C.alwaysOpen +> C.longLFOU1 +> C.longLFOU2 +> C.longLFOU3 +> C.longLFOU3 +> empty) n
+          }
+      ) $> a
+  )
+
+droneDecay :: ChangeSig ZeroToOne
+droneDecay n _ a = ChangeWrapper (ipure unit $> (a { droneDecay = n }))
+
+droneFlange :: ChangeSig (Elts D2)
+droneFlange e _ a = ChangeWrapper
+  ( ichange' (Proxy :: _ "droneDelayed") (fadeIO C.droneFlangeVol C.droneFlangeFadeDuration e) $> a
+  )
+
+sampleOneShot :: ChangeSig Bang
+sampleOneShot _ (TriggeredScene { world: { buffers } }) acc =
+  ChangeWrapper o
+  where
+  o :: forall proof. IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Acc
+  o =
+    unTriggerOneShotNT (extract acc.triggerOneShot)
+      { sampleReverse: acc.sampleReverse
+      , sampleChooser: acc.sampleChooser
+      , sampleChorusEffect: acc.sampleChorusEffect
+      , sampleRateChange: acc.sampleRateChange
+      , buffers
+      } $> acc { triggerOneShot = unwrap $ unwrapCofree acc.triggerOneShot }
+
+sampleReverse :: ChangeSig (Elts D2)
+sampleReverse e _ a = ChangeWrapper
+  ( ipure unit $> a
+      { sampleReverse = onElts
+          (false +> true +> empty)
+          e
+      }
+  )
+
+sampleChooser :: ChangeSig (Elts D24)
+sampleChooser e _ a = ChangeWrapper
+  ( ipure unit $> a
+      { sampleChooser = onElts
+          ( Sm0
+              +> Sm1
+              +> Sm2
+              +> Sm3
+              +> Sm4
+              +> Sm5
+              +> Sm6
+              +> Sm7
+              +> Sm8
+              +> Sm9
+              +> Sm10
+              +> Sm11
+              +> Sm12
+              +> Sm13
+              +> Sm14
+              +> Sm15
+              +> Sm16
+              +> Sm17
+              +> Sm18
+              +> Sm19
+              +> Sm20
+              +> Sm21
+              +> Sm22
+              +> Sm23
+              +> empty
+          )
+          e
+      }
+  )
+
+sampleChorusEffect :: ChangeSig (Elts D2)
+sampleChorusEffect e _ a = ChangeWrapper
+  ( ipure unit $> a
+      { sampleChorusEffect = onElts
+          (false +> true +> empty)
+          e
+      }
+  )
+
+sampleRateChange :: ChangeSig (Elts D3)
+sampleRateChange e _ a = ChangeWrapper
+  ( ipure unit $> a
+      { sampleRateChange = onElts
+          (Sr0 +> Sr1 +> Sr2 +> empty)
+          e
+      }
+  )
+
+sampleDelayLine0 :: ChangeSig (Elts D2)
+sampleDelayLine0 e _ a = ChangeWrapper
+  ( ( ichange' (Proxy :: _ "smplrDelay0")
+        $ fadeIO (sliderToVal LeadDelay0 a.sampleDelayInfo.sampleDelayGainCarousel) C.sampleDelay0Duration e
+    ) $> a { sampleDelayInfo { sampleDelayLine0 = fauxBool e } }
+  )
+
+sampleDelayLine1 :: ChangeSig (Elts D2)
+sampleDelayLine1 e _ a = ChangeWrapper
+  ( ( ichange' (Proxy :: _ "smplrDelay1")
+        $ fadeIO (sliderToVal LeadDelay1 a.sampleDelayInfo.sampleDelayGainCarousel) C.sampleDelay1Duration e
+    ) $> a { sampleDelayInfo { sampleDelayLine1 = fauxBool e } }
+  )
+
+sampleDelayLine2 :: ChangeSig (Elts D2)
+sampleDelayLine2 e _ a = ChangeWrapper
+  ( ( ichange' (Proxy :: _ "smplrDelay2")
+        $ fadeIO (sliderToVal LeadDelay2 a.sampleDelayInfo.sampleDelayGainCarousel) C.sampleDelay2Duration e
+    ) $> a { sampleDelayInfo { sampleDelayLine2 = fauxBool e } }
+  )
+
+sampleCombinedDelayLine0 :: ChangeSig (Elts D2)
+sampleCombinedDelayLine0 e _ a = ChangeWrapper
+  ( ( ichange' (Proxy :: _ "smplrDelayCbnd")
+        $ fadeIO (sliderToVal LeadDelayCombined a.sampleDelayInfo.sampleDelayGainCarousel) C.sampleDelayCombinedDuration e
+    ) $> a { sampleDelayInfo { sampleCombinedDelay0 = fauxBool e } }
+  )
+
+sampleDelayGainCarousel :: ChangeSig ZeroToOne
+sampleDelayGainCarousel z _ a = ChangeWrapper do
+  CBNA.when (a.sampleDelayInfo.sampleDelayLine0)
+    ( \_ -> ichange' (Proxy :: _ "smplrDelay0")
+        $ AudioSingleNumber { param: sliderToVal LeadDelay0 z, timeOffset: C.sampleDelaySliderDuration, transition: _linearRamp }
+    )
+  CBNA.when (a.sampleDelayInfo.sampleDelayLine1)
+    ( \_ -> ichange' (Proxy :: _ "smplrDelay1")
+        $ AudioSingleNumber { param: sliderToVal LeadDelay1 z, timeOffset: C.sampleDelaySliderDuration, transition: _linearRamp }
+    )
+  CBNA.when (a.sampleDelayInfo.sampleDelayLine2)
+    ( \_ -> ichange' (Proxy :: _ "smplrDelay2")
+        $ AudioSingleNumber { param: sliderToVal LeadDelay2 z, timeOffset: C.sampleDelaySliderDuration, transition: _linearRamp }
+    )
+  CBNA.when (a.sampleDelayInfo.sampleCombinedDelay0)
+    ( \_ -> ichange' (Proxy :: _ "smplrDelayCbnd")
+        $ AudioSingleNumber { param: sliderToVal LeadDelayCombined z, timeOffset: C.sampleDelaySliderDuration, transition: _linearRamp }
+    )
+  pure (a { sampleDelayInfo { sampleDelayGainCarousel = z } })
+
 defaultChangeWrapper :: TriggeredScene Trigger World () -> Acc -> ChangeWrapper
 defaultChangeWrapper _ a = ChangeWrapper (ipure a)
 
@@ -432,6 +581,20 @@ oracle env@(TriggeredScene { trigger: (Trigger trigger) }) a =
           , droneBandpass1LFO
           , droneHighpass0Q
           , droneHighpass0LFO
+          , droneActivationEnergyThreshold
+          , droneRhythmicLoopingPiecewiseFunction
+          , droneDecay
+          , droneFlange
+          , sampleOneShot
+          , sampleReverse
+          , sampleChooser
+          , sampleChorusEffect
+          , sampleRateChange
+          , sampleDelayLine0
+          , sampleDelayLine1
+          , sampleDelayLine2
+          , sampleCombinedDelayLine0
+          , sampleDelayGainCarousel
           }
           (default defaultChangeWrapper)
         >>> (#) env

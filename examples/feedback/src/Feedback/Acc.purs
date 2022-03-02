@@ -3,13 +3,14 @@ module Feedback.Acc where
 import Prelude
 
 import Data.Array ((..))
+import CallByName.Applicative as CBNA
 import Data.Array.NonEmpty (NonEmptyArray, fromNonEmpty)
 import Data.Int (toNumber)
 import Data.List (List(..), (:))
 import Data.NonEmpty ((:|))
 import Data.Profunctor (lcmap)
 import Data.Tuple.Nested ((/\))
-import Feedback.Types (Acc, EnvelopeType(..), LeadSynth(..), OctaveType(..), PitchSynth(..), Synths, TriggerLeadInfo, TriggerLeadNT(..), ZeroToOne(..))
+import Feedback.Types (Acc, EnvelopeType(..), LeadSynth(..), OctaveType(..), PitchSynth(..), SampleRate(..), Synths, TriggerLeadInfo, TriggerLeadNT(..), TriggerOneShotInfo, TriggerOneShotNT(..), WhichSample(..), ZeroToOne(..))
 import WAGS.Change (ichange)
 import WAGS.Graph.Parameter (AudioEnvelope(..), AudioOnOff(..), AudioParameter, _offOn, envelope)
 import WAGS.Lib.Piecewise (simplePiecewise)
@@ -19,7 +20,7 @@ import WAGS.WebAPI (BrowserAudioBuffer)
 synth2prefix :: LeadSynth -> String
 synth2prefix = case _ of
   Synth0 -> "synth0"
-  Synth1 -> "snyth1"
+  Synth1 -> "synth1"
   Synth2 -> "synth2"
   Synth3 -> "synth3"
   Synth4 -> "synth4"
@@ -158,13 +159,13 @@ ps = case _ of
     6 -> _.p5
     _ -> _.p6
 
-makeBufferInstruction
+makeLeadBufferInstruction
   :: TriggerLeadInfo
   -> { onOff :: AudioOnOff
      , buffer :: BrowserAudioBuffer
      , playbackRate :: Number
      }
-makeBufferInstruction { n, nPitches, octaveLead, synthPitchProfile, synthPrefix, buffers } =
+makeLeadBufferInstruction { n, nPitches, octaveLead, synthPitchProfile, synthPrefix, buffers } =
   { onOff: AudioOnOff
       { onOff: _offOn
       , timeOffset: toNumber n * 1.75 / toNumber nPitches
@@ -174,12 +175,12 @@ makeBufferInstruction { n, nPitches, octaveLead, synthPitchProfile, synthPrefix,
       Oct1 -> 1.3
       Oct2 -> 0.9
   , buffer: case synthPrefix of
-      Synth0 -> buffers.synth0 # ps synthPitchProfile n
-      Synth1 -> buffers.synth1 # ps synthPitchProfile n
-      Synth2 -> buffers.synth2 # ps synthPitchProfile n
-      Synth3 -> buffers.synth3 # ps synthPitchProfile n
-      Synth4 -> buffers.synth4 # ps synthPitchProfile n
-      Synth5 -> buffers.synth5 # ps synthPitchProfile n
+      Synth0 -> buffers.synths.synth0 # ps synthPitchProfile n
+      Synth1 -> buffers.synths.synth1 # ps synthPitchProfile n
+      Synth2 -> buffers.synths.synth2 # ps synthPitchProfile n
+      Synth3 -> buffers.synths.synth3 # ps synthPitchProfile n
+      Synth4 -> buffers.synths.synth4 # ps synthPitchProfile n
+      Synth5 -> buffers.synths.synth5 # ps synthPitchProfile n
   }
 
 mpw :: (Number -> Number) -> Int -> NonEmptyArray Number
@@ -192,13 +193,15 @@ mpw ff ii =
 
 env0 :: Number -> Number
 env0 = simplePiecewise [ 0.0 /\ 0.0, 0.1 /\ 1.0, 0.2 /\ 0.3, 0.8 /\ 0.0 ]
+
 env1 :: Number -> Number
 env1 = simplePiecewise [ 0.0 /\ 0.0, 0.25 /\ 1.0, 0.5 /\ 0.3, 1.0 /\ 0.0 ]
+
 env2 :: Number -> Number
 env2 = simplePiecewise [ 0.0 /\ 0.0, 0.3 /\ 0.3, 0.75 /\ 1.0, 0.9 /\ 0.0 ]
 
-makeGainInstruction :: TriggerLeadInfo -> AudioParameter
-makeGainInstruction = _.envType
+makeLeadGainInstruction :: TriggerLeadInfo -> AudioParameter
+makeLeadGainInstruction = _.envType
   >>>
     ( case _ of
         Env0 -> AudioEnvelope { values: mpw env0 128, duration: 1.0, timeOffset: 0.0 }
@@ -207,42 +210,177 @@ makeGainInstruction = _.envType
     )
   >>> envelope
 
+makeSampleBufferInstruction
+  :: TriggerOneShotInfo
+  -> { onOff :: AudioOnOff
+     , buffer :: BrowserAudioBuffer
+     , playbackRate :: Number
+     }
+makeSampleBufferInstruction
+  { sampleReverse
+  , sampleChooser
+  , sampleRateChange
+  , buffers
+  } =
+  { onOff: AudioOnOff
+      { onOff: _offOn
+      , timeOffset: 0.0
+      }
+  , playbackRate: case sampleRateChange of
+      Sr0 -> 1.0
+      Sr1 -> 1.1
+      Sr2 -> 1.4
+  , buffer: case sampleChooser of
+      Sm0 -> if sampleReverse then buffers.oneShotsBackwards.o0 else buffers.oneShots.o0
+      Sm1 -> if sampleReverse then buffers.oneShotsBackwards.o1 else buffers.oneShots.o1
+      Sm2 -> if sampleReverse then buffers.oneShotsBackwards.o2 else buffers.oneShots.o2
+      Sm3 -> if sampleReverse then buffers.oneShotsBackwards.o3 else buffers.oneShots.o3
+      Sm4 -> if sampleReverse then buffers.oneShotsBackwards.o4 else buffers.oneShots.o4
+      Sm5 -> if sampleReverse then buffers.oneShotsBackwards.o5 else buffers.oneShots.o5
+      Sm6 -> if sampleReverse then buffers.oneShotsBackwards.o6 else buffers.oneShots.o6
+      Sm7 -> if sampleReverse then buffers.oneShotsBackwards.o7 else buffers.oneShots.o7
+      Sm8 -> if sampleReverse then buffers.oneShotsBackwards.o8 else buffers.oneShots.o8
+      Sm9 -> if sampleReverse then buffers.oneShotsBackwards.o9 else buffers.oneShots.o9
+      Sm10 -> if sampleReverse then buffers.oneShotsBackwards.o10 else buffers.oneShots.o10
+      Sm11 -> if sampleReverse then buffers.oneShotsBackwards.o11 else buffers.oneShots.o11
+      Sm12 -> if sampleReverse then buffers.oneShotsBackwards.o12 else buffers.oneShots.o12
+      Sm13 -> if sampleReverse then buffers.oneShotsBackwards.o13 else buffers.oneShots.o13
+      Sm14 -> if sampleReverse then buffers.oneShotsBackwards.o14 else buffers.oneShots.o14
+      Sm15 -> if sampleReverse then buffers.oneShotsBackwards.o15 else buffers.oneShots.o15
+      Sm16 -> if sampleReverse then buffers.oneShotsBackwards.o16 else buffers.oneShots.o16
+      Sm17 -> if sampleReverse then buffers.oneShotsBackwards.o17 else buffers.oneShots.o17
+      Sm18 -> if sampleReverse then buffers.oneShotsBackwards.o18 else buffers.oneShots.o18
+      Sm19 -> if sampleReverse then buffers.oneShotsBackwards.o19 else buffers.oneShots.o19
+      Sm20 -> if sampleReverse then buffers.oneShotsBackwards.o20 else buffers.oneShots.o20
+      Sm21 -> if sampleReverse then buffers.oneShotsBackwards.o21 else buffers.oneShots.o21
+      Sm22 -> if sampleReverse then buffers.oneShotsBackwards.o22 else buffers.oneShots.o22
+      Sm23 -> if sampleReverse then buffers.oneShotsBackwards.o23 else buffers.oneShots.o23
+  }
+
+makeSampleGainInstruction :: TriggerOneShotInfo -> Number
+makeSampleGainInstruction _ = 1.0
+
+makeChorusBufferInstruction
+  :: TriggerOneShotInfo
+  -> { onOff :: AudioOnOff
+     , buffer :: BrowserAudioBuffer
+     , playbackRate :: Number
+     }
+makeChorusBufferInstruction a = base
+  { playbackRate = case a.sampleRateChange of
+      Sr0 -> 1.02
+      Sr1 -> 1.13
+      Sr2 -> 1.45
+  }
+  where
+  base = makeSampleBufferInstruction a
+
+makeChorusGainInstruction :: TriggerOneShotInfo -> Number
+makeChorusGainInstruction _ = 0.1
+
 initialAcc :: Acc
 initialAcc =
   { triggerLead: cycleL
       ( TriggerLeadNT
           ( \a -> ichange
-              { leadSource0Buf: makeBufferInstruction a
-              , leadSource0: makeGainInstruction a
+              { leadSource0Buf: makeLeadBufferInstruction a
+              , leadSource0: makeLeadGainInstruction a
               }
           )
           :|
             TriggerLeadNT
               ( \a -> ichange
-                  { leadSource1Buf: makeBufferInstruction a
-                  , leadSource1: makeGainInstruction a
+                  { leadSource1Buf: makeLeadBufferInstruction a
+                  , leadSource1: makeLeadGainInstruction a
                   }
               )
               :
                 TriggerLeadNT
                   ( \a -> ichange
-                      { leadSource2Buf: makeBufferInstruction a
-                      , leadSource2: makeGainInstruction a
+                      { leadSource2Buf: makeLeadBufferInstruction a
+                      , leadSource2: makeLeadGainInstruction a
                       }
                   )
               :
                 TriggerLeadNT
                   ( \a -> ichange
-                      { leadSource3Buf: makeBufferInstruction a
-                      , leadSource3: makeGainInstruction a
+                      { leadSource3Buf: makeLeadBufferInstruction a
+                      , leadSource3: makeLeadGainInstruction a
                       }
                   )
               :
                 TriggerLeadNT
                   ( \a -> ichange
-                      { leadSource4Buf: makeBufferInstruction a
-                      , leadSource4: makeGainInstruction a
+                      { leadSource4Buf: makeLeadBufferInstruction a
+                      , leadSource4: makeLeadGainInstruction a
                       }
+                  )
+              : Nil
+      )
+  , triggerOneShot: cycleL
+      ( TriggerOneShotNT
+          ( \a -> do
+              ichange
+                { smplrSource0Buf: makeSampleBufferInstruction a
+                , smplrSource0: makeSampleGainInstruction a
+                }
+              CBNA.when a.sampleChorusEffect \_ -> ichange
+                { smplrSource3Buf: makeChorusBufferInstruction a
+                , smplrSource3: makeChorusGainInstruction a
+                }
+
+          )
+          :|
+            TriggerOneShotNT
+              ( \a -> do
+                  ichange
+                    { smplrSource1Buf: makeSampleBufferInstruction a
+                    , smplrSource1: makeSampleGainInstruction a
+                    }
+                  CBNA.when a.sampleChorusEffect \_ -> ichange
+                    { smplrSource4Buf: makeChorusBufferInstruction a
+                    , smplrSource4: makeChorusGainInstruction a
+                    }
+
+              )
+              :
+                TriggerOneShotNT
+                  ( \a -> do
+                      ichange
+                        { smplrSource2Buf: makeSampleBufferInstruction a
+                        , smplrSource2: makeSampleGainInstruction a
+                        }
+                      CBNA.when a.sampleChorusEffect \_ -> ichange
+                        { smplrSource0Buf: makeChorusBufferInstruction a
+                        , smplrSource0: makeChorusGainInstruction a
+                        }
+
+                  )
+              :
+                TriggerOneShotNT
+                  ( \a -> do
+                      ichange
+                        { smplrSource3Buf: makeSampleBufferInstruction a
+                        , smplrSource3: makeSampleGainInstruction a
+                        }
+                      CBNA.when a.sampleChorusEffect \_ -> ichange
+                        { smplrSource1Buf: makeChorusBufferInstruction a
+                        , smplrSource1: makeChorusGainInstruction a
+                        }
+
+                  )
+              :
+                TriggerOneShotNT
+                  ( \a -> do
+                      ichange
+                        { smplrSource4Buf: makeSampleBufferInstruction a
+                        , smplrSource4: makeSampleGainInstruction a
+                        }
+                      CBNA.when a.sampleChorusEffect \_ -> ichange
+                        { smplrSource2Buf: makeChorusBufferInstruction a
+                        , smplrSource2: makeChorusGainInstruction a
+                        }
+
                   )
               : Nil
       )
@@ -251,11 +389,24 @@ initialAcc =
   , nPitches: 1
   , envType: Env0
   , octaveLead: Oct0
+  , droneActivationEnergyThreshold: ZeroToOne 0.0
+  , droneDecay: ZeroToOne 0.0
   , leadDelayInfo:
       { leadDelayLine0: false
       , leadDelayLine1: false
       , leadDelayLine2: false
       , leadCombinedDelay0: false
       , leadDelayGainCarousel: ZeroToOne zero
+      }
+  , sampleReverse: false
+  , sampleChooser: Sm0
+  , sampleChorusEffect: false
+  , sampleRateChange: Sr0
+  , sampleDelayInfo:
+      { sampleDelayLine0: false
+      , sampleDelayLine1: false
+      , sampleDelayLine2: false
+      , sampleCombinedDelay0: false
+      , sampleDelayGainCarousel: ZeroToOne zero
       }
   }

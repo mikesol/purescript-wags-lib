@@ -3,7 +3,7 @@ module Feedback.FullGraph where
 import Prelude
 
 import Data.Tuple.Nested (type (/\))
-import WAGS.Graph.AudioUnit (OversampleTwoX, TBandpass, TDelay, TGain, THighpass, TLoopBuf, TLowpass, TPeriodicOsc(..), TPlayBuf, TSawtoothOsc(..), TSinOsc, TSpeaker, TSquareOsc(..), TStereoPanner, TTriangleOsc(..), TWaveShaper)
+import WAGS.Graph.AudioUnit (OversampleTwoX, TBandpass, TDelay, TGain, THighpass, TLoopBuf, TLowpass, TPeriodicOsc, TPlayBuf, TSawtoothOsc, TSinOsc, TSpeaker, TSquareOsc, TStereoPanner, TTriangleOsc, TWaveShaper)
 
 type FullGraph =
   ( speaker :: TSpeaker /\ { mainFader :: Unit }
@@ -120,7 +120,9 @@ type FullGraph =
   , padSource4Pan :: TStereoPanner /\ { padSource4Osc :: Unit }
   , padSource4Osc :: TSinOsc /\ {}
   -- drone
-  , drone :: TGain /\
+  , drone :: TGain /\ { dronePiecewiseGain :: Unit }
+  , dronePiecewiseGain ::
+      TGain /\
         { droneFilter0 :: Unit
         , droneFilter1 :: Unit
         , droneFilter2 :: Unit
@@ -131,6 +133,14 @@ type FullGraph =
   , droneFilter2 :: TBandpass /\ { droneSources :: Unit }
   , droneFilter3 :: THighpass /\ { droneSources :: Unit }
   , droneSources ::
+      TGain /\
+        { droneProtoSources :: Unit
+        , droneDelayed :: Unit
+        }
+  , droneDelayed :: TGain /\ { droneDelayLine :: Unit }
+  , droneDelayLine :: TDelay /\ { droneDelayHPF :: Unit }
+  , droneDelayHPF :: THighpass /\ { droneSources :: Unit }
+  , droneProtoSources ::
       TGain /\
         { droneSource0 :: Unit
         , droneSource1 :: Unit
@@ -150,7 +160,8 @@ type FullGraph =
   , droneSource4Buf :: TLoopBuf /\ {}
   -- smplr
   , smplr :: TStereoPanner /\ { smplrMain :: Unit }
-  , smplrMain :: TGain /\
+  , smplrMain ::
+      TGain /\
         { smplrDelay0 :: Unit
         , smplrDelay1 :: Unit
         , smplrDelay2 :: Unit
@@ -174,8 +185,11 @@ type FullGraph =
   , smplrHighpass2 :: THighpass /\ { smplrDelayD2 :: Unit }
   , smplrDelayD2 :: TDelay /\ { smplrDelay2 :: Unit }
   ----
-  , smplrDelayCbnd :: TGain /\ { smplrSourcesGainCbnd :: Unit
-    , smplrDelayCbndGain :: Unit }
+  , smplrDelayCbnd ::
+      TGain /\
+        { smplrSourcesGainCbnd :: Unit
+        , smplrDelayCbndGain :: Unit
+        }
   , smplrSourcesGainCbnd :: TGain /\ { smplrDelay0 :: Unit, smplrDelay1 :: Unit }
   , smplrDelayCbndGain :: TGain /\ { smplrHighpassCbnd :: Unit }
   , smplrHighpassCbnd :: THighpass /\ { smplrDelayDCbnd :: Unit }
@@ -201,7 +215,8 @@ type FullGraph =
   , smplrSource4Buf :: TPlayBuf /\ {}
   -- lead
   , lead :: TStereoPanner /\ { leadMain :: Unit }
-  , leadMain :: TGain /\
+  , leadMain ::
+      TGain /\
         { leadDelay0 :: Unit
         , leadDelay1 :: Unit
         , leadDelay2 :: Unit
@@ -225,8 +240,11 @@ type FullGraph =
   , leadHighpass2 :: THighpass /\ { leadDelayD2 :: Unit }
   , leadDelayD2 :: TDelay /\ { leadDelay2 :: Unit }
   ----
-  , leadDelayCbnd :: TGain /\ { leadSourcesGainCbnd :: Unit
-    , leadDelayCbndGain :: Unit }
+  , leadDelayCbnd ::
+      TGain /\
+        { leadSourcesGainCbnd :: Unit
+        , leadDelayCbndGain :: Unit
+        }
   , leadSourcesGainCbnd :: TGain /\ { leadDelay0 :: Unit, leadDelay1 :: Unit }
   , leadDelayCbndGain :: TGain /\ { leadHighpassCbnd :: Unit }
   , leadHighpassCbnd :: THighpass /\ { leadDelayDCbnd :: Unit }
