@@ -15,12 +15,12 @@ import Data.Lens (_1, over, traversed)
 import Data.Newtype (unwrap)
 import Data.NonEmpty ((:|))
 import Data.Tuple (Tuple(..), fst, snd)
-import Data.Typelevel.Num (class Pos, D2, D4, D5, D6, D7, toInt')
+import Data.Typelevel.Num (class Pos, D2, D4, D5, D6, D7, D14, toInt')
 import Data.Variant (default, match, onMatch)
 import Data.Vec (Vec, empty, sortBy, zipWithE, (+>))
 import Feedback.Constants as C
 import Feedback.FullGraph (FullGraph)
-import Feedback.Types (Acc, Bang, Elts(..), LeadSynth(..), Res, Trigger(..), TriggerLeadInfo, World, ZeroToOne(..), onElts, unTriggerLeadNT)
+import Feedback.Types (Acc, Bang, Elts(..), LeadSynth(..), PitchSynth(..), Res, Trigger(..), TriggerLeadInfo, World, ZeroToOne(..), onElts, unTriggerLeadNT)
 import Math (sin, pi)
 import Type.Proxy (Proxy(..))
 import Unsafe.Coerce (unsafeCoerce)
@@ -219,16 +219,24 @@ synthForLead e _ a = ChangeWrapper
       }
   )
 
-pitchLead :: ChangeSig (Elts D6)
+pitchLead :: ChangeSig (Elts D14)
 pitchLead e _ a = ChangeWrapper
   ( ipure unit $> a
-      { synthPrefix = onElts
-          ( Synth0
-              +> Synth1
-              +> Synth2
-              +> Synth3
-              +> Synth4
-              +> Synth5
+      { synthPitchProfile = onElts
+          ( P0
+              +> P1
+              +> P2
+              +> P3
+              +> P4
+              +> P5
+              +> P6
+              +> P7
+              +> P8
+              +> P9
+              +> P10
+              +> P11
+              +> P12
+              +> P13
               +> empty
           )
           e
@@ -311,24 +319,24 @@ oracle env@(TriggeredScene { trigger: (Trigger trigger) }) a =
         >>> onMatch
           { triggerPad
           , togglePadOsc0
-          --, togglePadOsc1
-          --, togglePadOsc2
-          --, togglePadOsc3
-          --, togglePadOsc4
-          --, detunePad
-          --, gainLFO0Pad
-          --, gainLFO1Pad
-          --, filterBankChooserPad
-          --, waveshaperPad
-          --, triggerLead
-          --, synthForLead
-          --, pitchLead
-          --, leadDelayLine0
-          --, leadDelayLine1
-          --, leadDelayLine2
-          --, leadCombinedDelay0
-          --, leadDelayGainCarousel
-          --, nPitchesPlayedLead
+          , togglePadOsc1
+          , togglePadOsc2
+          , togglePadOsc3
+          , togglePadOsc4
+          , detunePad
+          , gainLFO0Pad
+          , gainLFO1Pad
+          , filterBankChooserPad
+          , waveshaperPad
+          , triggerLead
+          , synthForLead
+          , pitchLead
+          , leadDelayLine0
+          , leadDelayLine1
+          , leadDelayLine2
+          , leadCombinedDelay0
+          , leadDelayGainCarousel
+          , nPitchesPlayedLead
           }
           (default defaultChangeWrapper)
         >>> (#) env
