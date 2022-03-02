@@ -3,18 +3,13 @@ module Feedback.Control where
 import Prelude
 
 import Data.Int (toNumber)
-import Data.Lens (over)
-import Data.Lens.Grate (grate)
 import Data.Newtype (wrap)
-import Data.Profunctor.Closed (class Closed)
-import Data.Tuple (fst, snd)
-import Data.Tuple.Nested (type (/\), (/\))
+import Feedback.Types (Instructions)
+import Halogen.HTML as H
 import Halogen.HTML as HH
 import Halogen.Svg.Attributes (Color(..))
 import Halogen.Svg.Attributes as SA
 import Halogen.Svg.Elements as SE
-import Feedback.Types (Instructions)
-
 
 data T2 = T2_0 | T2_1
 data T3 = T3_0 | T3_1 | T3_2
@@ -24,9 +19,15 @@ data T6 = T6_0 | T6_1 | T6_2 | T6_3 | T6_4
 
 data Rect = Rect Int Int Int Int
 
+data SliderAction
+  = SliderDown Number
+  | SliderMove Number
+  | SliderRemoteMove Number
+  | SliderUp
+
 data Control
-  = Slider Rect Color Number
-  | DiscreteChooser Rect Color Int Int
+  = Slider (SliderAction -> Action) Rect Color Number
+  | DiscreteChooser (SliderAction -> Action) Rect Color Int Int
   | T2 Rect Color T2
   | T3 Rect Color T3
   | T4 Rect Color T4
@@ -34,6 +35,31 @@ data Control
   | T6 Rect Color T6
   | Pad Rect Color Number
   | Source Rect Color
+
+data Action
+  = StartAudio
+  | StopAudio
+  | StubDeleteMe
+  | GainLFO0Pad SliderAction
+  | GainLFO1Pad SliderAction
+  | WaveshaperPad SliderAction
+  | PitchLead SliderAction
+  | LeadDelayGainCarousel SliderAction
+  | NPitchesPlayedLead SliderAction
+  | DroneLowpass0Q SliderAction
+  | DroneBandpass0Q SliderAction
+  | DroneBandpass0LFO SliderAction
+  | DroneBandpass1Q SliderAction
+  | DroneBandpass1LFO SliderAction
+  | DroneHighpass0Q SliderAction
+  | DroneHighpass0LFO SliderAction
+  | DroneActivationEnergyThreshold SliderAction
+  | DroneDecay SliderAction
+  | SampleChooser SliderAction
+  | SampleDelayGainCarousel SliderAction
+  | LoopingBufferStartEndConstriction SliderAction
+  | GreatAndMightyPan SliderAction
+  | DistantBellsFader SliderAction
 
 plainc = RGB 100 100 100 :: Color
 focusc = RGB 10 10 10 :: Color
@@ -55,19 +81,19 @@ elts =
   -- three detuning factors + "normal" harmonic series
   , detunePad: T4 (Rect 800 690 130 100) focusc T4_0
   -- 0th lfo on the pad gain
-  , gainLFO0Pad: Slider (Rect 90 810 450 60) focusc 0.0
+  , gainLFO0Pad: Slider GainLFO0Pad (Rect 90 810 450 60) focusc 0.0
   -- 1st lfo on the pad gain, fatter & more sluggish
-  , gainLFO1Pad: Slider (Rect 630 690 90 180) focusc 0.0
+  , gainLFO1Pad: Slider GainLFO1Pad (Rect 630 690 90 180) focusc 0.0
   -- pad filter bank chooser
   , filterBankChooserPad: T5 (Rect 400 180 120 120) focusc T5_0 --
   -- waveshaper on the pad
-  , waveshaperPad: Slider (Rect 800 0 200 70) focusc 0.0
+  , waveshaperPad: Slider WaveshaperPad (Rect 800 0 200 70) focusc 0.0
   -- trigger synth
   , triggerLead: Source (Rect 720 790 210 210) focusc
   -- the synth we use for the lead
   , synthForLead: T6 (Rect 590 460 340 130) focusc T6_0
   -- choose which pitch out of 14 to start at
-  , pitchLead: DiscreteChooser (Rect 930 70 70 520) focusc 14 0
+  , pitchLead: DiscreteChooser PitchLead (Rect 930 70 70 520) focusc 14 0
   -- 0th delay line for the lead synth
   , leadDelayLine0: T2 (Rect 0 240 60 60) focusc T2_0
   -- 1st delay line for the lead synth
@@ -77,9 +103,9 @@ elts =
   -- combined delay line for the lead synth
   , leadCombinedDelay0: T2 (Rect 300 0 60 60) focusc T2_0
   -- shifts intensities of delays
-  , leadDelayGainCarousel: Slider (Rect 590 590 410 100) focusc 0.0
+  , leadDelayGainCarousel: Slider LeadDelayGainCarousel (Rect 590 590 410 100) focusc 0.0
   -- n pitches played when pressed (fixed sequence always based on start)
-  , nPitchesPlayedLead: DiscreteChooser (Rect 90 300 90 390) focusc 7 0
+  , nPitchesPlayedLead: DiscreteChooser NPitchesPlayedLead (Rect 90 300 90 390) focusc 7 0
   -- one of three envelopes
   , envelopeLead: T3 (Rect 660 0 140 140) focusc T3_0
   -- octave shift
@@ -89,25 +115,25 @@ elts =
   -- choose drone
   , droneChooser: T5 (Rect 390 690 150 120) focusc T5_0
   -- lowpass q for drone
-  , droneLowpass0Q: Slider (Rect 540 690 90 180) focusc 0.0
+  , droneLowpass0Q: Slider DroneLowpass0Q (Rect 540 690 90 180) focusc 0.0
   -- q of bandpass filter
-  , droneBandpass0Q: Slider (Rect 0 940 300 60) focusc 0.0
+  , droneBandpass0Q: Slider DroneBandpass0Q (Rect 0 940 300 60) focusc 0.0
   -- lfo controlling freq of bandpass
-  , droneBandpass0LFO: Slider (Rect 520 60 70 240) focusc 0.0
+  , droneBandpass0LFO: Slider DroneBandpass0LFO (Rect 520 60 70 240) focusc 0.0
   -- q of bandpass filter
-  , droneBandpass1Q: Slider (Rect 930 690 70 310) focusc 0.0
+  , droneBandpass1Q: Slider DroneBandpass1Q (Rect 930 690 70 310) focusc 0.0
   -- lfo of bandpass filter
-  , droneBandpass1LFO: Slider (Rect 180 300 90 260) focusc 0.0
+  , droneBandpass1LFO: Slider DroneBandpass1LFO (Rect 180 300 90 260) focusc 0.0
   -- q of highpass filter
-  , droneHighpass0Q: Slider (Rect 860 70 70 200) focusc 0.0
+  , droneHighpass0Q: Slider DroneHighpass0Q (Rect 860 70 70 200) focusc 0.0
   -- lfo of highpass filter
-  , droneHighpass0LFO: Slider (Rect 360 0 300 60) focusc 0.0
+  , droneHighpass0LFO: Slider DroneHighpass0LFO (Rect 360 0 300 60) focusc 0.0
   -- how long does it take for the drone to ramp up?
-  , droneActivationEnergyThreshold: Slider (Rect 90 750 300 60) focusc 0.0
+  , droneActivationEnergyThreshold: Slider DroneActivationEnergyThreshold (Rect 90 750 300 60) focusc 0.0
   -- looping pwf
   , droneRhythmicLoopingPiecewiseFunction: T5 (Rect 660 340 270 120) focusc T5_0
   -- how long does the drone linger?
-  , droneDecay: Slider (Rect 590 60 70 400) focusc 0.0
+  , droneDecay: Slider DroneDecay (Rect 590 60 70 400) focusc 0.0
   -- flange on the drone
   , droneFlange: T2 (Rect 60 0 60 60) focusc T2_0
   -- a single sample
@@ -115,7 +141,7 @@ elts =
   -- reverse the samples?
   , sampleReverse: T2 (Rect 400 120 60 60) focusc T2_0
   -- choose which sample to play
-  , sampleChooser: DiscreteChooser (Rect 0 300 90 640) focusc 24 0
+  , sampleChooser: DiscreteChooser SampleChooser (Rect 0 300 90 640) focusc 24 0
   , sampleChorusEffect: T2 (Rect 120 0 60 60) focusc T2_0
   , sampleRateChange: T3 (Rect 720 690 80 100) focusc T3_0
   -- 0th delay line for the single sample
@@ -127,7 +153,7 @@ elts =
   -- 0th sample combined delay line
   , sampleCombinedDelayLine0: T2 (Rect 480 940 60 60) focusc T2_0
   -- changes intensities of various delay lines
-  , sampleDelayGainCarousel: Slider (Rect 270 300 320 90) focusc 0.0
+  , sampleDelayGainCarousel: Slider SampleDelayGainCarousel (Rect 270 300 320 90) focusc 0.0
   -- 0th delay line for combined lead sample
   , leadSampleDelayLine0: T2 (Rect 660 940 60 60) focusc T2_0
   -- 1st delay line for combined lead sample
@@ -137,7 +163,7 @@ elts =
   -- alternates between any looping buffers that are currently playing
   , loopingBufferGainDJ: T2 (Rect 240 0 60 60) focusc T2_0
   -- how close the start/end times are
-  , loopingBufferStartEndConstriction: Slider (Rect 300 160 100 140) focusc 0.0
+  , loopingBufferStartEndConstriction: Slider LoopingBufferStartEndConstriction (Rect 300 160 100 140) focusc 0.0
   -- 0th looping buffer
   , loopingBuffer0: T2 (Rect 180 0 60 60) focusc T2_0
   -- 1st looping buffer
@@ -151,23 +177,17 @@ elts =
   -- substitutes entirely different sets of base parameters
   , radicalFlip: T2 (Rect 460 60 60 60) focusc T2_0
   -- global pan extravaganza
-  , greatAndMightyPan: Slider (Rect 90 870 630 70) focusc 0.0
+  , greatAndMightyPan: Slider GreatAndMightyPan (Rect 90 870 630 70) focusc 0.0
   -- global delay
   , globalDelay: T2 (Rect 600 940 60 60) focusc T2_0
   -- echoing uncontrollable singleton
   , echoingUncontrollableSingleton: Source (Rect 300 60 100 100) focusc
-  , distantBellsFader: Slider (Rect 180 560 90 130) focusc 0.0
+  , distantBellsFader: Slider DistantBellsFader (Rect 180 560 90 130) focusc 0.0
   }
 
-great :: forall i o p. Closed p => p i o -> p (i /\ i) (o /\ o)
-great = grate ((/\) <$> ((#) fst) <*> ((#) snd))
-
-tnt :: Int /\ Int -> Number /\ Number
-tnt = over great toNumber
-
-c2s :: forall i w. Control -> Array (HH.HTML i w)
-c2s (Slider (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
-c2s (DiscreteChooser (Rect x y w h) color _ _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
+c2s :: forall m. Control -> Array (H.ComponentHTML Action () m)
+c2s (Slider actionConstructor (Rect x y w h) color _) = [ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ] ]
+c2s (DiscreteChooser actionConstructor (Rect x y w h) color _ _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
 c2s (T2 (Rect x y w h) color t) =
   [ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
   ] <> case t of

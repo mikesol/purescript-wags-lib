@@ -3,7 +3,7 @@ module Feedback.FullGraph where
 import Prelude
 
 import Data.Tuple.Nested (type (/\))
-import WAGS.Graph.AudioUnit (OversampleTwoX, TBandpass, TDelay, TGain, THighpass, TLoopBuf, TLowpass, TPeriodicOsc, TPlayBuf, TSawtoothOsc, TSinOsc, TSpeaker, TSquareOsc, TStereoPanner, TTriangleOsc, TWaveShaper)
+import WAGS.Graph.AudioUnit (OversampleTwoX, TBandpass(..), TDelay, TGain, THighpass(..), TLoopBuf, TLowpass(..), TPeriodicOsc, TPlayBuf, TSawtoothOsc, TSinOsc, TSpeaker, TSquareOsc, TStereoPanner, TTriangleOsc, TWaveShaper)
 
 type FullGraph =
   ( speaker :: TSpeaker /\ { mainFader :: Unit }
@@ -27,6 +27,7 @@ type FullGraph =
         , drone :: Unit
         , smplr :: Unit
         , lead :: Unit
+        , slCombo :: Unit
         }
   -- looping buffers
   , loopingBuffer0 :: TGain /\ { loopingBuffer0Pan :: Unit }
@@ -268,4 +269,21 @@ type FullGraph =
   , leadSource3Buf :: TPlayBuf /\ {}
   , leadSource4 :: TGain /\ { leadSource4Buf :: Unit }
   , leadSource4Buf :: TPlayBuf /\ {}
+  --
+  , slCombo :: TGain /\ { slCombo0 :: Unit, slCombo1 :: Unit, slCombo2 :: Unit }
+  , slCombo0 :: TGain /\ { slCombo0Proto :: Unit, slCombo0Delay :: Unit }
+  , slCombo0Proto :: TGain /\ { leadDelay0 :: Unit, smplrDelay0 :: Unit }
+  , slCombo0Delay :: TGain /\ { slCombo0DelayLine :: Unit }
+  , slCombo0DelayLine :: TDelay /\ { slCombo0Filter :: Unit }
+  , slCombo0Filter :: TLowpass /\ { slCombo0 :: Unit }
+  , slCombo1 :: TGain /\ { slCombo1Proto :: Unit, slCombo1Delay :: Unit }
+  , slCombo1Proto :: TGain /\ { leadDelay1 :: Unit, smplrDelay1 :: Unit }
+  , slCombo1Delay :: TGain /\ { slCombo1DelayLine :: Unit }
+  , slCombo1DelayLine :: TDelay /\ { slCombo1Filter :: Unit }
+  , slCombo1Filter :: TBandpass /\ { slCombo1 :: Unit }
+  , slCombo2 :: TGain /\ { slCombo2Proto :: Unit, slCombo2Delay :: Unit }
+  , slCombo2Proto :: TGain /\ { leadDelay2 :: Unit, smplrDelay2 :: Unit }
+  , slCombo2Delay :: TGain /\ { slCombo2DelayLine :: Unit }
+  , slCombo2DelayLine :: TDelay /\ { slCombo2Filter :: Unit }
+  , slCombo2Filter :: THighpass /\ { slCombo2 :: Unit }
   )
