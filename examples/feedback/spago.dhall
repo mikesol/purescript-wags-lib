@@ -9,6 +9,7 @@ in      conf
               , "aff"
               , "aff-promise"
               , "behaviors"
+              , "call-by-name"
               , "console"
               , "effect"
               , "foreign"

@@ -5,14 +5,16 @@ import Prelude
 import Control.Alt ((<|>))
 import Control.Comonad.Cofree (Cofree, mkCofree)
 import Control.Monad.Indexed ((:*>))
+import Control.Parallel (parallel, sequential)
 import Control.Plus (empty)
+import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
 import Data.Int (toNumber)
 import Data.Lens (over)
 import Data.Lens.Grate (grate)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (wrap)
 import Data.Profunctor.Closed (class Closed)
-import Data.Traversable (for_)
+import Data.Traversable (for_, sequence, traverse)
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested (type (/\), (/\))
 import Data.Typelevel.Num (D60)
@@ -27,11 +29,12 @@ import FRP.Event (Event, subscribe)
 import Feedback.Acc (initialAcc)
 import Feedback.Control (c2s, elts)
 import Feedback.Engine (piece)
+import Feedback.InnerComponent as InnerComponent
 import Feedback.Oracle (oracle)
 import Feedback.PubNub (PubNub, pubnubEvent)
 import Feedback.Setup (setup)
-import Feedback.Types (Acc, IncomingEvent(..), Res, Trigger(..), World)
-import Foreign.Object (fromHomogeneous, values)
+import Feedback.Types (Acc, IncomingEvent(..), Res, Trigger(..), World, Buffers)
+import Foreign.Object (values)
 import Halogen (ClassName(..))
 import Halogen as H
 import Halogen.HTML as HH
@@ -45,80 +48,157 @@ import WAGS.Control.Functions.Graph (iloop, (@!>))
 import WAGS.Control.Indexed (IxWAG)
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Graph.AudioUnit (OversampleTwoX, TBandpass, TDelay, TGain, THighpass, TLoopBuf, TLowpass, TPlayBuf, TSinOsc, TSpeaker, TStereoPanner, TWaveShaper)
-import WAGS.Interpret (close, context, makeFFIAudioSnapshot)
+import WAGS.Interpret (close, context, decodeAudioDataFromUri, makeFFIAudioSnapshot)
 import WAGS.Patch (ipatch)
 import WAGS.Run (BehavingRun, BehavingScene(..), RunAudio, RunEngine, TriggeredRun, run, runNoLoop)
 import WAGS.WebAPI (AudioContext)
 
-easingAlgorithm :: Cofree ((->) Int) Int
-easingAlgorithm =
-  let
-    fOf initialTime = mkCofree initialTime \adj -> fOf $ max 20 (initialTime - adj)
-  in
-    fOf 20
-
-type State
-  =
-  { unsubscribe :: Effect Unit
-  , audioCtx :: Maybe AudioContext
+type State =
+  { event :: Event IncomingEvent
+  , pubnub :: PubNub
+  , buffers :: Maybe Buffers
   }
 
 data Action
-  = StartAudio
-  | StopAudio
+  = Initialize
 
 component :: forall query input output m. MonadEffect m => MonadAff m => Event IncomingEvent -> PubNub -> H.Component query input output m
 component event pubnub =
   H.mkComponent
-    { initialState
+    { initialState: initialState event pubnub
     , render
-    , eval: H.mkEval $ H.defaultEval { handleAction = handleAction event pubnub }
+    , eval: H.mkEval $ H.defaultEval
+        { handleAction = handleAction
+        , initialize = Just Initialize
+        }
     }
 
-initialState :: forall input. input -> State
-initialState _ =
-  { unsubscribe: pure unit
-  , audioCtx: Nothing
-  }
+type Slots = (svg :: forall query. H.Slot query Void Unit)
+_svg = Proxy :: Proxy "svg"
 
-classes :: forall r p. Array String -> HP.IProp (class :: String | r) p
-classes = HP.classes <<< map H.ClassName
+initialState :: forall input. Event IncomingEvent -> PubNub -> input -> State
+initialState event pubnub _ = { event, pubnub, buffers: Nothing }
 
-render :: forall m. State -> H.ComponentHTML Action () m
-render _ =
-  HH.div [ classes [ "w-screen", "h-screen" ] ]
-    [ SE.svg
-        [ SA.classes $ map ClassName [ "w-full", "h-full" ]
-        , SA.viewBox 0.0 0.0 1000.0 1000.0
-        , SA.preserveAspectRatio Nothing SA.Slice
-        ]
-        (join $ map c2s $ values $ fromHomogeneous elts)
-    ]
+render :: forall m. MonadEffect m => MonadAff m => State -> H.ComponentHTML Action Slots m
+render { pubnub, event, buffers } =
+  HH.div [ HP.classes $ map ClassName [ "w-screen", "h-screen" ] ] $
+    maybe
+    [ HH.text "Loading" ]
+    ( append []
+        <<< pure
+        <<< flip (HH.slot_ _svg unit) unit
+        <<< InnerComponent.component event pubnub
+    )
+    buffers
 
-handleAction :: forall output m. MonadEffect m => MonadAff m => Event IncomingEvent -> PubNub -> Action -> H.HalogenM State Action () output m Unit
-handleAction event pubnub = case _ of
-  StartAudio -> do
-    handleAction event pubnub StopAudio
+handleAction :: forall output m. MonadEffect m => MonadAff m => Action -> H.HalogenM State Action Slots output m Unit
+handleAction = case _ of
+  Initialize -> do
     audioCtx <- H.liftEffect context
-    ffiAudio <- H.liftEffect $ makeFFIAudioSnapshot audioCtx
-    unsubscribe <-
-      H.liftEffect
-        $ subscribe
-            ( runNoLoop
-                ( Trigger <$>
-                    ( (inj (Proxy :: _ "event") <$> event)
-                        <|> (pure $ inj (Proxy :: _ "thunk") unit)
-                    )
-                )
-                (pure mempty)
-                {}
-                ffiAudio
-                (piece initialAcc setup oracle)
-            )
-            (\({ res } :: TriggeredRun Res ()) -> Log.info $ show res)
-    H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
-  StopAudio -> do
-    { unsubscribe, audioCtx } <- H.get
-    H.liftEffect unsubscribe
-    for_ audioCtx (H.liftEffect <<< close)
-    H.modify_ _ { unsubscribe = pure unit, audioCtx = Nothing }
+    buffers <-
+      H.liftAff
+        $ map fromHomogeneous
+        $ (map <<< map) fromHomogeneous
+        $ sequential
+        $ sequence
+        $ (map <<< traverse) (parallel <<< decodeAudioDataFromUri audioCtx)
+        $ map homogeneous
+        $ homogeneous
+            { synth0:
+                { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
+                , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
+                , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
+                , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
+                , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
+                , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
+                , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
+                , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
+                , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
+                , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
+                , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
+                , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
+                , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
+                }
+            , synth1:
+                { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
+                , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
+                , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
+                , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
+                , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
+                , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
+                , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
+                , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
+                , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
+                , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
+                , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
+                , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
+                , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
+                }
+            , synth2:
+                { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
+                , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
+                , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
+                , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
+                , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
+                , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
+                , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
+                , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
+                , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
+                , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
+                , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
+                , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
+                , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
+                }
+            , synth3:
+                { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
+                , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
+                , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
+                , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
+                , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
+                , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
+                , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
+                , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
+                , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
+                , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
+                , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
+                , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
+                , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
+                }
+            , synth4:
+                { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
+                , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
+                , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
+                , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
+                , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
+                , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
+                , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
+                , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
+                , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
+                , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
+                , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
+                , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
+                , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
+                }
+            , synth5:
+                { p0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                , p1: "https://media.graphcms.com/TlkqOrhXQnmT2Fz2be14"
+                , p2: "https://media.graphcms.com/jTyRKlYwQMOt1j1Oebn3"
+                , p3: "https://media.graphcms.com/YPrWVetQHasqukdUAsIA"
+                , p4: "https://media.graphcms.com/RirJEGSKTrm7VJflaSSJ"
+                , p5: "https://media.graphcms.com/SBUMaygRpC69JAbm2CjA"
+                , p6: "https://media.graphcms.com/YsWMuBjBSxKcpmT8paLq"
+                , p7: "https://media.graphcms.com/MndOh6ZySdCJ7e4nTKhF"
+                , p8: "https://media.graphcms.com/Ce2hOVVyTQSyvrAPyw5A"
+                , p9: "https://media.graphcms.com/kogoJbrYSOeFh0geQGlx"
+                , p10: "https://media.graphcms.com/ZOGZ3xTTba853tXg2KQg"
+                , p11: "https://media.graphcms.com/afZV0u2SlVhkyYswbugO"
+                , p12: "https://media.graphcms.com/7re9RgoQSVSJ81po5BDA"
+                , p13: "https://media.graphcms.com/pOdVqoIARB67q9Fn7WCD"
+                }
+            }
+    H.modify_ (_ { buffers = Just buffers })

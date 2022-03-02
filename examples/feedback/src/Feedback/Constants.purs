@@ -46,3 +46,9 @@ padFilter0Q = 1.0
 padFilter1Q = 2.0
 padFilter2Q = 5.0
 padFilter3Q = 10.0
+--
+leadDelay0Duration = 2.5
+leadDelay1Duration = 2.5
+leadDelay2Duration = 2.5
+leadDelayCombinedDuration = 2.5
+leadDelaySliderDuration = 0.05

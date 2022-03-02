@@ -79,7 +79,7 @@ elts =
   -- shifts intensities of delays
   , leadDelayGainCarousel: Slider (Rect 590 590 410 100) focusc 0.0
   -- n pitches played when pressed (fixed sequence always based on start)
-  , nPitchesPlayedLead: DiscreteChooser (Rect 90 300 90 390) focusc 6 0
+  , nPitchesPlayedLead: DiscreteChooser (Rect 90 300 90 390) focusc 7 0
   -- one of three envelopes
   , envelopeLead: T3 (Rect 660 0 140 140) focusc T3_0
   -- octave shift

@@ -23,7 +23,6 @@ import Effect.Class (class MonadEffect)
 import Effect.Class.Console as Log
 import FRP.Event (subscribe)
 import Feedback.FullGraph (FullGraph)
-import Feedback.Types (Trigger, World, Res)
 import Foreign.Object (fromHomogeneous, values)
 import Halogen (ClassName(..))
 import Halogen as H
@@ -42,18 +41,19 @@ import WAGS.Patch (ipatch)
 import WAGS.Run (RunAudio, RunEngine, TriggeredScene)
 import WAGS.WebAPI (AudioContext)
 
-createFrame :: IxWAG RunAudio RunEngine Frame0 Res () FullGraph Unit
+createFrame :: forall res. IxWAG RunAudio RunEngine Frame0 res () FullGraph Unit
 createFrame = ipatch { microphone: empty, mediaElement: empty }
 
 -- we inject oracle and initial acc to avoid rebuilding the engine whenever we change these
 piece
-  :: forall acc
-  . acc
-  -> (forall proof. IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit)
+  :: forall acc env res
+  . Monoid res
+  => acc
+  -> (forall proof. IxWAG RunAudio RunEngine proof res FullGraph FullGraph Unit)
   -> ( forall proof
-        . TriggeredScene Trigger World ()
+        . env
        -> acc
-       -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph acc
+       -> IxWAG RunAudio RunEngine proof res FullGraph FullGraph acc
      )
-  -> Scene (TriggeredScene Trigger World ()) RunAudio RunEngine Frame0 Res
+  -> Scene env RunAudio RunEngine Frame0 res
 piece initialAcc setup oracle = (const (createFrame :*> (setup $> initialAcc))) @!> iloop oracle

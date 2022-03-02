@@ -5,7 +5,7 @@ import Prelude
 import Control.Applicative.Indexed (ipure)
 import Feedback.Constants as C
 import Feedback.FullGraph (FullGraph)
-import Feedback.Types (Res, Acc, Trigger, World)
+import Feedback.Types (Acc, Res, Trigger, World)
 import WAGS.Change (ichange)
 import WAGS.Control.Indexed (IxWAG)
 import WAGS.Run (RunAudio, RunEngine)
@@ -22,4 +22,8 @@ setup = ichange
   , padSource2LFO: 1.0
   , padSource3LFO: 1.0
   , padSource4LFO: 1.0
+  , padFilter0: { freq: C.padFilter0Freq, q: C.padFilter0Q }
+  , padFilter1: { freq: C.padFilter1Freq, q: C.padFilter1Q }
+  , padFilter2: { freq: C.padFilter2Freq, q: C.padFilter2Q }
+  , padFilter3: { freq: C.padFilter3Freq, q: C.padFilter3Q }
   }

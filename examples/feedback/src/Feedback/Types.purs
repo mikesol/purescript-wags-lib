@@ -2,15 +2,21 @@ module Feedback.Types where
 
 import Prelude
 
+import Control.Comonad.Cofree (Cofree)
+import Data.Identity (Identity)
 import Data.Newtype (class Newtype, unwrap, wrap)
-import Data.Typelevel.Num (class Pos, D14, D2, D24, D3, D4, D5, D6, toInt')
+import Data.Typelevel.Num (class Pos, D14, D2, D24, D3, D4, D5, D6, D7, toInt')
 import Data.Variant (Variant)
 import Data.Vec (Vec)
+import Feedback.FullGraph (FullGraph)
 import Foreign (ForeignError(..), fail)
 import Simple.JSON (readImpl, undefined, writeImpl)
 import Simple.JSON as JSON
 import Type.Proxy (Proxy(..))
 import Unsafe.Coerce (unsafeCoerce)
+import WAGS.Control.Indexed (IxWAG)
+import WAGS.Run (RunAudio, RunEngine)
+import WAGS.WebAPI (BrowserAudioBuffer)
 
 type AllEvents :: forall t. t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> Row t
 type AllEvents triggerPad togglePadOsc0 togglePadOsc1 togglePadOsc2 togglePadOsc3 togglePadOsc4 detunePad gainLFO0Pad gainLFO1Pad filterBankChooserPad waveshaperPad triggerLead synthForLead pitchLead nPitchesPlayedLead envelopeLead octaveLead leadDelayLine0 leadDelayLine1 leadDelayLine2 leadCombinedDelay0 leadDelayGainCarousel drone droneChooser droneLowpass0Q droneBandpass0Q droneBandpass0LFO droneBandpass1Q droneBandpass1LFO droneHighpass0Q droneHighpass0LFO droneActivationEnergyThreshold droneRhythmicLoopingPiecewiseFunction droneDecay droneFlange sampleOneShot sampleReverse sampleChooser sampleRateChange sampleChorusEffect sampleDelayLine0 sampleDelayLine1 sampleDelayLine2 sampleCombinedDelayLine0 sampleDelayGainCarousel leadSampleDelayLine0 leadSampleDelayLine1 leadSampleDelayLine2 loopingBufferStartEndConstriction loopingBufferGainDJ loopingBuffer0 loopingBuffer1 loopingBuffer2 loopingBuffer3 loopingBuffer4 radicalFlip greatAndMightyPan globalDelay echoingUncontrollableSingleton distantBellsFader =
@@ -142,7 +148,7 @@ type WaveshaperPad = SliderT
 type TriggerLead = Bang
 type SynthForLead = Elts D6
 type PitchLead = Elts D14
-type NPitchesPlayedLead = Int
+type NPitchesPlayedLead = Elts D7
 type EnvelopeLead = Elts D3
 type OctaveLead = Elts D3
 type LeadDelayLine0 = Elts D2
@@ -200,10 +206,79 @@ newtype Trigger = Trigger
       )
   )
 
-type World = {}
+type Synths =
+  { p0 :: BrowserAudioBuffer
+  , p1 :: BrowserAudioBuffer
+  , p2 :: BrowserAudioBuffer
+  , p3 :: BrowserAudioBuffer
+  , p4 :: BrowserAudioBuffer
+  , p5 :: BrowserAudioBuffer
+  , p6 :: BrowserAudioBuffer
+  , p7 :: BrowserAudioBuffer
+  , p8 :: BrowserAudioBuffer
+  , p9 :: BrowserAudioBuffer
+  , p10 :: BrowserAudioBuffer
+  , p11 :: BrowserAudioBuffer
+  , p12 :: BrowserAudioBuffer
+  , p13 :: BrowserAudioBuffer
+  }
+
+type Buffers =
+  { synth0 :: Synths
+  , synth1 :: Synths
+  , synth2 :: Synths
+  , synth3 :: Synths
+  , synth4 :: Synths
+  , synth5 :: Synths
+  }
+
+type World =
+  { buffers :: Buffers
+  }
+
 type Res = {}
-type Acc = {}
 
 derive instance newtypeTrigger :: Newtype IncomingEvent _
 derive newtype instance toJSONTrigger :: JSON.ReadForeign IncomingEvent
 derive newtype instance fromJSONTrigger :: JSON.WriteForeign IncomingEvent
+
+data LeadSynth = Synth0 | Synth1 | Synth2 | Synth3 | Synth4 | Synth5
+data PitchSynth = P0 | P1 | P2 | P3 | P4 | P5 | P6 | P7 | P8 | P9 | P10 | P11 | P12 | P13
+data EnvelopeType = Env0 | Env1 | Env2
+
+type TriggerLeadInfo =
+  { n :: Int
+  , nPitches :: Int
+  , synthPitchProfile :: PitchSynth
+  , synthPrefix :: LeadSynth
+  , buffers :: Buffers
+  , envType :: EnvelopeType
+  }
+
+newtype TriggerLeadNT = TriggerLeadNT
+  ( forall proof
+     . TriggerLeadInfo
+    -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit
+  )
+
+unTriggerLeadNT
+  :: TriggerLeadNT
+  -> forall proof
+   . TriggerLeadInfo
+  -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit
+unTriggerLeadNT (TriggerLeadNT f) = f
+
+type Acc =
+  { triggerLead :: Cofree Identity TriggerLeadNT
+  , synthPrefix :: LeadSynth
+  , synthPitchProfile :: PitchSynth
+  , nPitches :: Int
+  , envType :: EnvelopeType
+  , leadDelayInfo ::
+      { leadDelayLine0 :: Boolean
+      , leadDelayLine1 :: Boolean
+      , leadDelayLine2 :: Boolean
+      , leadCombinedDelay0 :: Boolean
+      , leadDelayGainCarousel :: ZeroToOne
+      }
+  }
