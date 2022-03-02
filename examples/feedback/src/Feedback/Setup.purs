@@ -2,10 +2,9 @@ module Feedback.Setup where
 
 import Prelude
 
-import Control.Applicative.Indexed (ipure)
 import Feedback.Constants as C
 import Feedback.FullGraph (FullGraph)
-import Feedback.Types (Acc, Res, Trigger, World)
+import Feedback.Types (Res)
 import WAGS.Change (ichange)
 import WAGS.Control.Indexed (IxWAG)
 import WAGS.Run (RunAudio, RunEngine)

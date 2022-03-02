@@ -87,7 +87,7 @@ elts =
   -- pad for a buffer
   , drone: Pad (Rect 270 390 320 300) focusc 0.0
   -- choose drone
-  , droneChooser: T4 (Rect 390 690 150 120) focusc T4_0
+  , droneChooser: T5 (Rect 390 690 150 120) focusc T5_0
   -- lowpass q for drone
   , droneLowpass0Q: Slider (Rect 540 690 90 180) focusc 0.0
   -- q of bandpass filter

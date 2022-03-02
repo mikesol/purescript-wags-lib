@@ -2,15 +2,17 @@ module Feedback.Acc where
 
 import Prelude
 
-import Control.Comonad.Cofree (Cofree)
-import Data.Identity (Identity)
+import Data.Array ((..))
+import Data.Array.NonEmpty (NonEmptyArray, fromNonEmpty)
 import Data.Int (toNumber)
 import Data.List (List(..), (:))
 import Data.NonEmpty ((:|))
-import Feedback.Types (Acc, EnvelopeType(..), LeadSynth(..), PitchSynth(..), Res, Synths, Trigger, TriggerLeadInfo, TriggerLeadNT(..), World, ZeroToOne(..))
-import Foreign.Object (Object)
+import Data.Profunctor (lcmap)
+import Data.Tuple.Nested ((/\))
+import Feedback.Types (Acc, EnvelopeType(..), LeadSynth(..), OctaveType(..), PitchSynth(..), Synths, TriggerLeadInfo, TriggerLeadNT(..), ZeroToOne(..))
 import WAGS.Change (ichange)
-import WAGS.Graph.Parameter (AudioOnOff(..), _offOn)
+import WAGS.Graph.Parameter (AudioEnvelope(..), AudioOnOff(..), AudioParameter, _offOn, envelope)
+import WAGS.Lib.Piecewise (simplePiecewise)
 import WAGS.Lib.Stream (cycleL)
 import WAGS.WebAPI (BrowserAudioBuffer)
 
@@ -157,12 +159,20 @@ ps = case _ of
     _ -> _.p6
 
 makeBufferInstruction
-  :: TriggerLeadInfo -> { onOff :: AudioOnOff, buffer :: BrowserAudioBuffer }
-makeBufferInstruction { n, nPitches, synthPitchProfile, synthPrefix, buffers } =
+  :: TriggerLeadInfo
+  -> { onOff :: AudioOnOff
+     , buffer :: BrowserAudioBuffer
+     , playbackRate :: Number
+     }
+makeBufferInstruction { n, nPitches, octaveLead, synthPitchProfile, synthPrefix, buffers } =
   { onOff: AudioOnOff
       { onOff: _offOn
       , timeOffset: toNumber n * 1.75 / toNumber nPitches
       }
+  , playbackRate: case octaveLead of
+      Oct0 -> 1.0
+      Oct1 -> 1.3
+      Oct2 -> 0.9
   , buffer: case synthPrefix of
       Synth0 -> buffers.synth0 # ps synthPitchProfile n
       Synth1 -> buffers.synth1 # ps synthPitchProfile n
@@ -172,7 +182,30 @@ makeBufferInstruction { n, nPitches, synthPitchProfile, synthPrefix, buffers } =
       Synth5 -> buffers.synth5 # ps synthPitchProfile n
   }
 
--- makeGainInstruction { envType } = ?hole
+mpw :: (Number -> Number) -> Int -> NonEmptyArray Number
+mpw ff ii =
+  let
+    iin = toNumber ii
+    fff = lcmap ((_ / iin) <<< toNumber) ff
+  in
+    fromNonEmpty (fff 0 :| map fff (1 .. (ii - 1)))
+
+env0 :: Number -> Number
+env0 = simplePiecewise [ 0.0 /\ 0.0, 0.1 /\ 1.0, 0.2 /\ 0.3, 0.8 /\ 0.0 ]
+env1 :: Number -> Number
+env1 = simplePiecewise [ 0.0 /\ 0.0, 0.25 /\ 1.0, 0.5 /\ 0.3, 1.0 /\ 0.0 ]
+env2 :: Number -> Number
+env2 = simplePiecewise [ 0.0 /\ 0.0, 0.3 /\ 0.3, 0.75 /\ 1.0, 0.9 /\ 0.0 ]
+
+makeGainInstruction :: TriggerLeadInfo -> AudioParameter
+makeGainInstruction = _.envType
+  >>>
+    ( case _ of
+        Env0 -> AudioEnvelope { values: mpw env0 128, duration: 1.0, timeOffset: 0.0 }
+        Env1 -> AudioEnvelope { values: mpw env1 128, duration: 1.0, timeOffset: 0.0 }
+        Env2 -> AudioEnvelope { values: mpw env2 128, duration: 1.0, timeOffset: 0.0 }
+    )
+  >>> envelope
 
 initialAcc :: Acc
 initialAcc =
@@ -180,35 +213,35 @@ initialAcc =
       ( TriggerLeadNT
           ( \a -> ichange
               { leadSource0Buf: makeBufferInstruction a
-              --, leadSource0: makeGainInstruction a
+              , leadSource0: makeGainInstruction a
               }
           )
           :|
             TriggerLeadNT
               ( \a -> ichange
                   { leadSource1Buf: makeBufferInstruction a
-                  --, leadSource1: makeGainInstruction a
+                  , leadSource1: makeGainInstruction a
                   }
               )
               :
                 TriggerLeadNT
                   ( \a -> ichange
                       { leadSource2Buf: makeBufferInstruction a
-                      --, leadSource2: makeGainInstruction a
+                      , leadSource2: makeGainInstruction a
                       }
                   )
               :
                 TriggerLeadNT
                   ( \a -> ichange
                       { leadSource3Buf: makeBufferInstruction a
-                      --, leadSource3: makeGainInstruction a
+                      , leadSource3: makeGainInstruction a
                       }
                   )
               :
                 TriggerLeadNT
                   ( \a -> ichange
                       { leadSource4Buf: makeBufferInstruction a
-                      --, leadSource4: makeGainInstruction a
+                      , leadSource4: makeGainInstruction a
                       }
                   )
               : Nil
@@ -217,6 +250,7 @@ initialAcc =
   , synthPitchProfile: P0
   , nPitches: 1
   , envType: Env0
+  , octaveLead: Oct0
   , leadDelayInfo:
       { leadDelayLine0: false
       , leadDelayLine1: false

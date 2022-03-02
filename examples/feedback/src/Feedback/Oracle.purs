@@ -7,25 +7,19 @@ import Control.Applicative.Indexed (ipure)
 import Control.Comonad (extract)
 import Control.Comonad.Cofree.Class (unwrapCofree)
 import Data.Array ((..))
-import Data.Array.NonEmpty (fromNonEmpty, mapWithIndex)
 import Data.Foldable (foldl)
-import Data.Function (on)
 import Data.Homogeneous.Record (fromHomogeneous, homogeneous)
-import Data.Lens (_1, over, traversed)
 import Data.Newtype (unwrap)
-import Data.NonEmpty ((:|))
-import Data.Tuple (Tuple(..), fst, snd)
-import Data.Typelevel.Num (class Pos, D2, D4, D5, D6, D7, D14, toInt')
+import Data.Typelevel.Num (class Pos, D14, D2, D3, D4, D5, D6, D7)
 import Data.Variant (default, match, onMatch)
-import Data.Vec (Vec, empty, sortBy, zipWithE, (+>))
+import Data.Vec (Vec, empty, replicate', zipWithE, (+>))
 import Feedback.Constants as C
 import Feedback.FullGraph (FullGraph)
-import Feedback.Types (Acc, Bang, Elts(..), LeadSynth(..), PitchSynth(..), Res, Trigger(..), TriggerLeadInfo, World, ZeroToOne(..), onElts, unTriggerLeadNT)
-import Math (sin, pi)
+import Feedback.Types (Acc, Bang, Elts(..), EnvelopeType(..), LeadSynth(..), OctaveType(..), PitchSynth(..), Res, Trigger(..), TriggerLeadInfo, World, ZeroToOne(..), onElts, unTriggerLeadNT, updateAtElt)
+import Math (sin, pi, pow)
+import Math as M
 import Type.Proxy (Proxy(..))
-import Unsafe.Coerce (unsafeCoerce)
 import WAGS.Change (ichange, ichange')
-import WAGS.Control.Functions.Graph (iloop)
 import WAGS.Control.Indexed (IxWAG)
 import WAGS.Graph.Parameter (AudioEnvelope(..), AudioSingleNumber(..), _linearRamp, singleNumber)
 import WAGS.Run (RunAudio, RunEngine, TriggeredScene(..))
@@ -195,6 +189,7 @@ triggerLead _ (TriggeredScene { world: { buffers } }) acc =
                   , synthPitchProfile: a.synthPitchProfile
                   , synthPrefix: a.synthPrefix
                   , envType: a.envType
+                  , octaveLead: a.octaveLead
                   , buffers
                   } $> a { triggerLead = unwrap $ unwrapCofree a.triggerLead }
             )
@@ -251,6 +246,7 @@ sliderToVal LeadDelay1 (ZeroToOne n) = (sin (2.0 * pi * (n + 0.5)) * 0.5 + 0.5) 
 sliderToVal LeadDelay2 (ZeroToOne n) = (sin (2.0 * pi * (n + 1.0)) * 0.5 + 0.5) * 0.2
 sliderToVal LeadDelayCombined (ZeroToOne n) = (sin (2.0 * pi * (n + 1.5)) * 0.5 + 0.5) * 0.1
 
+fauxBool :: Elts D2 -> Boolean
 fauxBool = onElts (false +> true +> empty)
 
 leadDelayLine0 :: ChangeSig (Elts D2)
@@ -282,7 +278,7 @@ leadCombinedDelay0 e _ a = ChangeWrapper
   )
 
 leadDelayGainCarousel :: ChangeSig ZeroToOne
-leadDelayGainCarousel z@(ZeroToOne n) _ a = ChangeWrapper do
+leadDelayGainCarousel z _ a = ChangeWrapper do
   CBNA.when (a.leadDelayInfo.leadDelayLine0)
     ( \_ -> ichange' (Proxy :: _ "leadDelay0")
         $ AudioSingleNumber { param: sliderToVal LeadDelay0 z, timeOffset: C.leadDelaySliderDuration, transition: _linearRamp }
@@ -303,6 +299,94 @@ leadDelayGainCarousel z@(ZeroToOne n) _ a = ChangeWrapper do
 
 nPitchesPlayedLead :: ChangeSig (Elts D7)
 nPitchesPlayedLead (Elts n) _ a = ChangeWrapper (ipure unit $> (a { nPitches = n }))
+
+envelopeLead :: ChangeSig (Elts D3)
+envelopeLead e _ a = ChangeWrapper
+  ( ipure unit $> a
+      { envType = onElts
+          ( Env0
+              +> Env1
+              +> Env2
+              +> empty
+          )
+          e
+      }
+  )
+
+octaveLead :: ChangeSig (Elts D3)
+octaveLead e _ a = ChangeWrapper
+  ( ipure unit $> a
+      { octaveLead = onElts
+          ( Oct0
+              +> Oct1
+              +> Oct2
+              +> empty
+          )
+          e
+      }
+  )
+
+drone :: ChangeSig ZeroToOne
+drone e _ a = ChangeWrapper (ichange' (Proxy :: _ "drone") (unwrap e) $> a)
+
+droneSources :: forall proof. Vec D5 (Number -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit)
+droneSources = (\p -> ichange' (Proxy :: _ "droneSource0") (AudioSingleNumber { param: p, timeOffset: C.droneFade, transition: _linearRamp }))
+  +> (\p -> ichange' (Proxy :: _ "droneSource1") (AudioSingleNumber { param: p, timeOffset: C.droneFade, transition: _linearRamp }))
+  +> (\p -> ichange' (Proxy :: _ "droneSource2") (AudioSingleNumber { param: p, timeOffset: C.droneFade, transition: _linearRamp }))
+  +> (\p -> ichange' (Proxy :: _ "droneSource3") (AudioSingleNumber { param: p, timeOffset: C.droneFade, transition: _linearRamp }))
+  +> (\p -> ichange' (Proxy :: _ "droneSource4") (AudioSingleNumber { param: p, timeOffset: C.droneFade, transition: _linearRamp }))
+  +> empty
+
+defaultDroneVolumes :: Vec D5 Number
+defaultDroneVolumes = replicate' 0.0
+
+droneChooser :: ChangeSig (Elts D5)
+droneChooser e _ a = ChangeWrapper (foldl (*>) (pure unit) (zipWithE ($) droneSources (updateAtElt (const 1.0) defaultDroneVolumes e)) $> a)
+
+droneLowpass0Q :: ChangeSig ZeroToOne
+droneLowpass0Q e _ a = ChangeWrapper (ichange' (Proxy :: _ "droneFilter0") { q: M.e `pow` (unwrap e * 3.5 - 0.5) } $> a)
+
+droneBandpass0Q :: ChangeSig ZeroToOne
+droneBandpass0Q e _ a = ChangeWrapper (ichange' (Proxy :: _ "droneFilter1") { q: M.e `pow` (unwrap e * 3.5 - 0.5) } $> a)
+
+droneBandpass0LFO :: ChangeSig ZeroToOne
+droneBandpass0LFO (ZeroToOne n) _ a = ChangeWrapper
+  ( ichange' (Proxy :: _ "droneFilter1")
+      ( AudioEnvelope
+          { duration: 10000.0 + (1.0 - n) * 15000.0
+          , timeOffset: C.lfoTimeOffset
+          , values: C.droneBandpass0LFO
+          }
+      ) $> a
+  )
+
+droneBandpass1Q :: ChangeSig ZeroToOne
+droneBandpass1Q e _ a = ChangeWrapper (ichange' (Proxy :: _ "droneFilter2") { q: M.e `pow` (unwrap e * 3.5 - 0.5) } $> a)
+
+droneBandpass1LFO :: ChangeSig ZeroToOne
+droneBandpass1LFO (ZeroToOne n) _ a = ChangeWrapper
+  ( ichange' (Proxy :: _ "droneFilter2")
+      ( AudioEnvelope
+          { duration: 10000.0 + (1.0 - n) * 15000.0
+          , timeOffset: C.lfoTimeOffset
+          , values: C.droneBandpass1LFO
+          }
+      ) $> a
+  )
+
+droneHighpass0Q :: ChangeSig ZeroToOne
+droneHighpass0Q e _ a = ChangeWrapper (ichange' (Proxy :: _ "droneFilter3") { q: M.e `pow` (unwrap e * 3.5 - 0.5) } $> a)
+
+droneHighpass0LFO :: ChangeSig ZeroToOne
+droneHighpass0LFO (ZeroToOne n) _ a = ChangeWrapper
+  ( ichange' (Proxy :: _ "droneFilter3")
+      ( AudioEnvelope
+          { duration: 10000.0 + (1.0 - n) * 15000.0
+          , timeOffset: C.lfoTimeOffset
+          , values: C.droneBandpass1LFO
+          }
+      ) $> a
+  )
 
 defaultChangeWrapper :: TriggeredScene Trigger World () -> Acc -> ChangeWrapper
 defaultChangeWrapper _ a = ChangeWrapper (ipure a)
@@ -337,6 +421,17 @@ oracle env@(TriggeredScene { trigger: (Trigger trigger) }) a =
           , leadCombinedDelay0
           , leadDelayGainCarousel
           , nPitchesPlayedLead
+          , envelopeLead
+          , octaveLead
+          , drone
+          , droneChooser
+          , droneLowpass0Q
+          , droneBandpass0Q
+          , droneBandpass0LFO
+          , droneBandpass1Q
+          , droneBandpass1LFO
+          , droneHighpass0Q
+          , droneHighpass0LFO
           }
           (default defaultChangeWrapper)
         >>> (#) env

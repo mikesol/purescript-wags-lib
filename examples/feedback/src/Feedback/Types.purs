@@ -98,6 +98,7 @@ instance fromJsonZeroToOne :: JSON.ReadForeign ZeroToOne where
       <*> (fail <<< ForeignError <<< (<>) "Not between zero and one: " <<< show)
 
 foreign import onElts :: forall n a. Vec n a -> Elts n -> a
+foreign import updateAtElt :: forall n a. (a -> a) -> Vec n a -> Elts n -> Vec n a
 
 newtype Elts (t :: Type) = Elts Int
 
@@ -157,7 +158,7 @@ type LeadDelayLine2 = Elts D2
 type LeadCombinedDelay0 = Elts D2
 type LeadDelayGainCarousel = SliderT
 type Drone = PadT
-type DroneChooser = Elts D4
+type DroneChooser = Elts D5
 type DroneLowpass0Q = SliderT
 type DroneBandpass0Q = SliderT
 type DroneBandpass0LFO = SliderT
@@ -245,6 +246,7 @@ derive newtype instance fromJSONTrigger :: JSON.WriteForeign IncomingEvent
 data LeadSynth = Synth0 | Synth1 | Synth2 | Synth3 | Synth4 | Synth5
 data PitchSynth = P0 | P1 | P2 | P3 | P4 | P5 | P6 | P7 | P8 | P9 | P10 | P11 | P12 | P13
 data EnvelopeType = Env0 | Env1 | Env2
+data OctaveType = Oct0 | Oct1 | Oct2
 
 type TriggerLeadInfo =
   { n :: Int
@@ -253,6 +255,7 @@ type TriggerLeadInfo =
   , synthPrefix :: LeadSynth
   , buffers :: Buffers
   , envType :: EnvelopeType
+  , octaveLead :: OctaveType
   }
 
 newtype TriggerLeadNT = TriggerLeadNT
@@ -274,6 +277,7 @@ type Acc =
   , synthPitchProfile :: PitchSynth
   , nPitches :: Int
   , envType :: EnvelopeType
+  , octaveLead :: OctaveType
   , leadDelayInfo ::
       { leadDelayLine0 :: Boolean
       , leadDelayLine1 :: Boolean

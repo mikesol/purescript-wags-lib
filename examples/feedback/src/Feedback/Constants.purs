@@ -9,13 +9,16 @@ import Data.Maybe (fromMaybe)
 import Data.Unfoldable (replicate)
 
 -- U means uneven
+-- this is for gains
 longLFOU3 = fromNonEmpty $ 0.0 :| (drop 1 $ join $ replicate 10000 [ 0.0, 0.66, 1.0, 0.66 ])
 longLFOU2 = fromNonEmpty $ 0.0 :| (drop 1 $ join $ replicate 10000 [ 0.35, 0.82, 1.0, 0.82 ])
 longLFOU1 = fromNonEmpty $ 0.0 :| (drop 1 $ join $ replicate 10000 [ 0.6, 0.9, 1.0, 0.9 ])
 longLFOU0 = fromNonEmpty $ 0.0 :| (drop 1 $ join $ replicate 10000 [ 0.8, 0.95, 1.0, 0.95 ])
 
--- E means even
-longLFOE0 = fromNonEmpty $ 0.0 :| (drop 1 $ join $ replicate 10000 [ 0.0, 0.5, 1.0, 0.5 ])
+-- drone bandpass 0
+droneBandpass0LFO = fromNonEmpty $ 0.0 :| (drop 1 $ join $ replicate 10000 [ 300.0, 600.0, 900.0, 600.0 ])
+droneBandpass1LFO = fromNonEmpty $ 0.0 :| (drop 1 $ join $ replicate 10000 [ 1200.0, 1600.0, 2000.0, 1600.0 ])
+dropeHighpass1LFO = fromNonEmpty $ 0.0 :| (drop 1 $ join $ replicate 10000 [ 2000.0, 3000.0, 4000.0, 3000.0 ])
 
 lfoTimeOffset = 0.3
 waveshaperTimeOffset = 1.0
@@ -52,3 +55,4 @@ leadDelay1Duration = 2.5
 leadDelay2Duration = 2.5
 leadDelayCombinedDuration = 2.5
 leadDelaySliderDuration = 0.05
+droneFade = 3.0
