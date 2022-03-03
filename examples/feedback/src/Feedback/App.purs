@@ -8,12 +8,13 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.Traversable (sequence, traverse)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
-import FRP.Event (Event)
+import FRP.Event (Event, EventIO)
 import Feedback.InnerComponent as InnerComponent
 import Feedback.PubNub (PubNub)
 import Feedback.Types (Buffers, IncomingEvent)
 import Halogen (ClassName(..))
 import Halogen as H
+import Halogen.HTML (IProp)
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 import Record (union)
@@ -21,19 +22,15 @@ import Type.Proxy (Proxy(..))
 import WAGS.Interpret (context, close, decodeAudioDataFromUri)
 import WAGS.Lib.Tidal.Download (reverseAudioBuffer)
 
-type State =
-  { event :: Event IncomingEvent
-  , pubnub :: PubNub
-  , buffers :: Maybe Buffers
-  }
+type State = { buffers :: Maybe Buffers }
 
 data Action = Initialize
 
-component :: forall query input output m. MonadEffect m => MonadAff m => Event IncomingEvent -> PubNub -> H.Component query input output m
-component event pubnub =
+component :: forall query input output m. MonadEffect m => MonadAff m => Event IncomingEvent -> EventIO IncomingEvent -> PubNub -> H.Component query input output m
+component localEvent remoteEvent pubnub =
   H.mkComponent
-    { initialState: initialState event pubnub
-    , render
+    { initialState
+    , render: render localEvent remoteEvent pubnub
     , eval: H.mkEval $ H.defaultEval
         { handleAction = handleAction
         , initialize = Just Initialize
@@ -43,18 +40,35 @@ component event pubnub =
 type Slots = (svg :: forall query. H.Slot query Void Unit)
 _svg = Proxy :: Proxy "svg"
 
-initialState :: forall input. Event IncomingEvent -> PubNub -> input -> State
-initialState event pubnub _ = { event, pubnub, buffers: Nothing }
+initialState :: forall input. input -> State
+initialState _ = { buffers: Nothing }
 
-render :: forall m. MonadEffect m => MonadAff m => State -> H.ComponentHTML Action Slots m
-render { pubnub, event, buffers } =
-  HH.div [ HP.classes $ map ClassName [ "w-screen", "h-screen" ] ] $
+klz :: forall r a. Array String -> IProp (class :: String | r) a
+klz = HP.classes <<< map ClassName
+
+render :: forall m. MonadEffect m => MonadAff m => Event IncomingEvent -> EventIO IncomingEvent -> PubNub -> State -> H.ComponentHTML Action Slots m
+render remoteEvent localEvent pubnub { buffers } =
+  HH.div [ klz [ "w-screen", "h-screen" ] ] $
     maybe
-      [ HH.text "Loading" ]
+      [ HH.div [ klz [ "flex", "flex-col", "w-full", "h-full" ] ]
+          [ HH.div [ klz [ "flex-grow" ] ] [ HH.div_ [] ]
+          , HH.div [ klz [ "flex-grow-0", "flex", "flex-row" ] ]
+              [ HH.div [ klz [ "flex-grow" ] ]
+                  []
+              , HH.div [ klz [ "flex", "flex-col" ] ]
+
+                  [ HH.h1 [ klz [ "text-center", "text-3xl", "font-bold" ] ]
+                      [ HH.text "Loading..." ]
+                  ]
+              , HH.div [ klz [ "flex-grow" ] ] []
+              ]
+          , HH.div [ klz [ "flex-grow" ] ] []
+          ]
+      ]
       ( append []
           <<< pure
           <<< flip (HH.slot_ _svg unit) unit
-          <<< InnerComponent.component event pubnub
+          <<< InnerComponent.component remoteEvent localEvent pubnub
       )
       buffers
 

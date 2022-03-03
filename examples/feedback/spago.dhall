@@ -22,5 +22,7 @@ in      conf
               , "debug"
               , "parallel"
               , "typelevel-prelude"
+              , "halogen-subscriptions"
+              ,"web-uievents"
               ]
         }

@@ -5,6 +5,7 @@ import Prelude
 import Data.Tuple (fst, snd)
 import Effect (Effect)
 import Effect.Class (liftEffect)
+import FRP.Event (create)
 import Feedback.App as App
 import Feedback.PubNub (pubnubEvent)
 import Halogen.Aff (awaitBody, runHalogenAff)
@@ -16,4 +17,5 @@ main =
   runHalogenAff do
     body <- awaitBody
     pne <- liftEffect pubnubEvent
-    runUI (App.component (fst pne) (snd pne)) unit body
+    localEvent <- liftEffect create
+    runUI (App.component (fst pne) localEvent (snd pne)) unit body
