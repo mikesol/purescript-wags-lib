@@ -7,7 +7,7 @@ import Data.Int (floor, toNumber)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap, wrap)
 import Data.Traversable (for_)
-import Data.Typelevel.Num (class Pos, toInt')
+import Data.Typelevel.Num (class Pos, D2, toInt')
 import Data.Variant (default, inj, onMatch)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
@@ -15,7 +15,7 @@ import Effect.Class (class MonadEffect)
 import Effect.Class.Console as Log
 import FRP.Event (Event, EventIO, subscribe)
 import Feedback.Acc (initialAcc)
-import Feedback.Control (Action(..), State, SliderAction(..), c2s, elts)
+import Feedback.Control (Action(..), SliderAction(..), State, T2(..), c2s, elts)
 import Feedback.Engine (piece)
 import Feedback.Oracle (oracle)
 import Feedback.PubNub (PubNub)
@@ -90,6 +90,35 @@ initialState _ =
       , greatAndMightyPanDown: false
       , distantBellsFader: 0.0
       , distantBellsFaderDown: false
+      --
+      , togglePadOsc0: T2_0
+      , togglePadOsc1: T2_0
+      , togglePadOsc2: T2_0
+      , togglePadOsc3: T2_0
+      , togglePadOsc4: T2_0
+      , leadDelayLine0: T2_0
+      , leadDelayLine1: T2_0
+      , leadDelayLine2: T2_0
+      , leadCombinedDelay0: T2_0
+      , droneFlange: T2_0
+      , sampleReverse: T2_0
+      , sampleChorusEffect: T2_0
+      , sampleDelayLine0: T2_0
+      , sampleDelayLine1: T2_0
+      , sampleDelayLine2: T2_0
+      , sampleCombinedDelayLine0: T2_0
+      , leadSampleDelayLine0: T2_0
+      , leadSampleDelayLine1: T2_0
+      , leadSampleDelayLine2: T2_0
+      , loopingBufferGainDJ: T2_0
+      , loopingBuffer0: T2_0
+      , loopingBuffer1: T2_0
+      , loopingBuffer2: T2_0
+      , loopingBuffer3: T2_0
+      , loopingBuffer4: T2_0
+      , radicalFlip: T2_0
+      , globalDelay: T2_0
+      --
       }
   }
 
@@ -124,6 +153,23 @@ render st = case st.audioCtx of
     , SA.preserveAspectRatio Nothing SA.Slice
     ]
     (join $ map (c2s st) $ values $ fromHomogeneous elts)
+
+handleT2
+  :: forall output m
+   . MonadEffect m
+  => MonadAff m
+  => (IncomingEvent -> Effect Unit)
+  -> (State -> T2 -> State)
+  -- not used currently...
+  -> (State -> T2)
+  -> (Elts D2 -> IncomingEvent')
+  -> T2
+  -> H.HalogenM State Action () output m Unit
+handleT2 push f _ mv t2 = do
+  H.modify_ (\s -> f s t2)
+  H.liftEffect $ push $ wrap $ mv $ case t2 of
+    T2_0 -> Elts 0
+    T2_1 -> Elts 1
 
 handleSlider
   :: forall output m
@@ -161,6 +207,11 @@ uzto (ZeroToOne n) = n
 
 ezto :: forall n. Pos n => Elts n -> Number
 ezto = let ii = toInt' (Proxy :: _ n) in \(Elts n) -> toNumber n / toNumber ii
+
+et2 :: Elts D2 -> T2
+et2 (Elts n) = case n of
+  0 -> T2_0
+  _ -> T2_1
 
 handleAction :: forall output m. MonadEffect m => MonadAff m => Event IncomingEvent -> EventIO IncomingEvent -> PubNub -> Buffers -> Action -> H.HalogenM State Action () output m Unit
 handleAction remoteEvent localEvent pubnub buffers = case _ of
@@ -404,6 +455,224 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
         )
     )
     sliderAction
+  --
+  TogglePadOsc0 t2 -> handleT2 localEvent.push _ { interactions { togglePadOsc0 = _ } } _.interactions.togglePadOsc0
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "togglePadOsc0"
+        )
+    )
+    t2
+  TogglePadOsc1 t2 -> handleT2 localEvent.push _ { interactions { togglePadOsc1 = _ } } _.interactions.togglePadOsc1
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "togglePadOsc1"
+        )
+    )
+    t2
+  TogglePadOsc2 t2 -> handleT2 localEvent.push _ { interactions { togglePadOsc2 = _ } } _.interactions.togglePadOsc2
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "togglePadOsc2"
+        )
+    )
+    t2
+  TogglePadOsc3 t2 -> handleT2 localEvent.push _ { interactions { togglePadOsc3 = _ } } _.interactions.togglePadOsc3
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "togglePadOsc3"
+        )
+    )
+    t2
+  TogglePadOsc4 t2 -> handleT2 localEvent.push _ { interactions { togglePadOsc4 = _ } } _.interactions.togglePadOsc4
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "togglePadOsc4"
+        )
+    )
+    t2
+  LeadDelayLine0 t2 -> handleT2 localEvent.push _ { interactions { leadDelayLine0 = _ } } _.interactions.leadDelayLine0
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "leadDelayLine0"
+        )
+    )
+    t2
+  LeadDelayLine1 t2 -> handleT2 localEvent.push _ { interactions { leadDelayLine1 = _ } } _.interactions.leadDelayLine1
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "leadDelayLine1"
+        )
+    )
+    t2
+  LeadDelayLine2 t2 -> handleT2 localEvent.push _ { interactions { leadDelayLine2 = _ } } _.interactions.leadDelayLine2
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "leadDelayLine2"
+        )
+    )
+    t2
+  LeadCombinedDelay0 t2 -> handleT2 localEvent.push _ { interactions { leadCombinedDelay0 = _ } } _.interactions.leadCombinedDelay0
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "leadCombinedDelay0"
+        )
+    )
+    t2
+  DroneFlange t2 -> handleT2 localEvent.push _ { interactions { droneFlange = _ } } _.interactions.droneFlange
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "droneFlange"
+        )
+    )
+    t2
+  SampleReverse t2 -> handleT2 localEvent.push _ { interactions { sampleReverse = _ } } _.interactions.sampleReverse
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "sampleReverse"
+        )
+    )
+    t2
+  SampleChorusEffect t2 -> handleT2 localEvent.push _ { interactions { sampleChorusEffect = _ } } _.interactions.sampleChorusEffect
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "sampleChorusEffect"
+        )
+    )
+    t2
+  SampleDelayLine0 t2 -> handleT2 localEvent.push _ { interactions { sampleDelayLine0 = _ } } _.interactions.sampleDelayLine0
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "sampleDelayLine0"
+        )
+    )
+    t2
+  SampleDelayLine1 t2 -> handleT2 localEvent.push _ { interactions { sampleDelayLine1 = _ } } _.interactions.sampleDelayLine1
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "sampleDelayLine1"
+        )
+    )
+    t2
+  SampleDelayLine2 t2 -> handleT2 localEvent.push _ { interactions { sampleDelayLine2 = _ } } _.interactions.sampleDelayLine2
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "sampleDelayLine2"
+        )
+    )
+    t2
+  SampleCombinedDelayLine0 t2 -> handleT2 localEvent.push _ { interactions { sampleCombinedDelayLine0 = _ } } _.interactions.sampleCombinedDelayLine0
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "sampleCombinedDelayLine0"
+        )
+    )
+    t2
+  LeadSampleDelayLine0 t2 -> handleT2 localEvent.push _ { interactions { leadSampleDelayLine0 = _ } } _.interactions.leadSampleDelayLine0
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "leadSampleDelayLine0"
+        )
+    )
+    t2
+  LeadSampleDelayLine1 t2 -> handleT2 localEvent.push _ { interactions { leadSampleDelayLine1 = _ } } _.interactions.leadSampleDelayLine1
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "leadSampleDelayLine1"
+        )
+    )
+    t2
+  LeadSampleDelayLine2 t2 -> handleT2 localEvent.push _ { interactions { leadSampleDelayLine2 = _ } } _.interactions.leadSampleDelayLine2
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "leadSampleDelayLine2"
+        )
+    )
+    t2
+  LoopingBufferGainDJ t2 -> handleT2 localEvent.push _ { interactions { loopingBufferGainDJ = _ } } _.interactions.loopingBufferGainDJ
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "loopingBufferGainDJ"
+        )
+    )
+    t2
+  LoopingBuffer0 t2 -> handleT2 localEvent.push _ { interactions { loopingBuffer0 = _ } } _.interactions.loopingBuffer0
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "loopingBuffer0"
+        )
+    )
+    t2
+  LoopingBuffer1 t2 -> handleT2 localEvent.push _ { interactions { loopingBuffer1 = _ } } _.interactions.loopingBuffer1
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "loopingBuffer1"
+        )
+    )
+    t2
+  LoopingBuffer2 t2 -> handleT2 localEvent.push _ { interactions { loopingBuffer2 = _ } } _.interactions.loopingBuffer2
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "loopingBuffer2"
+        )
+    )
+    t2
+  LoopingBuffer3 t2 -> handleT2 localEvent.push _ { interactions { loopingBuffer3 = _ } } _.interactions.loopingBuffer3
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "loopingBuffer3"
+        )
+    )
+    t2
+  LoopingBuffer4 t2 -> handleT2 localEvent.push _ { interactions { loopingBuffer4 = _ } } _.interactions.loopingBuffer4
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "loopingBuffer4"
+        )
+    )
+    t2
+  RadicalFlip t2 -> handleT2 localEvent.push _ { interactions { radicalFlip = _ } } _.interactions.radicalFlip
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "radicalFlip"
+        )
+    )
+    t2
+  GlobalDelay t2 -> handleT2 localEvent.push _ { interactions { globalDelay = _ } } _.interactions.globalDelay
+    ( inj
+        ( Proxy
+            :: Proxy
+                 "globalDelay"
+        )
+    )
+    t2
+  --
   StubDeleteMe -> mempty
   StartAudio -> do
     handleAction remoteEvent localEvent pubnub buffers StopAudio
@@ -527,6 +796,89 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
                 >>> SliderRemoteMove
                 >>> DistantBellsFader
                 >>> HS.notify listener
+            -----
+            , togglePadOsc0: et2
+                >>> TogglePadOsc0
+                >>> HS.notify listener
+            , togglePadOsc1: et2
+                >>> TogglePadOsc1
+                >>> HS.notify listener
+            , togglePadOsc2: et2
+                >>> TogglePadOsc2
+                >>> HS.notify listener
+            , togglePadOsc3: et2
+                >>> TogglePadOsc3
+                >>> HS.notify listener
+            , togglePadOsc4: et2
+                >>> TogglePadOsc4
+                >>> HS.notify listener
+            , leadDelayLine0: et2
+                >>> LeadDelayLine0
+                >>> HS.notify listener
+            , leadDelayLine1: et2
+                >>> LeadDelayLine1
+                >>> HS.notify listener
+            , leadDelayLine2: et2
+                >>> LeadDelayLine2
+                >>> HS.notify listener
+            , leadCombinedDelay0: et2
+                >>> LeadCombinedDelay0
+                >>> HS.notify listener
+            , droneFlange: et2
+                >>> DroneFlange
+                >>> HS.notify listener
+            , sampleReverse: et2
+                >>> SampleReverse
+                >>> HS.notify listener
+            , sampleChorusEffect: et2
+                >>> SampleChorusEffect
+                >>> HS.notify listener
+            , sampleDelayLine0: et2
+                >>> SampleDelayLine0
+                >>> HS.notify listener
+            , sampleDelayLine1: et2
+                >>> SampleDelayLine1
+                >>> HS.notify listener
+            , sampleDelayLine2: et2
+                >>> SampleDelayLine2
+                >>> HS.notify listener
+            , sampleCombinedDelayLine0: et2
+                >>> SampleCombinedDelayLine0
+                >>> HS.notify listener
+            , leadSampleDelayLine0: et2
+                >>> LeadSampleDelayLine0
+                >>> HS.notify listener
+            , leadSampleDelayLine1: et2
+                >>> LeadSampleDelayLine1
+                >>> HS.notify listener
+            , leadSampleDelayLine2: et2
+                >>> LeadSampleDelayLine2
+                >>> HS.notify listener
+            , loopingBufferGainDJ: et2
+                >>> LoopingBufferGainDJ
+                >>> HS.notify listener
+            , loopingBuffer0: et2
+                >>> LoopingBuffer0
+                >>> HS.notify listener
+            , loopingBuffer1: et2
+                >>> LoopingBuffer1
+                >>> HS.notify listener
+            , loopingBuffer2: et2
+                >>> LoopingBuffer2
+                >>> HS.notify listener
+            , loopingBuffer3: et2
+                >>> LoopingBuffer3
+                >>> HS.notify listener
+            , loopingBuffer4: et2
+                >>> LoopingBuffer4
+                >>> HS.notify listener
+            , radicalFlip: et2
+                >>> RadicalFlip
+                >>> HS.notify listener
+            , globalDelay: et2
+                >>> GlobalDelay
+                >>> HS.notify listener
+            ---
             }
             (default (pure unit))
         )

@@ -39,7 +39,7 @@ data SliderAction
 data Control
   = Slider (SliderAction -> Action) (State -> Number) Rect Color Color
   | DiscreteChooser (SliderAction -> Action) (State -> Number) Rect Color Color Int
-  | T2 Rect Color T2
+  | T2 (T2 -> Action) (State -> T2) Rect Color
   | T3 Rect Color T3
   | T4 Rect Color T4
   | T5 Rect Color T5
@@ -51,6 +51,7 @@ data Action
   = StartAudio
   | StopAudio
   | StubDeleteMe
+  --
   | GainLFO0Pad SliderAction
   | GainLFO1Pad SliderAction
   | WaveshaperPad SliderAction
@@ -71,6 +72,34 @@ data Action
   | LoopingBufferStartEndConstriction SliderAction
   | GreatAndMightyPan SliderAction
   | DistantBellsFader SliderAction
+  --
+  | TogglePadOsc0 T2
+  | TogglePadOsc1 T2
+  | TogglePadOsc2 T2
+  | TogglePadOsc3 T2
+  | TogglePadOsc4 T2
+  | LeadDelayLine0 T2
+  | LeadDelayLine1 T2
+  | LeadDelayLine2 T2
+  | LeadCombinedDelay0 T2
+  | DroneFlange T2
+  | SampleReverse T2
+  | SampleChorusEffect T2
+  | SampleDelayLine0 T2
+  | SampleDelayLine1 T2
+  | SampleDelayLine2 T2
+  | SampleCombinedDelayLine0 T2
+  | LeadSampleDelayLine0 T2
+  | LeadSampleDelayLine1 T2
+  | LeadSampleDelayLine2 T2
+  | LoopingBufferGainDJ T2
+  | LoopingBuffer0 T2
+  | LoopingBuffer1 T2
+  | LoopingBuffer2 T2
+  | LoopingBuffer3 T2
+  | LoopingBuffer4 T2
+  | RadicalFlip T2
+  | GlobalDelay T2
 
 type State =
   { unsubscribe :: Effect Unit
@@ -117,6 +146,34 @@ type State =
       , greatAndMightyPanDown :: Boolean
       , distantBellsFader :: Number
       , distantBellsFaderDown :: Boolean
+      --
+      , togglePadOsc0 :: T2
+      , togglePadOsc1 :: T2
+      , togglePadOsc2 :: T2
+      , togglePadOsc3 :: T2
+      , togglePadOsc4 :: T2
+      , leadDelayLine0 :: T2
+      , leadDelayLine1 :: T2
+      , leadDelayLine2 :: T2
+      , leadCombinedDelay0 :: T2
+      , droneFlange :: T2
+      , sampleReverse :: T2
+      , sampleChorusEffect :: T2
+      , sampleDelayLine0 :: T2
+      , sampleDelayLine1 :: T2
+      , sampleDelayLine2 :: T2
+      , sampleCombinedDelayLine0 :: T2
+      , leadSampleDelayLine0 :: T2
+      , leadSampleDelayLine1 :: T2
+      , leadSampleDelayLine2 :: T2
+      , loopingBufferGainDJ :: T2
+      , loopingBuffer0 :: T2
+      , loopingBuffer1 :: T2
+      , loopingBuffer2 :: T2
+      , loopingBuffer3 :: T2
+      , loopingBuffer4 :: T2
+      , radicalFlip :: T2
+      , globalDelay :: T2
       }
   }
 
@@ -130,15 +187,15 @@ elts =
   { -- press to grow or shrink a pad
     triggerPad: Pad (Rect 60 60 240 240) focusc 0.0
   -- periodic wave in mix
-  , togglePadOsc0: T2 (Rect 400 60 60 60) focusc T2_0
+  , togglePadOsc0: T2 TogglePadOsc0 _.interactions.togglePadOsc0 (Rect 400 60 60 60) focusc
   -- triangle wave in mix
-  , togglePadOsc1: T2 (Rect 540 940 60 60) focusc T2_0
+  , togglePadOsc1: T2 TogglePadOsc1 _.interactions.togglePadOsc1 (Rect 540 940 60 60) focusc
   -- sawtooth wave in mix
-  , togglePadOsc2: T2 (Rect 270 690 60 60) focusc T2_0
+  , togglePadOsc2: T2 TogglePadOsc2 _.interactions.togglePadOsc2 (Rect 270 690 60 60) focusc
   -- square in mix
-  , togglePadOsc3: T2 (Rect 0 60 60 60) focusc T2_0
+  , togglePadOsc3: T2 TogglePadOsc3 _.interactions.togglePadOsc3 (Rect 0 60 60 60) focusc
   -- high sine in mix
-  , togglePadOsc4: T2 (Rect 420 940 60 60) focusc T2_0
+  , togglePadOsc4: T2 TogglePadOsc4 _.interactions.togglePadOsc4 (Rect 420 940 60 60) focusc
   -- three detuning factors + "normal" harmonic series
   , detunePad: T4 (Rect 800 690 130 100) focusc T4_0
   -- 0th lfo on the pad gain
@@ -156,13 +213,13 @@ elts =
   -- choose which pitch out of 14 to start at
   , pitchLead: DiscreteChooser PitchLead _.interactions.pitchLead (Rect 930 70 70 520) backgroundc foregroundc 14
   -- 0th delay line for the lead synth
-  , leadDelayLine0: T2 (Rect 0 240 60 60) focusc T2_0
+  , leadDelayLine0: T2 LeadDelayLine0 _.interactions.leadDelayLine0 (Rect 0 240 60 60) focusc
   -- 1st delay line for the lead synth
-  , leadDelayLine1: T2 (Rect 460 120 60 60) focusc T2_0
+  , leadDelayLine1: T2 LeadDelayLine1 _.interactions.leadDelayLine1 (Rect 460 120 60 60) focusc
   -- 2nd delay line for the lead synth
-  , leadDelayLine2: T2 (Rect 90 690 60 60) focusc T2_0
+  , leadDelayLine2: T2 LeadDelayLine2 _.interactions.leadDelayLine2 (Rect 90 690 60 60) focusc
   -- combined delay line for the lead synth
-  , leadCombinedDelay0: T2 (Rect 300 0 60 60) focusc T2_0
+  , leadCombinedDelay0: T2 LeadCombinedDelay0 _.interactions.leadCombinedDelay0 (Rect 300 0 60 60) focusc
   -- shifts intensities of delays
   , leadDelayGainCarousel: Slider LeadDelayGainCarousel _.interactions.leadDelayGainCarousel (Rect 590 590 410 100) backgroundc foregroundc
   -- n pitches played when pressed (fixed sequence always based on start)
@@ -196,51 +253,51 @@ elts =
   -- how long does the drone linger?
   , droneDecay: Slider DroneDecay _.interactions.droneDecay (Rect 590 60 70 400) backgroundc foregroundc
   -- flange on the drone
-  , droneFlange: T2 (Rect 60 0 60 60) focusc T2_0
+  , droneFlange: T2 DroneFlange _.interactions.droneFlange (Rect 60 0 60 60) focusc
   -- a single sample
   , sampleOneShot: Source (Rect 660 140 200 200) focusc
   -- reverse the samples?
-  , sampleReverse: T2 (Rect 400 120 60 60) focusc T2_0
+  , sampleReverse: T2 SampleReverse _.interactions.sampleReverse (Rect 400 120 60 60) focusc
   -- choose which sample to play
   , sampleChooser: DiscreteChooser SampleChooser _.interactions.sampleChooser (Rect 0 300 90 640) backgroundc foregroundc 24
-  , sampleChorusEffect: T2 (Rect 120 0 60 60) focusc T2_0
+  , sampleChorusEffect: T2 SampleChorusEffect _.interactions.sampleChorusEffect (Rect 120 0 60 60) focusc
   , sampleRateChange: T3 (Rect 720 690 80 100) focusc T3_0
   -- 0th delay line for the single sample
-  , sampleDelayLine0: T2 (Rect 0 0 60 60) focusc T2_0
+  , sampleDelayLine0: T2 SampleDelayLine0 _.interactions.sampleDelayLine0 (Rect 0 0 60 60) focusc
   -- 1st delay line for the single sample
-  , sampleDelayLine1: T2 (Rect 150 690 60 60) focusc T2_0
+  , sampleDelayLine1: T2 SampleDelayLine1 _.interactions.sampleDelayLine1 (Rect 150 690 60 60) focusc
   -- 2nd delay line for the single sample
-  , sampleDelayLine2: T2 (Rect 860 270 70 70) focusc T2_0
+  , sampleDelayLine2: T2 SampleDelayLine2 _.interactions.sampleDelayLine2 (Rect 860 270 70 70) focusc
   -- 0th sample combined delay line
-  , sampleCombinedDelayLine0: T2 (Rect 480 940 60 60) focusc T2_0
+  , sampleCombinedDelayLine0: T2 SampleCombinedDelayLine0 _.interactions.sampleCombinedDelayLine0 (Rect 480 940 60 60) focusc
   -- changes intensities of various delay lines
   , sampleDelayGainCarousel: Slider SampleDelayGainCarousel _.interactions.sampleDelayGainCarousel (Rect 270 300 320 90) backgroundc foregroundc
   -- 0th delay line for combined lead sample
-  , leadSampleDelayLine0: T2 (Rect 660 940 60 60) focusc T2_0
+  , leadSampleDelayLine0: T2 LeadSampleDelayLine0 _.interactions.leadSampleDelayLine0 (Rect 660 940 60 60) focusc
   -- 1st delay line for combined lead sample
-  , leadSampleDelayLine1: T2 (Rect 330 690 60 60) focusc T2_0
+  , leadSampleDelayLine1: T2 LeadSampleDelayLine1 _.interactions.leadSampleDelayLine1 (Rect 330 690 60 60) focusc
   -- 2nd delay line for combined lead sample
-  , leadSampleDelayLine2: T2 (Rect 0 180 60 60) focusc T2_0
+  , leadSampleDelayLine2: T2 LeadSampleDelayLine2 _.interactions.leadSampleDelayLine2 (Rect 0 180 60 60) focusc
   -- alternates between any looping buffers that are currently playing
-  , loopingBufferGainDJ: T2 (Rect 240 0 60 60) focusc T2_0
+  , loopingBufferGainDJ: T2 LoopingBufferGainDJ _.interactions.loopingBufferGainDJ (Rect 240 0 60 60) focusc
   -- how close the start/end times are
   , loopingBufferStartEndConstriction: Slider LoopingBufferStartEndConstriction _.interactions.loopingBufferStartEndConstriction (Rect 300 160 100 140) backgroundc foregroundc
   -- 0th looping buffer
-  , loopingBuffer0: T2 (Rect 180 0 60 60) focusc T2_0
+  , loopingBuffer0: T2 LoopingBuffer0 _.interactions.loopingBuffer0 (Rect 180 0 60 60) focusc
   -- 1st looping buffer
-  , loopingBuffer1: T2 (Rect 210 690 60 60) focusc T2_0
+  , loopingBuffer1: T2 LoopingBuffer1 _.interactions.loopingBuffer1 (Rect 210 690 60 60) focusc
   -- 2nd looping buffer
-  , loopingBuffer2: T2 (Rect 360 940 60 60) focusc T2_0
+  , loopingBuffer2: T2 LoopingBuffer2 _.interactions.loopingBuffer2 (Rect 360 940 60 60) focusc
   -- 3rd looping buffer
-  , loopingBuffer3: T2 (Rect 300 940 60 60) focusc T2_0
+  , loopingBuffer3: T2 LoopingBuffer3 _.interactions.loopingBuffer3 (Rect 300 940 60 60) focusc
   -- 4th looping buffer
-  , loopingBuffer4: T2 (Rect 0 120 60 60) focusc T2_0
+  , loopingBuffer4: T2 LoopingBuffer4 _.interactions.loopingBuffer4 (Rect 0 120 60 60) focusc
   -- substitutes entirely different sets of base parameters
-  , radicalFlip: T2 (Rect 460 60 60 60) focusc T2_0
+  , radicalFlip: T2 RadicalFlip _.interactions.radicalFlip (Rect 460 60 60 60) focusc
   -- global pan extravaganza
   , greatAndMightyPan: Slider GreatAndMightyPan _.interactions.greatAndMightyPan (Rect 90 870 630 70) backgroundc foregroundc
   -- global delay
-  , globalDelay: T2 (Rect 600 940 60 60) focusc T2_0
+  , globalDelay: T2 GlobalDelay _.interactions.globalDelay (Rect 600 940 60 60) focusc
   -- echoing uncontrollable singleton
   , echoingUncontrollableSingleton: Source (Rect 300 60 100 100) focusc
   , distantBellsFader: Slider DistantBellsFader _.interactions.distantBellsFader (Rect 180 560 90 130) backgroundc foregroundc
@@ -250,6 +307,10 @@ foreign import normalizedWidthAndHeight_ :: (Number -> Number -> Number /\ Numbe
 
 normalizedWidthAndHeight :: MouseEvent -> Number /\ Number
 normalizedWidthAndHeight = normalizedWidthAndHeight_ (/\)
+
+dT2 :: T2 -> T2
+dT2 T2_0 = T2_1
+dT2 T2_1 = T2_0
 
 snap :: Int -> Number -> Number -> Number
 snap mx' v pct = let mx = toNumber mx' in (floor (pct * mx)) * v / mx
@@ -345,11 +406,31 @@ c2s st (DiscreteChooser actionConstructor valueReader (Rect x y w h) background 
                 (const $ actionConstructor SliderUp)
             ]
         ]
-c2s st (T2 (Rect x y w h) color t) =
-  [ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
-  ] <> case t of
-    T2_0 -> []
-    T2_1 -> [ SE.circle [ SA.cx $ (toNumber x + (toNumber w / 2.0)), SA.cy $ (toNumber y + (toNumber h / 2.0)), SA.r $ toNumber ((min w h) - 20) / 2.0, SA.fill (RGB 10 10 10), SA.stroke (RGB 4 4 4) ] ]
+c2s st (T2 actionConstructor valueReader (Rect x y w h) color) =
+  let
+    cur = valueReader st
+  in
+    [ SE.rect
+        [ SA.x $ toNumber x
+        , SA.y $ toNumber y
+        , SA.width $ toNumber w
+        , SA.height $ toNumber h
+        , SA.fill color
+        , SA.stroke (RGB 4 4 4)
+        , HE.onClick (const $ actionConstructor $ dT2 cur)
+        ]
+    ] <> case cur of
+      T2_0 -> []
+      T2_1 ->
+        [ SE.circle
+            [ SA.cx $ (toNumber x + (toNumber w / 2.0))
+            , SA.cy $ (toNumber y + (toNumber h / 2.0))
+            , SA.r $ toNumber ((min w h) - 20) / 2.0
+            , SA.fill (RGB 10 10 10)
+            , SA.stroke (RGB 4 4 4)
+            , HE.onClick (const $ actionConstructor $ dT2 cur)
+            ]
+        ]
 c2s st (T3 (Rect x y w h) color t) = [ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ] ] <> case t of
   T3_0 -> []
   T3_1 -> [ SE.polygon [ HH.attr (wrap "points") (show x <> "," <> show y <> " " <> show (x + w) <> "," <> show y <> " " <> show (x + w) <> "," <> show (y + h) <> " ") ] ]
