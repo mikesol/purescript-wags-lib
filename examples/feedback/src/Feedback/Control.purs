@@ -40,8 +40,8 @@ data Control
   = Slider (SliderAction -> Action) (State -> Number) Rect Color Color
   | DiscreteChooser (SliderAction -> Action) (State -> Number) Rect Color Color Int
   | T2 (T2 -> Action) (State -> T2) Rect Color
-  | T3 Rect Color T3
-  | T4 Rect Color T4
+  | T3 (T3 -> Action) (State -> T3) Rect Color
+  | T4 (T4 -> Action) (State -> T4) Rect Color
   | T5 Rect Color T5
   | T6 Rect Color T6
   | Pad Rect Color Number
@@ -100,9 +100,16 @@ data Action
   | LoopingBuffer4 T2
   | RadicalFlip T2
   | GlobalDelay T2
+  --
   | TriggerLead
   | SampleOneShot
   | UncontrollableSingleton
+  --
+  | EnvelopeLead T3
+  | OctaveLead T3
+  | SampleRateChange T3
+  --
+  | DetunePad T4
 
 type State =
   { unsubscribe :: Effect Unit
@@ -177,6 +184,12 @@ type State =
       , loopingBuffer4 :: T2
       , radicalFlip :: T2
       , globalDelay :: T2
+      --
+      , envelopeLead :: T3
+      , octaveLead :: T3
+      , sampleRateChange :: T3
+      --
+      , detunePad :: T4
       }
   }
 
@@ -200,7 +213,7 @@ elts =
   -- high sine in mix
   , togglePadOsc4: T2 TogglePadOsc4 _.interactions.togglePadOsc4 (Rect 420 940 60 60) focusc
   -- three detuning factors + "normal" harmonic series
-  , detunePad: T4 (Rect 800 690 130 100) focusc T4_0
+  , detunePad: T4 DetunePad _.interactions.detunePad (Rect 800 690 130 100) focusc
   -- 0th lfo on the pad gain
   , gainLFO0Pad: Slider GainLFO0Pad _.interactions.gainLFO0Pad (Rect 90 810 450 60) backgroundc foregroundc
   -- 1st lfo on the pad gain, fatter & more sluggish
@@ -228,9 +241,9 @@ elts =
   -- n pitches played when pressed (fixed sequence always based on start)
   , nPitchesPlayedLead: DiscreteChooser NPitchesPlayedLead _.interactions.nPitchesPlayedLead (Rect 90 300 90 390) backgroundc foregroundc 7
   -- one of three envelopes
-  , envelopeLead: T3 (Rect 660 0 140 140) focusc T3_0
+  , envelopeLead: T3 EnvelopeLead _.interactions.envelopeLead (Rect 660 0 140 140) focusc
   -- octave shift
-  , octaveLead: T3 (Rect 800 70 60 70) focusc T3_0
+  , octaveLead: T3 OctaveLead _.interactions.octaveLead (Rect 800 70 60 70) focusc
   -- pad for a buffer
   , drone: Pad (Rect 270 390 320 300) focusc 0.0
   -- choose drone
@@ -264,7 +277,7 @@ elts =
   -- choose which sample to play
   , sampleChooser: DiscreteChooser SampleChooser _.interactions.sampleChooser (Rect 0 300 90 640) backgroundc foregroundc 24
   , sampleChorusEffect: T2 SampleChorusEffect _.interactions.sampleChorusEffect (Rect 120 0 60 60) focusc
-  , sampleRateChange: T3 (Rect 720 690 80 100) focusc T3_0
+  , sampleRateChange: T3 SampleRateChange _.interactions.sampleRateChange (Rect 720 690 80 100) focusc
   -- 0th delay line for the single sample
   , sampleDelayLine0: T2 SampleDelayLine0 _.interactions.sampleDelayLine0 (Rect 0 0 60 60) focusc
   -- 1st delay line for the single sample
@@ -314,6 +327,17 @@ normalizedWidthAndHeight = normalizedWidthAndHeight_ (/\)
 dT2 :: T2 -> T2
 dT2 T2_0 = T2_1
 dT2 T2_1 = T2_0
+
+dT3 :: T3 -> T3
+dT3 T3_0 = T3_1
+dT3 T3_1 = T3_2
+dT3 T3_2 = T3_0
+
+dT4 :: T4 -> T4
+dT4 T4_0 = T4_1
+dT4 T4_1 = T4_2
+dT4 T4_2 = T4_3
+dT4 T4_3 = T4_0
 
 snap :: Int -> Number -> Number -> Number
 snap mx' v pct = let mx = toNumber mx' in (floor (pct * mx)) * v / mx
@@ -434,12 +458,102 @@ c2s st (T2 actionConstructor valueReader (Rect x y w h) color) =
             , HE.onClick (const $ actionConstructor $ dT2 cur)
             ]
         ]
-c2s st (T3 (Rect x y w h) color t) = [ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ] ] <> case t of
-  T3_0 -> []
-  T3_1 -> [ SE.polygon [ HH.attr (wrap "points") (show x <> "," <> show y <> " " <> show (x + w) <> "," <> show y <> " " <> show (x + w) <> "," <> show (y + h) <> " ") ] ]
-  T3_2 -> [ SE.polygon [ HH.attr (wrap "points") (show x <> "," <> show y <> " " <> show x <> "," <> show (y + h) <> " " <> show (x + w) <> "," <> show (y + h) <> " ") ] ]
-c2s st (T4 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
-c2s st (T5 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
-c2s st (T6 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
-c2s st (Pad (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
-c2s st (Source action (Rect x y w h) color) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
+c2s st (T3 actionConstructor valueReader (Rect x y w h) color) =
+  let
+    cur = valueReader st
+  in
+    [ SE.rect
+        [ SA.x $ toNumber x
+        , SA.y $ toNumber y
+        , SA.width $ toNumber w
+        , SA.height $ toNumber h
+        , SA.fill color
+        , SA.stroke (RGB 4 4 4)
+        , HE.onClick (const $ actionConstructor $ dT3 cur)
+        ]
+    ] <> case cur of
+      T3_0 -> []
+      T3_1 ->
+        [ SE.polygon
+            [ HH.attr (wrap "points") (show x <> "," <> show y <> " " <> show (x + w) <> "," <> show y <> " " <> show (x + w) <> "," <> show (y + h) <> " ")
+            , HE.onClick (const $ actionConstructor $ dT3 cur)
+            ]
+        ]
+      T3_2 ->
+        [ SE.polygon
+            [ HH.attr (wrap "points") (show x <> "," <> show y <> " " <> show x <> "," <> show (y + h) <> " " <> show (x + w) <> "," <> show (y + h) <> " ")
+            , HE.onClick (const $ actionConstructor $ dT3 cur)
+            ]
+        ]
+c2s st (T4 actionConstructor valueReader (Rect x y w h) color) =
+  let
+    cur = valueReader st
+  in
+    [ SE.rect
+        [ SA.x $ toNumber x
+        , SA.y $ toNumber y
+        , SA.width $ toNumber w
+        , SA.height $ toNumber h
+        , SA.fill color
+        , SA.stroke (RGB 4 4 4)
+        ]
+    ] <> case cur of
+      T4_0 -> []
+      T4_1 ->
+        [ SE.polygon
+            [ HH.attr (wrap "points") (show x <> "," <> show y <> " " <> show (x + w) <> "," <> show y <> " " <> show (x + w) <> "," <> show (y + (h / 2)) <> " ")
+            , HE.onClick (const $ actionConstructor $ dT4 cur)
+            ]
+        ]
+      T4_2 ->
+        [ SE.polygon
+            [ HH.attr (wrap "points") (show x <> "," <> show (y + (h / 2)) <> " " <> show x <> "," <> show (y + h) <> " " <> show (x + w) <> "," <> show (y + h) <> " ")
+            , HE.onClick (const $ actionConstructor $ dT4 cur)
+            ]
+        ]
+      T4_3 ->
+        [ SE.polygon
+            [ HH.attr (wrap "points") (show x <> "," <> show (y + (h / 2)) <> " " <> show (x + w) <> "," <> show y <> " " <> show (x + w) <> "," <> show (y + h) <> " ")
+            , HE.onClick (const $ actionConstructor $ dT4 cur)
+            ]
+        ]
+c2s st (T5 (Rect x y w h) color _) =
+  [ SE.rect
+      [ SA.x $ toNumber x
+      , SA.y $ toNumber y
+      , SA.width $ toNumber w
+      , SA.height $ toNumber h
+      , SA.fill color
+      , SA.stroke (RGB 4 4 4)
+      ]
+  ]
+c2s st (T6 (Rect x y w h) color _) =
+  [ SE.rect
+      [ SA.x $ toNumber x
+      , SA.y $ toNumber y
+      , SA.width $ toNumber w
+      , SA.height $ toNumber h
+      , SA.fill color
+      , SA.stroke (RGB 4 4 4)
+      ]
+  ]
+c2s st (Pad (Rect x y w h) color _) =
+  [ SE.rect
+      [ SA.x $ toNumber x
+      , SA.y $ toNumber y
+      , SA.width $ toNumber w
+      , SA.height $ toNumber h
+      , SA.fill color
+      , SA.stroke (RGB 4 4 4)
+      ]
+  ]
+c2s st (Source action (Rect x y w h) color) =
+  [ SE.rect
+      [ SA.x $ toNumber x
+      , SA.y $ toNumber y
+      , SA.width $ toNumber w
+      , SA.height $ toNumber h
+      , SA.fill color
+      , SA.stroke (RGB 4 4 4)
+      ]
+  ]

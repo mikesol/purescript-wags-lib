@@ -56,7 +56,6 @@ render remoteEvent localEvent pubnub { buffers } =
               [ HH.div [ klz [ "flex-grow" ] ]
                   []
               , HH.div [ klz [ "flex", "flex-col" ] ]
-
                   [ HH.h1 [ klz [ "text-center", "text-3xl", "font-bold" ] ]
                       [ HH.text "Loading..." ]
                   ]

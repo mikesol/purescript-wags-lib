@@ -3,22 +3,21 @@ module Feedback.InnerComponent where
 import Prelude
 
 import Control.Alt ((<|>))
+import Data.Array ((..))
 import Data.Int (floor, toNumber)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap, wrap)
 import Data.Traversable (for_)
-import Data.Typelevel.Num (class Pos, D2, toInt')
+import Data.Typelevel.Num (class Pos, D2, D3, D4, toInt')
 import Data.Variant (default, inj, onMatch)
 import Data.Vec ((+>), empty)
-import Data.Array ((..))
-import Math (pi, cos, sin, abs)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
 import Effect.Class.Console as Log
 import FRP.Event (Event, EventIO, subscribe)
 import Feedback.Acc (initialAcc)
-import Feedback.Control (Action(..), SliderAction(..), State, T2(..), c2s, elts)
+import Feedback.Control (Action(..), SliderAction(..), State, T2(..), T3(..), T4(..), T5(..), T6(..), c2s, elts)
 import Feedback.Engine (piece)
 import Feedback.Oracle (oracle)
 import Feedback.PubNub (PubNub)
@@ -33,6 +32,7 @@ import Halogen.HTML.Properties as HP
 import Halogen.Subscription as HS
 import Halogen.Svg.Attributes as SA
 import Halogen.Svg.Elements as SE
+import Math (pi, cos, sin, abs)
 import Type.Proxy (Proxy(..))
 import WAGS.Interpret (close, context, makeFFIAudioSnapshot, makeFloatArray, makePeriodicWave)
 import WAGS.Run (TriggeredRun, runNoLoop)
@@ -122,6 +122,11 @@ initialState _ =
       , radicalFlip: T2_0
       , globalDelay: T2_0
       --
+      , envelopeLead: T3_0
+      , octaveLead: T3_0
+      , sampleRateChange: T3_0
+      --
+      , detunePad: T4_0
       }
   }
 
@@ -175,6 +180,43 @@ makeDistortionCurve k =
 dc :: Array Number
 dc = makeDistortionCurve 440.0
 
+handleT4
+  :: forall output m
+   . MonadEffect m
+  => MonadAff m
+  => (IncomingEvent -> Effect Unit)
+  -> (State -> T4 -> State)
+  -- not used currently...
+  -> (State -> T4)
+  -> (Elts D4 -> IncomingEvent')
+  -> T4
+  -> H.HalogenM State Action () output m Unit
+handleT4 push f _ mv t4 = do
+  H.modify_ (\s -> f s t4)
+  H.liftEffect $ push $ wrap $ mv $ case t4 of
+    T4_0 -> Elts 0
+    T4_1 -> Elts 1
+    T4_2 -> Elts 2
+    T4_3 -> Elts 3
+
+handleT3
+  :: forall output m
+   . MonadEffect m
+  => MonadAff m
+  => (IncomingEvent -> Effect Unit)
+  -> (State -> T3 -> State)
+  -- not used currently...
+  -> (State -> T3)
+  -> (Elts D3 -> IncomingEvent')
+  -> T3
+  -> H.HalogenM State Action () output m Unit
+handleT3 push f _ mv t3 = do
+  H.modify_ (\s -> f s t3)
+  H.liftEffect $ push $ wrap $ mv $ case t3 of
+    T3_0 -> Elts 0
+    T3_1 -> Elts 1
+    T3_2 -> Elts 2
+
 handleT2
   :: forall output m
    . MonadEffect m
@@ -227,6 +269,20 @@ et2 :: Elts D2 -> T2
 et2 (Elts n) = case n of
   0 -> T2_0
   _ -> T2_1
+
+et3 :: Elts D3 -> T3
+et3 (Elts n) = case n of
+  0 -> T3_0
+  1 -> T3_1
+  _ -> T3_2
+
+et4 :: Elts D4 -> T4
+et4 (Elts n) = case n of
+  0 -> T4_0
+  1 -> T4_1
+  2 -> T4_2
+  _ -> T4_3
+
 
 handleAction :: forall output m. MonadEffect m => MonadAff m => Event IncomingEvent -> EventIO IncomingEvent -> PubNub -> Buffers -> Action -> H.HalogenM State Action () output m Unit
 handleAction remoteEvent localEvent pubnub buffers = case _ of
@@ -562,6 +618,20 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
     $ wrap
     $ (inj (Proxy :: Proxy "echoingUncontrollableSingleton") Bang)
   ------
+  EnvelopeLead t3 -> handleT3 localEvent.push _ { interactions { envelopeLead = _ } } _.interactions.envelopeLead
+    (inj (Proxy :: Proxy "envelopeLead"))
+    t3
+  OctaveLead t3 -> handleT3 localEvent.push _ { interactions { octaveLead = _ } } _.interactions.octaveLead
+    (inj (Proxy :: Proxy "octaveLead"))
+    t3
+  SampleRateChange t3 -> handleT3 localEvent.push _ { interactions { sampleRateChange = _ } } _.interactions.sampleRateChange
+    (inj (Proxy :: Proxy "sampleRateChange"))
+    t3
+  ------
+  DetunePad t4 -> handleT4 localEvent.push _ { interactions { detunePad = _ } } _.interactions.detunePad
+    (inj (Proxy :: Proxy "detunePad"))
+    t4
+ ------
   StubDeleteMe -> mempty
   StartAudio -> do
     handleAction remoteEvent localEvent pubnub buffers StopAudio
@@ -757,6 +827,20 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
             , triggerLead: \(_ :: Bang) -> HS.notify listener TriggerLead
             , sampleOneShot: \(_ :: Bang) -> HS.notify listener SampleOneShot
             , echoingUncontrollableSingleton: \(_ :: Bang) -> HS.notify listener UncontrollableSingleton
+            --
+            , octaveLead: et3
+                >>> OctaveLead
+                >>> HS.notify listener
+            , envelopeLead: et3
+                >>> EnvelopeLead
+                >>> HS.notify listener
+            , sampleRateChange: et3
+                >>> SampleRateChange
+                >>> HS.notify listener
+            ----
+            , detunePad: et4
+                >>> DetunePad
+                >>> HS.notify listener
             }
             (default (pure unit))
         )
