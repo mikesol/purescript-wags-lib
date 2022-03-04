@@ -936,7 +936,10 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
       H.liftEffect $ HS.notify listener DoPadStuff
     subscription <- H.subscribe emitter
     H.modify_ _
-      { unsubscribe = unsubscribe0 *> unsubscribe1 *> unsubscribe2 *> unsubscribe3
+      { unsubscribe = unsubscribe0
+          *> unsubscribe1
+          *> unsubscribe2
+          *> unsubscribe3
       , unsubscribeHalogen = Just subscription
       , audioCtx = Just audioCtx
       }
