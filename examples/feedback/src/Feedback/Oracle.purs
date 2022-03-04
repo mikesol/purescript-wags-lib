@@ -15,13 +15,14 @@ import Data.Variant (default, match, onMatch)
 import Data.Vec (Vec, empty, replicate', zipWithE, (+>))
 import Feedback.Constants as C
 import Feedback.FullGraph (FullGraph)
-import Feedback.Types (Acc, Bang, Elts(..), EnvelopeType(..), LeadSynth(..), OctaveType(..), PadT, ezto, PitchSynth(..), Res, SampleRate(..), Trigger(..), TriggerLeadInfo, WhichSample(..), World, ZeroToOne(..), onElts, unTriggerLeadNT, unTriggerOneShotNT, unUncontrollableNT, updateAtElt)
-import Math (sin, pi, pow)
+import Feedback.Types (Acc, Bang, Elts(..), EnvelopeType(..), LeadSynth(..), OctaveType(..), PadT, PitchSynth(..), Res, SampleRate(..), Trigger(..), TriggerLeadInfo, WhichSample(..), World, ZeroToOne(..), ezto, onElts, unTriggerLeadNT, unTriggerOneShotNT, unUncontrollableNT, updateAtElt)
+import Math (sin, pi, pow, (%))
 import Math as M
 import Type.Proxy (Proxy(..))
 import WAGS.Change (ichange, ichange')
 import WAGS.Control.Indexed (IxWAG)
 import WAGS.Graph.Parameter (AudioEnvelope(..), AudioSingleNumber(..), _linearRamp, singleNumber)
+import WAGS.Math (calcSlope)
 import WAGS.Run (RunAudio, RunEngine, TriggeredScene(..))
 
 cyclingTransitions :: forall n. Pos n => Vec n Number -> Number -> Elts n -> AudioSingleNumber
@@ -639,6 +640,50 @@ loopingBufferGainDJ z' _ a =
 
 ---
 
+-- easter egg... save for later as it is too complex for now
+radicalFlip :: ChangeSig (Elts D2)
+radicalFlip _ _ a = ChangeWrapper (ipure a)
+
+globalDelay :: ChangeSig (Elts D2)
+globalDelay e _ a = ChangeWrapper do
+  ichange' (Proxy :: _ "subMainGain") (fadeIO 0.06 1.0 e)
+  pure a
+
+-- 6.0 magic number for end of loop
+lse :: Number -> Number -> Number -> { loopStart :: Number, loopEnd :: Number }
+lse x y z =
+  { loopStart: calcSlope 0.0 0.0 1.0 (x - y) z
+  , loopEnd: calcSlope 0.0 6.0 1.0 (x + y) z
+  }
+
+loopingBufferStartEndConstriction :: ChangeSig ZeroToOne
+loopingBufferStartEndConstriction (ZeroToOne z) _ a = ChangeWrapper do
+  ichange' (Proxy :: _ "loopingBuffer0PlayBuf") (lse 1.0 0.3 z)
+  ichange' (Proxy :: _ "loopingBuffer1PlayBuf") (lse 2.0 0.3 z)
+  ichange' (Proxy :: _ "loopingBuffer2PlayBuf") (lse 3.0 0.3 z)
+  ichange' (Proxy :: _ "loopingBuffer3PlayBuf") (lse 4.0 0.3 z)
+  ichange' (Proxy :: _ "loopingBuffer4PlayBuf") (lse 5.0 0.3 z)
+  pure a
+
+-- global pan extravaganza
+greatAndMightyPan :: ChangeSig ZeroToOne
+greatAndMightyPan (ZeroToOne z) _ a = ChangeWrapper do
+  ichange' (Proxy :: Proxy "loopingBuffer0Pan") ((z * 15.0 + 1.0) % 15.0)
+  ichange' (Proxy :: Proxy "loopingBuffer1Pan") ((z * 15.0 + 2.0) % 15.0)
+  ichange' (Proxy :: Proxy "loopingBuffer2Pan") ((z * 15.0 + 3.0) % 15.0)
+  ichange' (Proxy :: Proxy "loopingBuffer3Pan") ((z * 15.0 + 4.0) % 15.0)
+  ichange' (Proxy :: Proxy "loopingBuffer4Pan") ((z * 15.0 + 5.0) % 15.0)
+  ichange' (Proxy :: Proxy "distantBellsPan") ((z * 15.0 + 6.0) % 15.0)
+  ichange' (Proxy :: Proxy "uSingleton") ((z * 15.0 + 7.0) % 15.0)
+  ichange' (Proxy :: Proxy "padSource0Pan") ((z * 15.0 + 8.0) % 15.0)
+  ichange' (Proxy :: Proxy "padSource1Pan") ((z * 15.0 + 9.0) % 15.0)
+  ichange' (Proxy :: Proxy "padSource2Pan") ((z * 15.0 + 10.0) % 15.0)
+  ichange' (Proxy :: Proxy "padSource3Pan") ((z * 15.0 + 11.0) % 15.0)
+  ichange' (Proxy :: Proxy "padSource4Pan") ((z * 15.0 + 12.0) % 15.0)
+  ichange' (Proxy :: Proxy "smplr") ((z * 15.0 + 13.0) % 15.0)
+  ichange' (Proxy :: Proxy "lead") ((z * 15.0 + 14.0) % 15.0)
+  pure a
+
 echoingUncontrollableSingleton :: ChangeSig Bang
 echoingUncontrollableSingleton _ _ acc =
   ChangeWrapper o
@@ -647,6 +692,17 @@ echoingUncontrollableSingleton _ _ acc =
   o =
     unUncontrollableNT (extract acc.uncontrollable)
       {} $> acc { uncontrollable = unwrap $ unwrapCofree acc.uncontrollable }
+
+distantBellsFader :: ChangeSig ZeroToOne
+distantBellsFader (ZeroToOne z) _ a = ChangeWrapper do
+  ichange' (Proxy :: Proxy "distantBells")
+    ( AudioSingleNumber
+        { param: z
+        , timeOffset: 2.0
+        , transition: _linearRamp
+        }
+    )
+  pure a
 
 defaultChangeWrapper :: TriggeredScene Trigger World () -> Acc -> ChangeWrapper
 defaultChangeWrapper _ a = ChangeWrapper (ipure a)
@@ -660,7 +716,7 @@ oracle env@(TriggeredScene { trigger: (Trigger trigger) }) a =
   match
     { thunk: const $ ipure unit $> a
     , event: unwrap
-        >>> onMatch
+        >>> match
           { triggerPad
           , togglePadOsc0
           , togglePadOsc1
@@ -715,10 +771,14 @@ oracle env@(TriggeredScene { trigger: (Trigger trigger) }) a =
           , loopingBuffer2
           , loopingBuffer3
           , loopingBuffer4
-          ----
+          , radicalFlip
+          , greatAndMightyPan
           , echoingUncontrollableSingleton
+          , loopingBufferStartEndConstriction
+          , globalDelay
+          , distantBellsFader
           }
-          (default defaultChangeWrapper)
+        --(default defaultChangeWrapper)
         >>> (#) env
         >>> (#) a
         >>> unChangeWrapper
