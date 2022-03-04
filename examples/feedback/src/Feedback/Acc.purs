@@ -2,15 +2,15 @@ module Feedback.Acc where
 
 import Prelude
 
-import Data.Array ((..))
 import CallByName.Applicative as CBNA
+import Data.Array ((..))
 import Data.Array.NonEmpty (NonEmptyArray, fromNonEmpty)
 import Data.Int (toNumber)
 import Data.List (List(..), (:))
 import Data.NonEmpty ((:|))
 import Data.Profunctor (lcmap)
 import Data.Tuple.Nested ((/\))
-import Feedback.Types (Acc, EnvelopeType(..), LeadSynth(..), OctaveType(..), PitchSynth(..), SampleRate(..), Synths, TriggerLeadInfo, TriggerLeadNT(..), TriggerOneShotInfo, TriggerOneShotNT(..), WhichSample(..), ZeroToOne(..))
+import Feedback.Types (Acc, EnvelopeType(..), LeadSynth(..), OctaveType(..), PitchSynth(..), SampleRate(..), Synths, TriggerLeadInfo, TriggerLeadNT(..), TriggerOneShotInfo, TriggerOneShotNT(..), UncontrollableNT(..), WhichSample(..), ZeroToOne(..))
 import WAGS.Change (ichange)
 import WAGS.Graph.Parameter (AudioEnvelope(..), AudioOnOff(..), AudioParameter, _offOn, envelope)
 import WAGS.Lib.Piecewise (simplePiecewise)
@@ -409,4 +409,29 @@ initialAcc =
       , sampleCombinedDelay0: false
       , sampleDelayGainCarousel: ZeroToOne zero
       }
+  , loopingBufferInfo:
+      { loopingBuffer0: false
+      , loopingBuffer1: false
+      , loopingBuffer2: false
+      , loopingBuffer3: false
+      , loopingBuffer4: false
+      , loopingBufferGainDJ: ZeroToOne zero
+      }
+  , uncontrollable: cycleL
+      ( UncontrollableNT
+          (\_ -> ichange { uSingletonPlayBuf0: _offOn })
+          :|
+            UncontrollableNT
+              (\_ -> ichange { uSingletonPlayBuf1: _offOn })
+              :
+                UncontrollableNT
+                  (\_ -> ichange { uSingletonPlayBuf2: _offOn })
+              :
+                UncontrollableNT
+                  (\_ -> ichange { uSingletonPlayBuf3: _offOn })
+              :
+                UncontrollableNT
+                  (\_ -> ichange { uSingletonPlayBuf4: _offOn })
+              : Nil
+      )
   }

@@ -80,7 +80,13 @@ handleAction = case _ of
       H.liftAff
         $ sequential
         $
-          ( { synths: _, drones: _, oneShots: _ }
+          ( { synths: _
+            , drones: _
+            , oneShots: _
+            , loops: _
+            , bells: _
+            , uncontrollable: _
+            }
               <$>
                 ( map fromHomogeneous
                     $ (map <<< map) fromHomogeneous
@@ -227,8 +233,24 @@ handleAction = case _ of
                         , o23: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
                         }
                 )
+              <*>
+                ( map fromHomogeneous
+                    $ traverse (parallel <<< decodeAudioDataFromUri audioCtx)
+                    $ homogeneous
+                        { b0: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , b1: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , b2: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , b3: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        , b4: "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92"
+                        }
+                )
+              <*> (parallel $ decodeAudioDataFromUri audioCtx "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92")
+              <*> (parallel $ decodeAudioDataFromUri audioCtx "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92")
           )
-    oneShotsBackwards <- H.liftEffect $ map fromHomogeneous $ traverse (reverseAudioBuffer audioCtx) $ homogeneous buffers.oneShots
+    oneShotsBackwards <- H.liftEffect
+      $ map fromHomogeneous
+      $ traverse (reverseAudioBuffer audioCtx)
+      $ homogeneous buffers.oneShots
     H.liftEffect $ close audioCtx
     H.modify_
       ( _

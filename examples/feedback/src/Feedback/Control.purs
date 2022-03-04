@@ -45,7 +45,7 @@ data Control
   | T5 Rect Color T5
   | T6 Rect Color T6
   | Pad Rect Color Number
-  | Source Rect Color
+  | Source Action Rect Color
 
 data Action
   = StartAudio
@@ -100,6 +100,9 @@ data Action
   | LoopingBuffer4 T2
   | RadicalFlip T2
   | GlobalDelay T2
+  | TriggerLead
+  | SampleOneShot
+  | UncontrollableSingleton
 
 type State =
   { unsubscribe :: Effect Unit
@@ -207,7 +210,7 @@ elts =
   -- waveshaper on the pad
   , waveshaperPad: Slider WaveshaperPad _.interactions.waveshaperPad (Rect 800 0 200 70) backgroundc foregroundc
   -- trigger synth
-  , triggerLead: Source (Rect 720 790 210 210) focusc
+  , triggerLead: Source TriggerLead (Rect 720 790 210 210) focusc
   -- the synth we use for the lead
   , synthForLead: T6 (Rect 590 460 340 130) focusc T6_0
   -- choose which pitch out of 14 to start at
@@ -255,7 +258,7 @@ elts =
   -- flange on the drone
   , droneFlange: T2 DroneFlange _.interactions.droneFlange (Rect 60 0 60 60) focusc
   -- a single sample
-  , sampleOneShot: Source (Rect 660 140 200 200) focusc
+  , sampleOneShot: Source SampleOneShot (Rect 660 140 200 200) focusc
   -- reverse the samples?
   , sampleReverse: T2 SampleReverse _.interactions.sampleReverse (Rect 400 120 60 60) focusc
   -- choose which sample to play
@@ -299,7 +302,7 @@ elts =
   -- global delay
   , globalDelay: T2 GlobalDelay _.interactions.globalDelay (Rect 600 940 60 60) focusc
   -- echoing uncontrollable singleton
-  , echoingUncontrollableSingleton: Source (Rect 300 60 100 100) focusc
+  , echoingUncontrollableSingleton: Source UncontrollableSingleton (Rect 300 60 100 100) focusc
   , distantBellsFader: Slider DistantBellsFader _.interactions.distantBellsFader (Rect 180 560 90 130) backgroundc foregroundc
   }
 
@@ -439,4 +442,4 @@ c2s st (T4 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ 
 c2s st (T5 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
 c2s st (T6 (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
 c2s st (Pad (Rect x y w h) color _) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
-c2s st (Source (Rect x y w h) color) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]
+c2s st (Source action (Rect x y w h) color) = pure $ SE.rect [ SA.x $ toNumber x, SA.y $ toNumber y, SA.width $ toNumber w, SA.height $ toNumber h, SA.fill color, SA.stroke (RGB 4 4 4) ]

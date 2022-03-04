@@ -15,7 +15,7 @@ import Data.Variant (default, match, onMatch)
 import Data.Vec (Vec, empty, replicate', zipWithE, (+>))
 import Feedback.Constants as C
 import Feedback.FullGraph (FullGraph)
-import Feedback.Types (Acc, Bang, Elts(..), WhichSample(..), EnvelopeType(..), LeadSynth(..), OctaveType(..), PadT, PitchSynth(..), Res, SampleRate(..), Trigger(..), TriggerLeadInfo, World, ZeroToOne(..), onElts, unTriggerLeadNT, unTriggerOneShotNT, updateAtElt)
+import Feedback.Types (Acc, Bang, Elts(..), EnvelopeType(..), LeadSynth(..), OctaveType(..), PadT, ezto, PitchSynth(..), Res, SampleRate(..), Trigger(..), TriggerLeadInfo, WhichSample(..), World, ZeroToOne(..), onElts, unTriggerLeadNT, unTriggerOneShotNT, unUncontrollableNT, updateAtElt)
 import Math (sin, pi, pow)
 import Math as M
 import Type.Proxy (Proxy(..))
@@ -237,13 +237,31 @@ pitchLead e _ a = ChangeWrapper
       }
   )
 
-data LeadDelay = LeadDelay0 | LeadDelay1 | LeadDelay2 | LeadDelayCombined
+data LeadDelay
+  = LeadDelay0
+  | LeadDelay1
+  | LeadDelay2
+  | LeadDelayCombined
 
-sliderToVal :: LeadDelay -> ZeroToOne -> Number
-sliderToVal LeadDelay0 (ZeroToOne n) = (sin (2.0 * pi * n) * 0.5 + 0.5) * 0.4
-sliderToVal LeadDelay1 (ZeroToOne n) = (sin (2.0 * pi * (n + 0.5)) * 0.5 + 0.5) * 0.3
-sliderToVal LeadDelay2 (ZeroToOne n) = (sin (2.0 * pi * (n + 1.0)) * 0.5 + 0.5) * 0.2
-sliderToVal LeadDelayCombined (ZeroToOne n) = (sin (2.0 * pi * (n + 1.5)) * 0.5 + 0.5) * 0.1
+data LoopingBuffer
+  = LoopingBuffer0
+  | LoopingBuffer1
+  | LoopingBuffer2
+  | LoopingBuffer3
+  | LoopingBuffer4
+
+loopingBufferSliderToVal :: LoopingBuffer -> ZeroToOne -> Number
+loopingBufferSliderToVal LoopingBuffer0 (ZeroToOne n) = (sin (2.0 * pi * n) * 0.0 + 0.5) * 0.4
+loopingBufferSliderToVal LoopingBuffer1 (ZeroToOne n) = (sin (2.0 * pi * (n + 0.4)) * 0.5 + 0.5) * 0.3
+loopingBufferSliderToVal LoopingBuffer2 (ZeroToOne n) = (sin (2.0 * pi * (n + 0.8)) * 0.5 + 0.5) * 0.2
+loopingBufferSliderToVal LoopingBuffer3 (ZeroToOne n) = (sin (2.0 * pi * (n + 1.2)) * 0.5 + 0.5) * 0.1
+loopingBufferSliderToVal LoopingBuffer4 (ZeroToOne n) = (sin (2.0 * pi * (n + 1.6)) * 0.5 + 0.5) * 0.1
+
+leadDelaySliderToVal :: LeadDelay -> ZeroToOne -> Number
+leadDelaySliderToVal LeadDelay0 (ZeroToOne n) = (sin (2.0 * pi * n) * 0.5 + 0.5) * 0.4
+leadDelaySliderToVal LeadDelay1 (ZeroToOne n) = (sin (2.0 * pi * (n + 0.5)) * 0.5 + 0.5) * 0.3
+leadDelaySliderToVal LeadDelay2 (ZeroToOne n) = (sin (2.0 * pi * (n + 1.0)) * 0.5 + 0.5) * 0.2
+leadDelaySliderToVal LeadDelayCombined (ZeroToOne n) = (sin (2.0 * pi * (n + 1.5)) * 0.5 + 0.5) * 0.1
 
 fauxBool :: Elts D2 -> Boolean
 fauxBool = onElts (false +> true +> empty)
@@ -251,28 +269,28 @@ fauxBool = onElts (false +> true +> empty)
 leadDelayLine0 :: ChangeSig (Elts D2)
 leadDelayLine0 e _ a = ChangeWrapper
   ( ( ichange' (Proxy :: _ "leadDelay0")
-        $ fadeIO (sliderToVal LeadDelay0 a.leadDelayInfo.leadDelayGainCarousel) C.leadDelay0Duration e
+        $ fadeIO (leadDelaySliderToVal LeadDelay0 a.leadDelayInfo.leadDelayGainCarousel) C.leadDelay0Duration e
     ) $> a { leadDelayInfo { leadDelayLine0 = fauxBool e } }
   )
 
 leadDelayLine1 :: ChangeSig (Elts D2)
 leadDelayLine1 e _ a = ChangeWrapper
   ( ( ichange' (Proxy :: _ "leadDelay1")
-        $ fadeIO (sliderToVal LeadDelay1 a.leadDelayInfo.leadDelayGainCarousel) C.leadDelay1Duration e
+        $ fadeIO (leadDelaySliderToVal LeadDelay1 a.leadDelayInfo.leadDelayGainCarousel) C.leadDelay1Duration e
     ) $> a { leadDelayInfo { leadDelayLine1 = fauxBool e } }
   )
 
 leadDelayLine2 :: ChangeSig (Elts D2)
 leadDelayLine2 e _ a = ChangeWrapper
   ( ( ichange' (Proxy :: _ "leadDelay2")
-        $ fadeIO (sliderToVal LeadDelay2 a.leadDelayInfo.leadDelayGainCarousel) C.leadDelay2Duration e
+        $ fadeIO (leadDelaySliderToVal LeadDelay2 a.leadDelayInfo.leadDelayGainCarousel) C.leadDelay2Duration e
     ) $> a { leadDelayInfo { leadDelayLine2 = fauxBool e } }
   )
 
 leadCombinedDelay0 :: ChangeSig (Elts D2)
 leadCombinedDelay0 e _ a = ChangeWrapper
   ( ( ichange' (Proxy :: _ "leadDelayCbnd")
-        $ fadeIO (sliderToVal LeadDelayCombined a.leadDelayInfo.leadDelayGainCarousel) C.leadDelayCombinedDuration e
+        $ fadeIO (leadDelaySliderToVal LeadDelayCombined a.leadDelayInfo.leadDelayGainCarousel) C.leadDelayCombinedDuration e
     ) $> a { leadDelayInfo { leadCombinedDelay0 = fauxBool e } }
   )
 
@@ -280,19 +298,19 @@ leadDelayGainCarousel :: ChangeSig ZeroToOne
 leadDelayGainCarousel z _ a = ChangeWrapper do
   CBNA.when (a.leadDelayInfo.leadDelayLine0)
     ( \_ -> ichange' (Proxy :: _ "leadDelay0")
-        $ AudioSingleNumber { param: sliderToVal LeadDelay0 z, timeOffset: C.leadDelaySliderDuration, transition: _linearRamp }
+        $ AudioSingleNumber { param: leadDelaySliderToVal LeadDelay0 z, timeOffset: C.leadDelaySliderDuration, transition: _linearRamp }
     )
   CBNA.when (a.leadDelayInfo.leadDelayLine1)
     ( \_ -> ichange' (Proxy :: _ "leadDelay1")
-        $ AudioSingleNumber { param: sliderToVal LeadDelay1 z, timeOffset: C.leadDelaySliderDuration, transition: _linearRamp }
+        $ AudioSingleNumber { param: leadDelaySliderToVal LeadDelay1 z, timeOffset: C.leadDelaySliderDuration, transition: _linearRamp }
     )
   CBNA.when (a.leadDelayInfo.leadDelayLine2)
     ( \_ -> ichange' (Proxy :: _ "leadDelay2")
-        $ AudioSingleNumber { param: sliderToVal LeadDelay2 z, timeOffset: C.leadDelaySliderDuration, transition: _linearRamp }
+        $ AudioSingleNumber { param: leadDelaySliderToVal LeadDelay2 z, timeOffset: C.leadDelaySliderDuration, transition: _linearRamp }
     )
   CBNA.when (a.leadDelayInfo.leadCombinedDelay0)
     ( \_ -> ichange' (Proxy :: _ "leadDelayCbnd")
-        $ AudioSingleNumber { param: sliderToVal LeadDelayCombined z, timeOffset: C.leadDelaySliderDuration, transition: _linearRamp }
+        $ AudioSingleNumber { param: leadDelaySliderToVal LeadDelayCombined z, timeOffset: C.leadDelaySliderDuration, transition: _linearRamp }
     )
   pure (a { leadDelayInfo { leadDelayGainCarousel = z } })
 
@@ -492,28 +510,28 @@ sampleRateChange e _ a = ChangeWrapper
 sampleDelayLine0 :: ChangeSig (Elts D2)
 sampleDelayLine0 e _ a = ChangeWrapper
   ( ( ichange' (Proxy :: _ "smplrDelay0")
-        $ fadeIO (sliderToVal LeadDelay0 a.sampleDelayInfo.sampleDelayGainCarousel) C.sampleDelay0Duration e
+        $ fadeIO (leadDelaySliderToVal LeadDelay0 a.sampleDelayInfo.sampleDelayGainCarousel) C.sampleDelay0Duration e
     ) $> a { sampleDelayInfo { sampleDelayLine0 = fauxBool e } }
   )
 
 sampleDelayLine1 :: ChangeSig (Elts D2)
 sampleDelayLine1 e _ a = ChangeWrapper
   ( ( ichange' (Proxy :: _ "smplrDelay1")
-        $ fadeIO (sliderToVal LeadDelay1 a.sampleDelayInfo.sampleDelayGainCarousel) C.sampleDelay1Duration e
+        $ fadeIO (leadDelaySliderToVal LeadDelay1 a.sampleDelayInfo.sampleDelayGainCarousel) C.sampleDelay1Duration e
     ) $> a { sampleDelayInfo { sampleDelayLine1 = fauxBool e } }
   )
 
 sampleDelayLine2 :: ChangeSig (Elts D2)
 sampleDelayLine2 e _ a = ChangeWrapper
   ( ( ichange' (Proxy :: _ "smplrDelay2")
-        $ fadeIO (sliderToVal LeadDelay2 a.sampleDelayInfo.sampleDelayGainCarousel) C.sampleDelay2Duration e
+        $ fadeIO (leadDelaySliderToVal LeadDelay2 a.sampleDelayInfo.sampleDelayGainCarousel) C.sampleDelay2Duration e
     ) $> a { sampleDelayInfo { sampleDelayLine2 = fauxBool e } }
   )
 
 sampleCombinedDelayLine0 :: ChangeSig (Elts D2)
 sampleCombinedDelayLine0 e _ a = ChangeWrapper
   ( ( ichange' (Proxy :: _ "smplrDelayCbnd")
-        $ fadeIO (sliderToVal LeadDelayCombined a.sampleDelayInfo.sampleDelayGainCarousel) C.sampleDelayCombinedDuration e
+        $ fadeIO (leadDelaySliderToVal LeadDelayCombined a.sampleDelayInfo.sampleDelayGainCarousel) C.sampleDelayCombinedDuration e
     ) $> a { sampleDelayInfo { sampleCombinedDelay0 = fauxBool e } }
   )
 
@@ -521,21 +539,114 @@ sampleDelayGainCarousel :: ChangeSig ZeroToOne
 sampleDelayGainCarousel z _ a = ChangeWrapper do
   CBNA.when (a.sampleDelayInfo.sampleDelayLine0)
     ( \_ -> ichange' (Proxy :: _ "smplrDelay0")
-        $ AudioSingleNumber { param: sliderToVal LeadDelay0 z, timeOffset: C.sampleDelaySliderDuration, transition: _linearRamp }
+        $ AudioSingleNumber { param: leadDelaySliderToVal LeadDelay0 z, timeOffset: C.sampleDelaySliderDuration, transition: _linearRamp }
     )
   CBNA.when (a.sampleDelayInfo.sampleDelayLine1)
     ( \_ -> ichange' (Proxy :: _ "smplrDelay1")
-        $ AudioSingleNumber { param: sliderToVal LeadDelay1 z, timeOffset: C.sampleDelaySliderDuration, transition: _linearRamp }
+        $ AudioSingleNumber { param: leadDelaySliderToVal LeadDelay1 z, timeOffset: C.sampleDelaySliderDuration, transition: _linearRamp }
     )
   CBNA.when (a.sampleDelayInfo.sampleDelayLine2)
     ( \_ -> ichange' (Proxy :: _ "smplrDelay2")
-        $ AudioSingleNumber { param: sliderToVal LeadDelay2 z, timeOffset: C.sampleDelaySliderDuration, transition: _linearRamp }
+        $ AudioSingleNumber { param: leadDelaySliderToVal LeadDelay2 z, timeOffset: C.sampleDelaySliderDuration, transition: _linearRamp }
     )
   CBNA.when (a.sampleDelayInfo.sampleCombinedDelay0)
     ( \_ -> ichange' (Proxy :: _ "smplrDelayCbnd")
-        $ AudioSingleNumber { param: sliderToVal LeadDelayCombined z, timeOffset: C.sampleDelaySliderDuration, transition: _linearRamp }
+        $ AudioSingleNumber { param: leadDelaySliderToVal LeadDelayCombined z, timeOffset: C.sampleDelaySliderDuration, transition: _linearRamp }
     )
   pure (a { sampleDelayInfo { sampleDelayGainCarousel = z } })
+
+-- todo: un-hardcode values
+leadSampleDelayLine0 :: ChangeSig (Elts D2)
+leadSampleDelayLine0 e _ a = ChangeWrapper
+  ( ichange' (Proxy :: _ "slCombo0") (fadeIO 1.0 1.0 e) $> a
+  )
+
+leadSampleDelayLine1 :: ChangeSig (Elts D2)
+leadSampleDelayLine1 e _ a = ChangeWrapper
+  ( ichange' (Proxy :: _ "slCombo1") (fadeIO 1.0 1.0 e) $> a
+  )
+
+leadSampleDelayLine2 :: ChangeSig (Elts D2)
+leadSampleDelayLine2 e _ a = ChangeWrapper
+  ( ichange' (Proxy :: _ "slCombo2") (fadeIO 1.0 1.0 e) $> a
+  )
+
+--- looping
+loopingBuffer0 :: ChangeSig (Elts D2)
+loopingBuffer0 e _ a = ChangeWrapper
+  ( ( ichange' (Proxy :: _ "loopingBuffer0")
+        $ fadeIO (loopingBufferSliderToVal LoopingBuffer0 a.loopingBufferInfo.loopingBufferGainDJ) C.loopingBuffer0Duration e
+    ) $> a { loopingBufferInfo { loopingBuffer0 = fauxBool e } }
+  )
+
+loopingBuffer1 :: ChangeSig (Elts D2)
+loopingBuffer1 e _ a = ChangeWrapper
+  ( ( ichange' (Proxy :: _ "loopingBuffer1")
+        $ fadeIO (loopingBufferSliderToVal LoopingBuffer1 a.loopingBufferInfo.loopingBufferGainDJ) C.loopingBuffer1Duration e
+    ) $> a { loopingBufferInfo { loopingBuffer1 = fauxBool e } }
+  )
+
+loopingBuffer2 :: ChangeSig (Elts D2)
+loopingBuffer2 e _ a = ChangeWrapper
+  ( ( ichange' (Proxy :: _ "loopingBuffer2")
+        $ fadeIO (loopingBufferSliderToVal LoopingBuffer2 a.loopingBufferInfo.loopingBufferGainDJ) C.loopingBuffer2Duration e
+    ) $> a { loopingBufferInfo { loopingBuffer2 = fauxBool e } }
+  )
+
+loopingBuffer3 :: ChangeSig (Elts D2)
+loopingBuffer3 e _ a = ChangeWrapper
+  ( ( ichange' (Proxy :: _ "loopingBuffer3")
+        $ fadeIO (loopingBufferSliderToVal LoopingBuffer3 a.loopingBufferInfo.loopingBufferGainDJ) C.loopingBuffer2Duration e
+    ) $> a { loopingBufferInfo { loopingBuffer2 = fauxBool e } }
+  )
+
+loopingBuffer4 :: ChangeSig (Elts D2)
+loopingBuffer4 e _ a = ChangeWrapper
+  ( ( ichange' (Proxy :: _ "loopingBuffer4")
+        $ fadeIO (loopingBufferSliderToVal LoopingBuffer4 a.loopingBufferInfo.loopingBufferGainDJ) C.loopingBuffer2Duration e
+    ) $> a { loopingBufferInfo { loopingBuffer2 = fauxBool e } }
+  )
+
+-- ugh, forgot the gain dj is a switch
+-- use ezto as a hack, but maybe try to make it a slider?
+loopingBufferGainDJ :: ChangeSig (Elts D2)
+loopingBufferGainDJ z' _ a =
+  let
+    z = ezto z'
+  in
+    ChangeWrapper do
+      CBNA.when (a.loopingBufferInfo.loopingBuffer0)
+        ( \_ -> ichange' (Proxy :: _ "loopingBuffer0")
+            $ AudioSingleNumber { param: loopingBufferSliderToVal LoopingBuffer0 z, timeOffset: C.loopingBufferSliderDuration, transition: _linearRamp }
+        )
+      CBNA.when (a.loopingBufferInfo.loopingBuffer1)
+        ( \_ -> ichange' (Proxy :: _ "loopingBuffer1")
+            $ AudioSingleNumber { param: loopingBufferSliderToVal LoopingBuffer1 z, timeOffset: C.loopingBufferSliderDuration, transition: _linearRamp }
+        )
+      CBNA.when (a.loopingBufferInfo.loopingBuffer2)
+        ( \_ -> ichange' (Proxy :: _ "loopingBuffer2")
+            $ AudioSingleNumber { param: loopingBufferSliderToVal LoopingBuffer2 z, timeOffset: C.loopingBufferSliderDuration, transition: _linearRamp }
+        )
+      CBNA.when (a.loopingBufferInfo.loopingBuffer3)
+        ( \_ -> ichange' (Proxy :: _ "loopingBuffer3")
+            $ AudioSingleNumber { param: loopingBufferSliderToVal LoopingBuffer3 z, timeOffset: C.loopingBufferSliderDuration, transition: _linearRamp }
+        )
+      CBNA.when (a.loopingBufferInfo.loopingBuffer4)
+        ( \_ -> ichange' (Proxy :: _ "loopingBuffer4")
+            $ AudioSingleNumber { param: loopingBufferSliderToVal LoopingBuffer4 z, timeOffset: C.loopingBufferSliderDuration, transition: _linearRamp }
+        )
+      pure (a { loopingBufferInfo { loopingBufferGainDJ = z } })
+
+---
+
+echoingUncontrollableSingleton :: ChangeSig Bang
+echoingUncontrollableSingleton _ _ acc =
+  ChangeWrapper o
+  where
+  o :: forall proof. IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Acc
+  o =
+    unUncontrollableNT (extract acc.uncontrollable)
+      {} $> acc { uncontrollable = unwrap $ unwrapCofree acc.uncontrollable }
 
 defaultChangeWrapper :: TriggeredScene Trigger World () -> Acc -> ChangeWrapper
 defaultChangeWrapper _ a = ChangeWrapper (ipure a)
@@ -595,6 +706,17 @@ oracle env@(TriggeredScene { trigger: (Trigger trigger) }) a =
           , sampleDelayLine2
           , sampleCombinedDelayLine0
           , sampleDelayGainCarousel
+          , leadSampleDelayLine0
+          , leadSampleDelayLine1
+          , leadSampleDelayLine2
+          , loopingBufferGainDJ
+          , loopingBuffer0
+          , loopingBuffer1
+          , loopingBuffer2
+          , loopingBuffer3
+          , loopingBuffer4
+          ----
+          , echoingUncontrollableSingleton
           }
           (default defaultChangeWrapper)
         >>> (#) env

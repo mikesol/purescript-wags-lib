@@ -49,11 +49,11 @@ piece
   :: forall acc env res
   . Monoid res
   => acc
-  -> (forall proof. IxWAG RunAudio RunEngine proof res FullGraph FullGraph Unit)
+  -> (forall proof. env -> IxWAG RunAudio RunEngine proof res FullGraph FullGraph Unit)
   -> ( forall proof
         . env
        -> acc
        -> IxWAG RunAudio RunEngine proof res FullGraph FullGraph acc
      )
   -> Scene env RunAudio RunEngine Frame0 res
-piece initialAcc setup oracle = (const (createFrame :*> (setup $> initialAcc))) @!> iloop oracle
+piece initialAcc setup oracle = (\env -> (createFrame :*> (setup env $> initialAcc))) @!> iloop oracle

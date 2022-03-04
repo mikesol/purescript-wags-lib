@@ -128,3 +128,25 @@ sampleDelayCombinedDuration = 2.5
 
 sampleDelaySliderDuration :: Number
 sampleDelaySliderDuration = 0.05
+
+---
+loopingBuffer0Duration :: Number
+loopingBuffer0Duration = 2.5
+
+loopingBuffer1Duration :: Number
+loopingBuffer1Duration = 2.5
+
+loopingBuffer2Duration :: Number
+loopingBuffer2Duration = 2.5
+
+loopingBuffer3Duration :: Number
+loopingBuffer3Duration = 2.5
+
+loopingBuffer4Duration :: Number
+loopingBuffer4Duration = 2.5
+
+loopingBufferCombinedDuration :: Number
+loopingBufferCombinedDuration = 2.5
+
+loopingBufferSliderDuration :: Number
+loopingBufferSliderDuration = 0.05

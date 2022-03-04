@@ -4,6 +4,7 @@ import Prelude
 
 import Control.Comonad.Cofree (Cofree)
 import Data.Identity (Identity)
+import Data.Int (floor, toNumber)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Typelevel.Num (class Pos, D14, D2, D24, D3, D4, D5, D6, D7, toInt')
 import Data.Variant (Variant)
@@ -16,7 +17,7 @@ import Type.Proxy (Proxy(..))
 import Unsafe.Coerce (unsafeCoerce)
 import WAGS.Control.Indexed (IxWAG)
 import WAGS.Run (RunAudio, RunEngine)
-import WAGS.WebAPI (BrowserAudioBuffer)
+import WAGS.WebAPI (BrowserAudioBuffer, BrowserFloatArray, BrowserPeriodicWave)
 
 type AllEvents :: forall t. t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> t -> Row t
 type AllEvents triggerPad togglePadOsc0 togglePadOsc1 togglePadOsc2 togglePadOsc3 togglePadOsc4 detunePad gainLFO0Pad gainLFO1Pad filterBankChooserPad waveshaperPad triggerLead synthForLead pitchLead nPitchesPlayedLead envelopeLead octaveLead leadDelayLine0 leadDelayLine1 leadDelayLine2 leadCombinedDelay0 leadDelayGainCarousel drone droneChooser droneLowpass0Q droneBandpass0Q droneBandpass0LFO droneBandpass1Q droneBandpass1LFO droneHighpass0Q droneHighpass0LFO droneActivationEnergyThreshold droneRhythmicLoopingPiecewiseFunction droneDecay droneFlange sampleOneShot sampleReverse sampleChooser sampleRateChange sampleChorusEffect sampleDelayLine0 sampleDelayLine1 sampleDelayLine2 sampleCombinedDelayLine0 sampleDelayGainCarousel leadSampleDelayLine0 leadSampleDelayLine1 leadSampleDelayLine2 loopingBufferStartEndConstriction loopingBufferGainDJ loopingBuffer0 loopingBuffer1 loopingBuffer2 loopingBuffer3 loopingBuffer4 radicalFlip greatAndMightyPan globalDelay echoingUncontrollableSingleton distantBellsFader =
@@ -100,6 +101,12 @@ instance fromJsonZeroToOne :: JSON.ReadForeign ZeroToOne where
 foreign import onElts :: forall n a. Vec n a -> Elts n -> a
 foreign import updateAtElt :: forall n a. (a -> a) -> Vec n a -> Elts n -> Vec n a
 
+nFromZeroOne :: forall n. Pos n => ZeroToOne -> Elts n
+nFromZeroOne = let ii = toInt' (Proxy :: _ n) in \(ZeroToOne n) -> Elts $ min ii $ max 0 $ floor (n * toNumber ii)
+
+ezto :: forall n. Pos n => Elts n -> ZeroToOne
+ezto = let ii = toInt' (Proxy :: _ n) in \(Elts n) -> wrap (toNumber n / toNumber ii)
+
 newtype Elts (t :: Type) = Elts Int
 
 derive instance newtypeElts :: Newtype (Elts n) _
@@ -124,13 +131,17 @@ instance fromJsonElts :: Pos n => JSON.ReadForeign (Elts n) where
               <<< show
           )
 
-data Bang
+data Bang = Bang
 
 instance toJsonBang :: JSON.WriteForeign Bang where
-  writeImpl = const undefined
+  writeImpl = const $ writeImpl "BANG"
 
 instance fromJsonBang :: JSON.ReadForeign Bang where
-  readImpl = const $ unsafeCoerce undefined
+  readImpl = readImpl >=>
+    (if _ then _ else _)
+      <$> (eq "BANG")
+      <*> (const $ pure Bang)
+      <*> (fail <<< ForeignError <<< (<>) "Not BANG: ")
 
 type PadT = { v :: ZeroToOne, ud :: Boolean }
 type SliderT = ZeroToOne
@@ -193,7 +204,7 @@ type LoopingBuffer4 = Elts D2
 type RadicalFlip = Elts D2
 type GreatAndMightyPan = SliderT
 type GlobalDelay = Elts D2
-type EchoingUncontrollableSingleton = Elts D2
+type EchoingUncontrollableSingleton = Bang
 type DistantBellsFader = SliderT
 
 type IncomingEvent' = Variant (AllEvents TriggerPad TogglePadOsc0 TogglePadOsc1 TogglePadOsc2 TogglePadOsc3 TogglePadOsc4 DetunePad GainLFO0Pad GainLFO1Pad FilterBankChooserPad WaveshaperPad TriggerLead SynthForLead PitchLead NPitchesPlayedLead EnvelopeLead OctaveLead LeadDelayLine0 LeadDelayLine1 LeadDelayLine2 LeadCombinedDelay0 LeadDelayGainCarousel Drone DroneChooser DroneLowpass0Q DroneBandpass0Q DroneBandpass0LFO DroneBandpass1Q DroneBandpass1LFO DroneHighpass0Q DroneHighpass0LFO DroneActivationEnergyThreshold DroneRhythmicLoopingPiecewiseFunction DroneDecay DroneFlange SampleOneShot SampleReverse SampleChooser SampleRateChange SampleChorusEffect SampleDelayLine0 SampleDelayLine1 SampleDelayLine2 SampleCombinedDelayLine0 SampleDelayGainCarousel LeadSampleDelayLine0 LeadSampleDelayLine1 LeadSampleDelayLine2 LoopingBufferStartEndConstriction LoopingBufferGainDJ LoopingBuffer0 LoopingBuffer1 LoopingBuffer2 LoopingBuffer3 LoopingBuffer4 RadicalFlip GreatAndMightyPan GlobalDelay EchoingUncontrollableSingleton DistantBellsFader)
@@ -259,6 +270,14 @@ type OneShots =
   , o23 :: BrowserAudioBuffer
   }
 
+type Loops =
+  { b0 :: BrowserAudioBuffer
+  , b1 :: BrowserAudioBuffer
+  , b2 :: BrowserAudioBuffer
+  , b3 :: BrowserAudioBuffer
+  , b4 :: BrowserAudioBuffer
+  }
+
 type Buffers =
   { synths ::
       { synth0 :: Synths
@@ -271,10 +290,15 @@ type Buffers =
   , drones :: Drones
   , oneShots :: OneShots
   , oneShotsBackwards :: OneShots
+  , loops :: Loops
+  , bells :: BrowserAudioBuffer
+  , uncontrollable :: BrowserAudioBuffer
   }
 
 type World =
   { buffers :: Buffers
+  , waveshaperArray :: BrowserFloatArray
+  , periodic :: BrowserPeriodicWave
   }
 
 type Res = {}
@@ -308,6 +332,8 @@ type TriggerOneShotInfo =
   , buffers :: Buffers
   }
 
+type UncontrollableInfo = {}
+
 newtype TriggerLeadNT = TriggerLeadNT
   ( forall proof
      . TriggerLeadInfo
@@ -334,9 +360,23 @@ unTriggerOneShotNT
   -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit
 unTriggerOneShotNT (TriggerOneShotNT f) = f
 
+newtype UncontrollableNT = UncontrollableNT
+  ( forall proof
+     . UncontrollableInfo
+    -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit
+  )
+
+unUncontrollableNT
+  :: UncontrollableNT
+  -> forall proof
+   . UncontrollableInfo
+  -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit
+unUncontrollableNT (UncontrollableNT f) = f
+
 type Acc =
   { triggerLead :: Cofree Identity TriggerLeadNT
   , triggerOneShot :: Cofree Identity TriggerOneShotNT
+  , uncontrollable :: Cofree Identity UncontrollableNT
   , synthPrefix :: LeadSynth
   , synthPitchProfile :: PitchSynth
   , nPitches :: Int
@@ -361,5 +401,13 @@ type Acc =
       , sampleDelayLine2 :: Boolean
       , sampleCombinedDelay0 :: Boolean
       , sampleDelayGainCarousel :: ZeroToOne
+      }
+  , loopingBufferInfo ::
+      { loopingBuffer0 :: Boolean
+      , loopingBuffer1 :: Boolean
+      , loopingBuffer2 :: Boolean
+      , loopingBuffer3 :: Boolean
+      , loopingBuffer4 :: Boolean
+      , loopingBufferGainDJ :: ZeroToOne
       }
   }
