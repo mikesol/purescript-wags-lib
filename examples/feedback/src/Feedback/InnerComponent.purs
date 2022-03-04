@@ -17,12 +17,12 @@ import Effect.Class (class MonadEffect)
 import Effect.Class.Console as Log
 import FRP.Event (Event, EventIO, subscribe)
 import Feedback.Acc (initialAcc)
-import Feedback.Control (Action(..), SliderAction(..), State, T2(..), T3(..), T4(..), T5(..), c2s, elts)
+import Feedback.Control (Action(..), PadAction(..), SliderAction(..), State, T2(..), T3(..), T4(..), T5(..), c2s, elts)
 import Feedback.Engine (piece)
 import Feedback.Oracle (oracle)
-import Feedback.PubNub (PubNub)
+import Feedback.PubNub (PubNub, publish)
 import Feedback.Setup (setup)
-import Feedback.Types (Bang(..), Buffers, Elts(..), IncomingEvent, IncomingEvent', Res, Trigger(..), ZeroToOne(..), ezto, nFromZeroOne)
+import Feedback.Types (Bang(..), Buffers, Elts(..), IncomingEvent, IncomingEvent', Res, Trigger(..), ZeroToOne(..), PadT, ezto, nFromZeroOne)
 import Foreign.Object (fromHomogeneous, values)
 import Halogen (ClassName(..))
 import Halogen as H
@@ -132,6 +132,11 @@ initialState _ =
       , droneChooser: T5_0
       , droneRhythmicLoopingPiecewiseFunction: T5_0
       , synthForLead: T5_0
+      --
+      , triggerPad: 0.0
+      , triggerPadUp: true
+      , drone: 0.0
+      , droneUp: true
       }
   }
 
@@ -308,13 +313,14 @@ et4 (Elts n) = case n of
   2 -> T4_2
   _ -> T4_3
 
-et5 :: Elts D5-> T5
+et5 :: Elts D5 -> T5
 et5 (Elts n) = case n of
   0 -> T5_0
   1 -> T5_1
   2 -> T5_2
   3 -> T5_3
   _ -> T5_4
+
 handleAction :: forall output m. MonadEffect m => MonadAff m => Event IncomingEvent -> EventIO IncomingEvent -> PubNub -> Buffers -> Action -> H.HalogenM State Action () output m Unit
 handleAction remoteEvent localEvent pubnub buffers = case _ of
   GainLFO0Pad sliderAction -> handleSlider
@@ -675,6 +681,12 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
   SynthForLead t5 -> handleT5 localEvent.push _ { interactions { synthForLead = _ } } _.interactions.synthForLead
     (inj (Proxy :: Proxy "synthForLead"))
     t5
+  TriggerPad pa -> case pa of
+    PadUp -> H.modify_ _ { interactions { triggerPadUp = true } }
+    PadDown -> H.modify_ _ { interactions { triggerPadUp = false } }
+  Drone pa -> case pa of
+    PadUp -> H.modify_ _ { interactions { droneUp = true } }
+    PadDown -> H.modify_ _ { interactions { droneUp = false } }
   ---
   StubDeleteMe -> mempty
   StartAudio -> do
@@ -867,6 +879,10 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
             , globalDelay: et2
                 >>> GlobalDelay
                 >>> HS.notify listener
+            -- ignore remote events
+            -- we make pad triggers entirely local
+            , triggerPad: \(_ :: PadT) -> pure unit
+            , drone: \(_ :: PadT) -> pure unit
             ---
             , triggerLead: \(_ :: Bang) -> HS.notify listener TriggerLead
             , sampleOneShot: \(_ :: Bang) -> HS.notify listener SampleOneShot
@@ -901,9 +917,17 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
             }
             (default (pure unit))
         )
+    -- don't send pad interactions over the wire
+    -- let that be local
+    unsubscribe2 <- H.liftEffect $ subscribe localEvent.event \e ->
+      onMatch
+        { triggerPad: \_ -> pure unit
+        , drone: \_ -> pure unit
+        }
+        (default $ publish pubnub e) (unwrap e)
     subscription <- H.subscribe emitter
     H.modify_ _
-      { unsubscribe = unsubscribe0 *> unsubscribe1
+      { unsubscribe = unsubscribe0 *> unsubscribe1 *> unsubscribe2
       , unsubscribeHalogen = Just subscription
       , audioCtx = Just audioCtx
       }

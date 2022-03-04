@@ -7,8 +7,8 @@ import Data.Either (either)
 import Data.Tuple.Nested (type (/\), (/\))
 import Effect (Effect)
 import Effect.Exception (error)
-import Feedback.Types (IncomingEvent)
 import FRP.Event (Event, create)
+import Feedback.Types (IncomingEvent(..))
 import Foreign (Foreign)
 import Simple.JSON (readImpl, writeImpl)
 
@@ -24,5 +24,5 @@ pubnubEvent =  create >>= map <$> ((/\) <<< _.event) <*> (pubnub <<< _.push)
 
 foreign import publish_ :: PubNub -> Foreign -> Effect Unit
 
-publish :: PubNub -> Foreign -> Effect Unit
+publish :: PubNub -> IncomingEvent -> Effect Unit
 publish p = publish_ p <<< writeImpl
