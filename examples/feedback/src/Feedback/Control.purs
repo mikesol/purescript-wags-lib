@@ -52,7 +52,6 @@ data Control
 data Action
   = StartAudio
   | StopAudio
-  | StubDeleteMe
   --
   | GainLFO0Pad SliderAction
   | GainLFO1Pad SliderAction
@@ -120,6 +119,8 @@ data Action
   --
   | TriggerPad PadAction
   | Drone PadAction
+  --
+  | DoPadStuff
 
 type State =
   { unsubscribe :: Effect Unit

@@ -16,6 +16,7 @@ import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
 import Effect.Class.Console as Log
 import FRP.Event (Event, EventIO, subscribe)
+import FRP.Event.Time (interval)
 import Feedback.Acc (initialAcc)
 import Feedback.Control (Action(..), PadAction(..), SliderAction(..), State, T2(..), T3(..), T4(..), T5(..), c2s, elts)
 import Feedback.Engine (piece)
@@ -134,9 +135,9 @@ initialState _ =
       , synthForLead: T5_0
       --
       , triggerPad: 0.0
-      , triggerPadUp: true
+      , triggerPadUp: false
       , drone: 0.0
-      , droneUp: true
+      , droneUp: false
       }
   }
 
@@ -688,7 +689,12 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
     PadUp -> H.modify_ _ { interactions { droneUp = true } }
     PadDown -> H.modify_ _ { interactions { droneUp = false } }
   ---
-  StubDeleteMe -> mempty
+  DoPadStuff -> H.modify_ \s -> s
+    { interactions
+        { drone = min 1.0 $ max 0.0 $ s.drone + (if s.droneUp then 0.01 else -0.01)
+        , triggerPad = min 1.0 $ max 0.0 $ s.triggerPad + (if s.triggerPad then 0.01 else -0.01)
+        }
+    }
   StartAudio -> do
     handleAction remoteEvent localEvent pubnub buffers StopAudio
     audioCtx <- H.liftEffect context
@@ -924,10 +930,13 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
         { triggerPad: \_ -> pure unit
         , drone: \_ -> pure unit
         }
-        (default $ publish pubnub e) (unwrap e)
+        (default $ publish pubnub e)
+        (unwrap e)
+    unsubscribe3 <- H.liftEffect $ subscribe (interval 200) \_ ->
+      H.liftEffect $ HS.notify listener DoPadStuff
     subscription <- H.subscribe emitter
     H.modify_ _
-      { unsubscribe = unsubscribe0 *> unsubscribe1 *> unsubscribe2
+      { unsubscribe = unsubscribe0 *> unsubscribe1 *> unsubscribe2 *> unsubscribe3
       , unsubscribeHalogen = Just subscription
       , audioCtx = Just audioCtx
       }
