@@ -574,27 +574,11 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
         $ subscribe
             ( runNoLoop
                 ( Trigger <$>
-                    ( ( inj
-                          ( Proxy
-                              :: Proxy
-                                   "event"
-                          ) <$> remoteEvent
-                      )
+                    ( inj (Proxy :: Proxy "event") <$> remoteEvent
                         <|>
-                          ( inj
-                              ( Proxy
-                                  :: Proxy
-                                       "event"
-                              ) <$> localEvent.event
-                          )
+                          inj (Proxy :: Proxy "event") <$> localEvent.event
                         <|>
-                          ( pure $ inj
-                              ( Proxy
-                                  :: Proxy
-                                       "thunk"
-                              )
-                              unit
-                          )
+                          (pure $ inj (Proxy :: Proxy "thunk") unit)
                     )
                 )
                 (pure { buffers, periodic, waveshaperArray })
