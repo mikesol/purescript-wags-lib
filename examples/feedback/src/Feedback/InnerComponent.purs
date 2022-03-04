@@ -691,8 +691,8 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
   ---
   DoPadStuff -> H.modify_ \s -> s
     { interactions
-        { drone = min 1.0 $ max 0.0 $ s.drone + (if s.droneUp then 0.01 else -0.01)
-        , triggerPad = min 1.0 $ max 0.0 $ s.triggerPad + (if s.triggerPad then 0.01 else -0.01)
+        { drone = min 1.0 $ max 0.0 $ s.interactions.drone + (if s.interactions.droneUp then 0.01 else -0.01)
+        , triggerPad = min 1.0 $ max 0.0 $ s.interactions.triggerPad + (if s.interactions.triggerPadUp then 0.01 else -0.01)
         }
     }
   StartAudio -> do
