@@ -42,7 +42,7 @@ data Control
   | T2 (T2 -> Action) (State -> T2) Rect Color
   | T3 (T3 -> Action) (State -> T3) Rect Color
   | T4 (T4 -> Action) (State -> T4) Rect Color
-  | T5 Rect Color T5
+  | T5 (T5 -> Action) (State -> T5) Rect Color
   | T6 Rect Color T6
   | Pad Rect Color Number
   | Source Action Rect Color
@@ -110,6 +110,10 @@ data Action
   | SampleRateChange T3
   --
   | DetunePad T4
+  --
+  | FilterBankChooserPad T5
+  | DroneChooser T5
+  | DroneRhythmicLoopingPiecewiseFunction T5
 
 type State =
   { unsubscribe :: Effect Unit
@@ -190,6 +194,10 @@ type State =
       , sampleRateChange :: T3
       --
       , detunePad :: T4
+      --
+      , filterBankChooserPad :: T5
+      , droneChooser :: T5
+      , droneRhythmicLoopingPiecewiseFunction :: T5
       }
   }
 
@@ -219,7 +227,7 @@ elts =
   -- 1st lfo on the pad gain, fatter & more sluggish
   , gainLFO1Pad: Slider GainLFO1Pad _.interactions.gainLFO1Pad (Rect 630 690 90 180) backgroundc foregroundc
   -- pad filter bank chooser
-  , filterBankChooserPad: T5 (Rect 400 180 120 120) focusc T5_0 --
+  , filterBankChooserPad: T5 FilterBankChooserPad _.interactions.filterBankChooserPad (Rect 400 180 120 120) focusc --
   -- waveshaper on the pad
   , waveshaperPad: Slider WaveshaperPad _.interactions.waveshaperPad (Rect 800 0 200 70) backgroundc foregroundc
   -- trigger synth
@@ -247,7 +255,7 @@ elts =
   -- pad for a buffer
   , drone: Pad (Rect 270 390 320 300) focusc 0.0
   -- choose drone
-  , droneChooser: T5 (Rect 390 690 150 120) focusc T5_0
+  , droneChooser: T5 DroneChooser _.interactions.droneChooser (Rect 390 690 150 120) focusc
   -- lowpass q for drone
   , droneLowpass0Q: Slider DroneLowpass0Q _.interactions.droneLowpass0Q (Rect 540 690 90 180) backgroundc foregroundc
   -- q of bandpass filter
@@ -265,7 +273,7 @@ elts =
   -- how long does it take for the drone to ramp up?
   , droneActivationEnergyThreshold: Slider DroneActivationEnergyThreshold _.interactions.droneActivationEnergyThreshold (Rect 90 750 300 60) backgroundc foregroundc
   -- looping pwf
-  , droneRhythmicLoopingPiecewiseFunction: T5 (Rect 660 340 270 120) focusc T5_0
+  , droneRhythmicLoopingPiecewiseFunction: T5 DroneRhythmicLoopingPiecewiseFunction _.interactions.droneRhythmicLoopingPiecewiseFunction (Rect 660 340 270 120) focusc
   -- how long does the drone linger?
   , droneDecay: Slider DroneDecay _.interactions.droneDecay (Rect 590 60 70 400) backgroundc foregroundc
   -- flange on the drone
@@ -338,6 +346,13 @@ dT4 T4_0 = T4_1
 dT4 T4_1 = T4_2
 dT4 T4_2 = T4_3
 dT4 T4_3 = T4_0
+
+dT5 :: T5 -> T5
+dT5 T5_0 = T5_1
+dT5 T5_1 = T5_2
+dT5 T5_2 = T5_3
+dT5 T5_3 = T5_4
+dT5 T5_4 = T5_0
 
 snap :: Int -> Number -> Number -> Number
 snap mx' v pct = let mx = toNumber mx' in (floor (pct * mx)) * v / mx
@@ -517,16 +532,56 @@ c2s st (T4 actionConstructor valueReader (Rect x y w h) color) =
             , HE.onClick (const $ actionConstructor $ dT4 cur)
             ]
         ]
-c2s st (T5 (Rect x y w h) color _) =
-  [ SE.rect
-      [ SA.x $ toNumber x
-      , SA.y $ toNumber y
-      , SA.width $ toNumber w
-      , SA.height $ toNumber h
-      , SA.fill color
-      , SA.stroke (RGB 4 4 4)
-      ]
-  ]
+c2s st (T5 actionConstructor valueReader (Rect x y w h) color) =
+  let
+    cur = valueReader st
+  in
+    [ SE.rect
+        [ SA.x $ toNumber x
+        , SA.y $ toNumber y
+        , SA.width $ toNumber w
+        , SA.height $ toNumber h
+        , SA.fill color
+        , SA.stroke (RGB 4 4 4)
+        ]
+    ] <> case cur of
+      T5_0 -> []
+      T5_1 ->
+        [ SE.rect
+            [ SA.x $ toNumber x
+            , SA.y $ toNumber y
+            , SA.width $ toNumber (w / 2)
+            , SA.height $ toNumber (h / 2)
+            , HE.onClick (const $ actionConstructor $ dT5 cur)
+            ]
+        ]
+      T5_2 ->
+        [ SE.rect
+            [ SA.x $ toNumber (x + (w / 2))
+            , SA.y $ toNumber y
+            , SA.width $ toNumber (w / 2)
+            , SA.height $ toNumber (h / 2)
+            , HE.onClick (const $ actionConstructor $ dT5 cur)
+            ]
+        ]
+      T5_3 ->
+        [ SE.rect
+            [ SA.x $ toNumber x
+            , SA.y $ toNumber (y + (h / 2))
+            , SA.width $ toNumber (w / 2)
+            , SA.height $ toNumber (h / 2)
+            , HE.onClick (const $ actionConstructor $ dT5 cur)
+            ]
+        ]
+      T5_4 ->
+        [ SE.rect
+            [ SA.x $ toNumber (x + (w / 2))
+            , SA.y $ toNumber (y + (h / 2))
+            , SA.width $ toNumber (w / 2)
+            , SA.height $ toNumber (h / 2)
+            , HE.onClick (const $ actionConstructor $ dT5 cur)
+            ]
+        ]
 c2s st (T6 (Rect x y w h) color _) =
   [ SE.rect
       [ SA.x $ toNumber x
