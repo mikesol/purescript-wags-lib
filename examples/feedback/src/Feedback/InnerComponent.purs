@@ -17,7 +17,7 @@ import Effect.Class (class MonadEffect)
 import Effect.Class.Console as Log
 import FRP.Event (Event, EventIO, subscribe)
 import Feedback.Acc (initialAcc)
-import Feedback.Control (Action(..), SliderAction(..), State, T2(..), T3(..), T4(..), T5(..), T6(..), c2s, elts)
+import Feedback.Control (Action(..), SliderAction(..), State, T2(..), T3(..), T4(..), T5(..), c2s, elts)
 import Feedback.Engine (piece)
 import Feedback.Oracle (oracle)
 import Feedback.PubNub (PubNub)
@@ -131,6 +131,7 @@ initialState _ =
       , filterBankChooserPad: T5_0
       , droneChooser: T5_0
       , droneRhythmicLoopingPiecewiseFunction: T5_0
+      , synthForLead: T5_0
       }
   }
 
@@ -307,7 +308,13 @@ et4 (Elts n) = case n of
   2 -> T4_2
   _ -> T4_3
 
-
+et5 :: Elts D5-> T5
+et5 (Elts n) = case n of
+  0 -> T5_0
+  1 -> T5_1
+  2 -> T5_2
+  3 -> T5_3
+  _ -> T5_4
 handleAction :: forall output m. MonadEffect m => MonadAff m => Event IncomingEvent -> EventIO IncomingEvent -> PubNub -> Buffers -> Action -> H.HalogenM State Action () output m Unit
 handleAction remoteEvent localEvent pubnub buffers = case _ of
   GainLFO0Pad sliderAction -> handleSlider
@@ -665,6 +672,9 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
   DroneRhythmicLoopingPiecewiseFunction t5 -> handleT5 localEvent.push _ { interactions { droneRhythmicLoopingPiecewiseFunction = _ } } _.interactions.droneRhythmicLoopingPiecewiseFunction
     (inj (Proxy :: Proxy "droneRhythmicLoopingPiecewiseFunction"))
     t5
+  SynthForLead t5 -> handleT5 localEvent.push _ { interactions { synthForLead = _ } } _.interactions.synthForLead
+    (inj (Proxy :: Proxy "synthForLead"))
+    t5
   ---
   StubDeleteMe -> mempty
   StartAudio -> do
@@ -874,6 +884,19 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
             ----
             , detunePad: et4
                 >>> DetunePad
+                >>> HS.notify listener
+            ---
+            , filterBankChooserPad: et5
+                >>> FilterBankChooserPad
+                >>> HS.notify listener
+            , droneChooser: et5
+                >>> DroneChooser
+                >>> HS.notify listener
+            , droneRhythmicLoopingPiecewiseFunction: et5
+                >>> DroneRhythmicLoopingPiecewiseFunction
+                >>> HS.notify listener
+            , synthForLead: et5
+                >>> SynthForLead
                 >>> HS.notify listener
             }
             (default (pure unit))

@@ -24,7 +24,6 @@ synth2prefix = case _ of
   Synth2 -> "synth2"
   Synth3 -> "synth3"
   Synth4 -> "synth4"
-  Synth5 -> "synth5"
 
 -- todo: this could be a lot simpler if it is really this regular,
 -- but the nice thing about this is that it allows for aribtrary sequences
@@ -180,7 +179,6 @@ makeLeadBufferInstruction { n, nPitches, octaveLead, synthPitchProfile, synthPre
       Synth2 -> buffers.synths.synth2 # ps synthPitchProfile n
       Synth3 -> buffers.synths.synth3 # ps synthPitchProfile n
       Synth4 -> buffers.synths.synth4 # ps synthPitchProfile n
-      Synth5 -> buffers.synths.synth5 # ps synthPitchProfile n
   }
 
 mpw :: (Number -> Number) -> Int -> NonEmptyArray Number

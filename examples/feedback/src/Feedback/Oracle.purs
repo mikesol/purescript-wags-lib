@@ -198,7 +198,7 @@ triggerLead _ (TriggeredScene { world: { buffers } }) acc =
         acc
     )
 
-synthForLead :: ChangeSig (Elts D6)
+synthForLead :: ChangeSig (Elts D5)
 synthForLead e _ a = ChangeWrapper
   ( ipure unit $> a
       { synthPrefix = onElts
@@ -207,7 +207,6 @@ synthForLead e _ a = ChangeWrapper
               +> Synth2
               +> Synth3
               +> Synth4
-              +> Synth5
               +> empty
           )
           e

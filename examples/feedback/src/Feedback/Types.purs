@@ -158,7 +158,7 @@ type GainLFO1Pad = SliderT
 type FilterBankChooserPad = Elts D5
 type WaveshaperPad = SliderT
 type TriggerLead = Bang
-type SynthForLead = Elts D6
+type SynthForLead = Elts D5
 type PitchLead = Elts D14
 type NPitchesPlayedLead = Elts D7
 type EnvelopeLead = Elts D3
@@ -285,7 +285,6 @@ type Buffers =
       , synth2 :: Synths
       , synth3 :: Synths
       , synth4 :: Synths
-      , synth5 :: Synths
       }
   , drones :: Drones
   , oneShots :: OneShots
@@ -307,7 +306,7 @@ derive instance newtypeTrigger :: Newtype IncomingEvent _
 derive newtype instance toJSONTrigger :: JSON.ReadForeign IncomingEvent
 derive newtype instance fromJSONTrigger :: JSON.WriteForeign IncomingEvent
 
-data LeadSynth = Synth0 | Synth1 | Synth2 | Synth3 | Synth4 | Synth5
+data LeadSynth = Synth0 | Synth1 | Synth2 | Synth3 | Synth4
 data PitchSynth = P0 | P1 | P2 | P3 | P4 | P5 | P6 | P7 | P8 | P9 | P10 | P11 | P12 | P13
 data WhichSample = Sm0 | Sm1 | Sm2 | Sm3 | Sm4 | Sm5 | Sm6 | Sm7 | Sm8 | Sm9 | Sm10 | Sm11 | Sm12 | Sm13 | Sm14 | Sm15 | Sm16 | Sm17 | Sm18 | Sm19 | Sm20 | Sm21 | Sm22 | Sm23
 data SampleRate = Sr0 | Sr1 | Sr2

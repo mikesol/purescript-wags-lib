@@ -26,7 +26,6 @@ data T2 = T2_0 | T2_1
 data T3 = T3_0 | T3_1 | T3_2
 data T4 = T4_0 | T4_1 | T4_2 | T4_3
 data T5 = T5_0 | T5_1 | T5_2 | T5_3 | T5_4
-data T6 = T6_0 | T6_1 | T6_2 | T6_3 | T6_4
 
 data Rect = Rect Int Int Int Int
 
@@ -43,7 +42,7 @@ data Control
   | T3 (T3 -> Action) (State -> T3) Rect Color
   | T4 (T4 -> Action) (State -> T4) Rect Color
   | T5 (T5 -> Action) (State -> T5) Rect Color
-  | T6 Rect Color T6
+
   | Pad Rect Color Number
   | Source Action Rect Color
 
@@ -114,6 +113,7 @@ data Action
   | FilterBankChooserPad T5
   | DroneChooser T5
   | DroneRhythmicLoopingPiecewiseFunction T5
+  | SynthForLead T5
 
 type State =
   { unsubscribe :: Effect Unit
@@ -198,6 +198,7 @@ type State =
       , filterBankChooserPad :: T5
       , droneChooser :: T5
       , droneRhythmicLoopingPiecewiseFunction :: T5
+      , synthForLead :: T5
       }
   }
 
@@ -233,7 +234,7 @@ elts =
   -- trigger synth
   , triggerLead: Source TriggerLead (Rect 720 790 210 210) focusc
   -- the synth we use for the lead
-  , synthForLead: T6 (Rect 590 460 340 130) focusc T6_0
+  , synthForLead: T5 SynthForLead _.interactions.synthForLead (Rect 590 460 340 130) focusc
   -- choose which pitch out of 14 to start at
   , pitchLead: DiscreteChooser PitchLead _.interactions.pitchLead (Rect 930 70 70 520) backgroundc foregroundc 14
   -- 0th delay line for the lead synth
@@ -582,16 +583,6 @@ c2s st (T5 actionConstructor valueReader (Rect x y w h) color) =
             , HE.onClick (const $ actionConstructor $ dT5 cur)
             ]
         ]
-c2s st (T6 (Rect x y w h) color _) =
-  [ SE.rect
-      [ SA.x $ toNumber x
-      , SA.y $ toNumber y
-      , SA.width $ toNumber w
-      , SA.height $ toNumber h
-      , SA.fill color
-      , SA.stroke (RGB 4 4 4)
-      ]
-  ]
 c2s st (Pad (Rect x y w h) color _) =
   [ SE.rect
       [ SA.x $ toNumber x
