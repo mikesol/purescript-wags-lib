@@ -29,9 +29,9 @@ module.exports = {
 		contentBase: path.resolve(__dirname, "dist"),
 		watchContentBase: true,
 	},
-	resolve: {
+	/*resolve: {
 		alias: {
 			"../Halogen.Component/index.js": "../../src/Halogen.Component.patch.js",
 		},
-	},
+	},*/
 };

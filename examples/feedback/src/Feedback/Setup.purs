@@ -14,6 +14,26 @@ import WAGS.Run (RunAudio, RunEngine, TriggeredScene(..))
 setup :: forall proof. TriggeredScene Trigger World () -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit
 setup (TriggeredScene { world: { buffers, waveshaperArray, periodic } }) = do
   ichange' (Proxy :: _ "mainFader") 1.0
+  ichange' (Proxy :: _ "subMainFader") 1.0
+  ichange' (Proxy :: _ "loopingBuffer0") 0.0
+  ichange' (Proxy :: _ "loopingBuffer0Pan") 0.0
+  ichange' (Proxy :: _ "loopingBuffer0PlayBuf") { buffer: buffers.loops.b0, onOff: _on }
+  ichange' (Proxy :: _ "loopingBuffer1") 0.0
+  ichange' (Proxy :: _ "loopingBuffer1Pan") 0.0
+  ichange' (Proxy :: _ "loopingBuffer1PlayBuf") { buffer: buffers.loops.b1, onOff: _on }
+  ichange' (Proxy :: _ "loopingBuffer2") 0.0
+  ichange' (Proxy :: _ "loopingBuffer2Pan") 0.0
+  ichange' (Proxy :: _ "loopingBuffer2PlayBuf") { buffer: buffers.loops.b2, onOff: _on }
+  ichange' (Proxy :: _ "loopingBuffer3") 0.0
+  ichange' (Proxy :: _ "loopingBuffer3Pan") 0.0
+  ichange' (Proxy :: _ "loopingBuffer3PlayBuf") { buffer: buffers.loops.b3, onOff: _on }
+  ichange' (Proxy :: _ "loopingBuffer4") 0.0
+  ichange' (Proxy :: _ "loopingBuffer4Pan") 0.0
+  ichange' (Proxy :: _ "loopingBuffer4PlayBuf") { buffer: buffers.loops.b4, onOff: _on }
+
+setup0 :: forall proof. TriggeredScene Trigger World () -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit
+setup0 (TriggeredScene { world: { buffers, waveshaperArray, periodic } }) = do
+  ichange' (Proxy :: _ "mainFader") 1.0
   ichange' (Proxy :: _ "subMainDelay") 0.3
   ichange' (Proxy :: _ "subMainGain") 0.0
   ichange' (Proxy :: _ "subMainFader") 1.0

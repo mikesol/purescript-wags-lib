@@ -9,6 +9,7 @@ import Data.Newtype (wrap)
 import Data.Profunctor (lcmap)
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested (type (/\), (/\))
+-- import Debug (spy)
 import Effect (Effect)
 import Feedback.Types (Instructions)
 import Halogen.HTML as H
@@ -39,15 +40,14 @@ data SliderAction
 data PadAction = PadDown | PadUp
 
 data Control
-  = Slider (SliderAction -> Action) (State -> Number) Rect Color Color
-  | DiscreteChooser (SliderAction -> Action) (State -> Number) Rect Color Color Int
-  | T2 (T2 -> Action) (State -> T2) Rect Color Color
-  | T3 (T3 -> Action) (State -> T3) Rect Color Color
-  | T4 (T4 -> Action) (State -> T4) Rect Color Color
-  | T5 (T5 -> Action) (State -> T5) Rect Color Color
-
-  | Pad (PadAction -> Action) (State -> Number) Rect NNN NNN
-  | Source Action Rect Color
+  = Slider String (SliderAction -> Action) (State -> Number) Rect Color Color
+  | DiscreteChooser String (SliderAction -> Action) (State -> Number) Rect Color Color Int
+  | T2 String (T2 -> Action) (State -> T2) Rect Color Color
+  | T3 String (T3 -> Action) (State -> T3) Rect Color Color
+  | T4 String (T4 -> Action) (State -> T4) Rect Color Color
+  | T5 String (T5 -> Action) (State -> T5) Rect Color Color
+  | Pad String (PadAction -> Action) (State -> Number) Rect NNN NNN
+  | Source String (Boolean -> Action) (State -> Boolean) Rect Color Color
 
 data Action
   = StartAudio
@@ -102,9 +102,9 @@ data Action
   | RadicalFlip T2
   | GlobalDelay T2
   --
-  | TriggerLead
-  | SampleOneShot
-  | UncontrollableSingleton
+  | TriggerLead Boolean
+  | SampleOneShot Boolean
+  | UncontrollableSingleton Boolean
   --
   | EnvelopeLead T3
   | OctaveLead T3
@@ -211,6 +211,10 @@ type State =
       , triggerPadUp :: Boolean
       , drone :: Number
       , droneUp :: Boolean
+      --
+      , echoingUncontrollableSingleton :: Boolean
+      , triggerLead :: Boolean
+      , sampleOneShot :: Boolean
       }
   }
 
@@ -223,122 +227,122 @@ foregroundT = 10.0 /\ 10.0 /\ 10.0 :: NNN
 elts :: { | Instructions Control }
 elts =
   { -- press to grow or shrink a pad
-    triggerPad: Pad TriggerPad _.interactions.triggerPad (Rect 60 60 240 240) backgroundT foregroundT
+    triggerPad: Pad "TriggerPad" TriggerPad _.interactions.triggerPad (Rect 60 60 240 240) backgroundT foregroundT
   -- periodic wave in mix
-  , togglePadOsc0: T2 TogglePadOsc0 _.interactions.togglePadOsc0 (Rect 400 60 60 60) backgroundc foregroundc
+  , togglePadOsc0: T2 "TogglePadOsc0" TogglePadOsc0 _.interactions.togglePadOsc0 (Rect 400 60 60 60) backgroundc foregroundc
   -- triangle wave in mix
-  , togglePadOsc1: T2 TogglePadOsc1 _.interactions.togglePadOsc1 (Rect 540 940 60 60) backgroundc foregroundc
+  , togglePadOsc1: T2 "TogglePadOsc1" TogglePadOsc1 _.interactions.togglePadOsc1 (Rect 540 940 60 60) backgroundc foregroundc
   -- sawtooth wave in mix
-  , togglePadOsc2: T2 TogglePadOsc2 _.interactions.togglePadOsc2 (Rect 270 690 60 60) backgroundc foregroundc
+  , togglePadOsc2: T2 "TogglePadOsc2" TogglePadOsc2 _.interactions.togglePadOsc2 (Rect 270 690 60 60) backgroundc foregroundc
   -- square in mix
-  , togglePadOsc3: T2 TogglePadOsc3 _.interactions.togglePadOsc3 (Rect 0 60 60 60) backgroundc foregroundc
+  , togglePadOsc3: T2 "TogglePadOsc3" TogglePadOsc3 _.interactions.togglePadOsc3 (Rect 0 60 60 60) backgroundc foregroundc
   -- high sine in mix
-  , togglePadOsc4: T2 TogglePadOsc4 _.interactions.togglePadOsc4 (Rect 420 940 60 60) backgroundc foregroundc
+  , togglePadOsc4: T2 "TogglePadOsc4" TogglePadOsc4 _.interactions.togglePadOsc4 (Rect 420 940 60 60) backgroundc foregroundc
   -- three detuning factors + "normal" harmonic series
-  , detunePad: T4 DetunePad _.interactions.detunePad (Rect 800 690 130 100) backgroundc foregroundc
+  , detunePad: T4 "DetunePad" DetunePad _.interactions.detunePad (Rect 800 690 130 100) backgroundc foregroundc
   -- 0th lfo on the pad gain
-  , gainLFO0Pad: Slider GainLFO0Pad _.interactions.gainLFO0Pad (Rect 90 810 450 60) backgroundc foregroundc
+  , gainLFO0Pad: Slider "GainLFO0Pad" GainLFO0Pad _.interactions.gainLFO0Pad (Rect 90 810 450 60) backgroundc foregroundc
   -- 1st lfo on the pad gain, fatter & more sluggish
-  , gainLFO1Pad: Slider GainLFO1Pad _.interactions.gainLFO1Pad (Rect 630 690 90 180) backgroundc foregroundc
+  , gainLFO1Pad: Slider "GainLFO1Pad" GainLFO1Pad _.interactions.gainLFO1Pad (Rect 630 690 90 180) backgroundc foregroundc
   -- pad filter bank chooser
-  , filterBankChooserPad: T5 FilterBankChooserPad _.interactions.filterBankChooserPad (Rect 400 180 120 120) backgroundc foregroundc --
+  , filterBankChooserPad: T5 "FilterBankChooserPad" FilterBankChooserPad _.interactions.filterBankChooserPad (Rect 400 180 120 120) backgroundc foregroundc --
   -- waveshaper on the pad
-  , waveshaperPad: Slider WaveshaperPad _.interactions.waveshaperPad (Rect 800 0 200 70) backgroundc foregroundc
+  , waveshaperPad: Slider "WaveshaperPad" WaveshaperPad _.interactions.waveshaperPad (Rect 800 0 200 70) backgroundc foregroundc
   -- trigger synth
-  , triggerLead: Source TriggerLead (Rect 720 790 210 210) backgroundc
+  , triggerLead: Source "TriggerLead" TriggerLead _.interactions.triggerLead (Rect 720 790 210 210) backgroundc foregroundc
   -- the synth we use for the lead
-  , synthForLead: T5 SynthForLead _.interactions.synthForLead (Rect 590 460 340 130) backgroundc foregroundc
+  , synthForLead: T5 "SynthForLead" SynthForLead _.interactions.synthForLead (Rect 590 460 340 130) backgroundc foregroundc
   -- choose which pitch out of 14 to start at
-  , pitchLead: DiscreteChooser PitchLead _.interactions.pitchLead (Rect 930 70 70 520) backgroundc foregroundc 14
+  , pitchLead: DiscreteChooser "PitchLead" PitchLead _.interactions.pitchLead (Rect 930 70 70 520) backgroundc foregroundc 14
   -- 0th delay line for the lead synth
-  , leadDelayLine0: T2 LeadDelayLine0 _.interactions.leadDelayLine0 (Rect 0 240 60 60) backgroundc foregroundc
+  , leadDelayLine0: T2 "LeadDelayLine0" LeadDelayLine0 _.interactions.leadDelayLine0 (Rect 0 240 60 60) backgroundc foregroundc
   -- 1st delay line for the lead synth
-  , leadDelayLine1: T2 LeadDelayLine1 _.interactions.leadDelayLine1 (Rect 460 120 60 60) backgroundc foregroundc
+  , leadDelayLine1: T2 "LeadDelayLine1" LeadDelayLine1 _.interactions.leadDelayLine1 (Rect 460 120 60 60) backgroundc foregroundc
   -- 2nd delay line for the lead synth
-  , leadDelayLine2: T2 LeadDelayLine2 _.interactions.leadDelayLine2 (Rect 90 690 60 60) backgroundc foregroundc
+  , leadDelayLine2: T2 "LeadDelayLine2" LeadDelayLine2 _.interactions.leadDelayLine2 (Rect 90 690 60 60) backgroundc foregroundc
   -- combined delay line for the lead synth
-  , leadCombinedDelay0: T2 LeadCombinedDelay0 _.interactions.leadCombinedDelay0 (Rect 300 0 60 60) backgroundc foregroundc
+  , leadCombinedDelay0: T2 "LeadCombinedDelay0" LeadCombinedDelay0 _.interactions.leadCombinedDelay0 (Rect 300 0 60 60) backgroundc foregroundc
   -- shifts intensities of delays
-  , leadDelayGainCarousel: Slider LeadDelayGainCarousel _.interactions.leadDelayGainCarousel (Rect 590 590 410 100) backgroundc foregroundc
+  , leadDelayGainCarousel: Slider "LeadDelayGainCarousel" LeadDelayGainCarousel _.interactions.leadDelayGainCarousel (Rect 590 590 410 100) backgroundc foregroundc
   -- n pitches played when pressed (fixed sequence always based on start)
-  , nPitchesPlayedLead: DiscreteChooser NPitchesPlayedLead _.interactions.nPitchesPlayedLead (Rect 90 300 90 390) backgroundc foregroundc 7
+  , nPitchesPlayedLead: DiscreteChooser "NPitchesPlayedLead" NPitchesPlayedLead _.interactions.nPitchesPlayedLead (Rect 90 300 90 390) backgroundc foregroundc 7
   -- one of three envelopes
-  , envelopeLead: T3 EnvelopeLead _.interactions.envelopeLead (Rect 660 0 140 140) backgroundc foregroundc
+  , envelopeLead: T3 "EnvelopeLead" EnvelopeLead _.interactions.envelopeLead (Rect 660 0 140 140) backgroundc foregroundc
   -- octave shift
-  , octaveLead: T3 OctaveLead _.interactions.octaveLead (Rect 800 70 60 70) backgroundc foregroundc
+  , octaveLead: T3 "OctaveLead" OctaveLead _.interactions.octaveLead (Rect 800 70 60 70) backgroundc foregroundc
   -- pad for a buffer
-  , drone: Pad Drone _.interactions.drone (Rect 270 390 320 300) backgroundT foregroundT
+  , drone: Pad "Drone" Drone _.interactions.drone (Rect 270 390 320 300) backgroundT foregroundT
   -- choose drone
-  , droneChooser: T5 DroneChooser _.interactions.droneChooser (Rect 390 690 150 120) backgroundc foregroundc
+  , droneChooser: T5 "DroneChooser" DroneChooser _.interactions.droneChooser (Rect 390 690 150 120) backgroundc foregroundc
   -- lowpass q for drone
-  , droneLowpass0Q: Slider DroneLowpass0Q _.interactions.droneLowpass0Q (Rect 540 690 90 180) backgroundc foregroundc
+  , droneLowpass0Q: Slider "DroneLowpass0Q" DroneLowpass0Q _.interactions.droneLowpass0Q (Rect 540 690 90 180) backgroundc foregroundc
   -- q of bandpass filter
-  , droneBandpass0Q: Slider DroneBandpass0Q _.interactions.droneBandpass0Q (Rect 0 940 300 60) backgroundc foregroundc
+  , droneBandpass0Q: Slider "DroneBandpass0Q" DroneBandpass0Q _.interactions.droneBandpass0Q (Rect 0 940 300 60) backgroundc foregroundc
   -- lfo controlling freq of bandpass
-  , droneBandpass0LFO: Slider DroneBandpass0LFO _.interactions.droneBandpass0LFO (Rect 520 60 70 240) backgroundc foregroundc
+  , droneBandpass0LFO: Slider "DroneBandpass0LFO" DroneBandpass0LFO _.interactions.droneBandpass0LFO (Rect 520 60 70 240) backgroundc foregroundc
   -- q of bandpass filter
-  , droneBandpass1Q: Slider DroneBandpass1Q _.interactions.droneBandpass1Q (Rect 930 690 70 310) backgroundc foregroundc
+  , droneBandpass1Q: Slider "DroneBandpass1Q" DroneBandpass1Q _.interactions.droneBandpass1Q (Rect 930 690 70 310) backgroundc foregroundc
   -- lfo of bandpass filter
-  , droneBandpass1LFO: Slider DroneBandpass1LFO _.interactions.droneBandpass1LFO (Rect 180 300 90 260) backgroundc foregroundc
+  , droneBandpass1LFO: Slider "DroneBandpass1LFO" DroneBandpass1LFO _.interactions.droneBandpass1LFO (Rect 180 300 90 260) backgroundc foregroundc
   -- q of highpass filter
-  , droneHighpass0Q: Slider DroneHighpass0Q _.interactions.droneHighpass0Q (Rect 860 70 70 200) backgroundc foregroundc
+  , droneHighpass0Q: Slider "DroneHighpass0Q" DroneHighpass0Q _.interactions.droneHighpass0Q (Rect 860 70 70 200) backgroundc foregroundc
   -- lfo of highpass filter
-  , droneHighpass0LFO: Slider DroneHighpass0LFO _.interactions.droneHighpass0LFO (Rect 360 0 300 60) backgroundc foregroundc
+  , droneHighpass0LFO: Slider "DroneHighpass0LFO" DroneHighpass0LFO _.interactions.droneHighpass0LFO (Rect 360 0 300 60) backgroundc foregroundc
   -- how long does it take for the drone to ramp up?
-  , droneActivationEnergyThreshold: Slider DroneActivationEnergyThreshold _.interactions.droneActivationEnergyThreshold (Rect 90 750 300 60) backgroundc foregroundc
+  , droneActivationEnergyThreshold: Slider "DroneActivationEnergyThreshold" DroneActivationEnergyThreshold _.interactions.droneActivationEnergyThreshold (Rect 90 750 300 60) backgroundc foregroundc
   -- looping pwf
-  , droneRhythmicLoopingPiecewiseFunction: T5 DroneRhythmicLoopingPiecewiseFunction _.interactions.droneRhythmicLoopingPiecewiseFunction (Rect 660 340 270 120) backgroundc foregroundc
+  , droneRhythmicLoopingPiecewiseFunction: T5 "DroneRhythmicLoopingPiecewiseFunction" DroneRhythmicLoopingPiecewiseFunction _.interactions.droneRhythmicLoopingPiecewiseFunction (Rect 660 340 270 120) backgroundc foregroundc
   -- how long does the drone linger?
-  , droneDecay: Slider DroneDecay _.interactions.droneDecay (Rect 590 60 70 400) backgroundc foregroundc
+  , droneDecay: Slider "DroneDecay" DroneDecay _.interactions.droneDecay (Rect 590 60 70 400) backgroundc foregroundc
   -- flange on the drone
-  , droneFlange: T2 DroneFlange _.interactions.droneFlange (Rect 60 0 60 60) backgroundc foregroundc
+  , droneFlange: T2 "DroneFlange" DroneFlange _.interactions.droneFlange (Rect 60 0 60 60) backgroundc foregroundc
   -- a single sample
-  , sampleOneShot: Source SampleOneShot (Rect 660 140 200 200) backgroundc
+  , sampleOneShot: Source "SampleOneShot" SampleOneShot _.interactions.sampleOneShot (Rect 660 140 200 200) backgroundc foregroundc
   -- reverse the samples?
-  , sampleReverse: T2 SampleReverse _.interactions.sampleReverse (Rect 400 120 60 60) backgroundc foregroundc
+  , sampleReverse: T2 "SampleReverse" SampleReverse _.interactions.sampleReverse (Rect 400 120 60 60) backgroundc foregroundc
   -- choose which sample to play
-  , sampleChooser: DiscreteChooser SampleChooser _.interactions.sampleChooser (Rect 0 300 90 640) backgroundc foregroundc 24
-  , sampleChorusEffect: T2 SampleChorusEffect _.interactions.sampleChorusEffect (Rect 120 0 60 60) backgroundc foregroundc
-  , sampleRateChange: T3 SampleRateChange _.interactions.sampleRateChange (Rect 720 690 80 100) backgroundc foregroundc
+  , sampleChooser: DiscreteChooser "SampleChooser" SampleChooser _.interactions.sampleChooser (Rect 0 300 90 640) backgroundc foregroundc 24
+  , sampleChorusEffect: T2 "SampleChorusEffect" SampleChorusEffect _.interactions.sampleChorusEffect (Rect 120 0 60 60) backgroundc foregroundc
+  , sampleRateChange: T3 "SampleRateChange" SampleRateChange _.interactions.sampleRateChange (Rect 720 690 80 100) backgroundc foregroundc
   -- 0th delay line for the single sample
-  , sampleDelayLine0: T2 SampleDelayLine0 _.interactions.sampleDelayLine0 (Rect 0 0 60 60) backgroundc foregroundc
+  , sampleDelayLine0: T2 "SampleDelayLine0" SampleDelayLine0 _.interactions.sampleDelayLine0 (Rect 0 0 60 60) backgroundc foregroundc
   -- 1st delay line for the single sample
-  , sampleDelayLine1: T2 SampleDelayLine1 _.interactions.sampleDelayLine1 (Rect 150 690 60 60) backgroundc foregroundc
+  , sampleDelayLine1: T2 "SampleDelayLine1" SampleDelayLine1 _.interactions.sampleDelayLine1 (Rect 150 690 60 60) backgroundc foregroundc
   -- 2nd delay line for the single sample
-  , sampleDelayLine2: T2 SampleDelayLine2 _.interactions.sampleDelayLine2 (Rect 860 270 70 70) backgroundc foregroundc
+  , sampleDelayLine2: T2 "SampleDelayLine2" SampleDelayLine2 _.interactions.sampleDelayLine2 (Rect 860 270 70 70) backgroundc foregroundc
   -- 0th sample combined delay line
-  , sampleCombinedDelayLine0: T2 SampleCombinedDelayLine0 _.interactions.sampleCombinedDelayLine0 (Rect 480 940 60 60) backgroundc foregroundc
+  , sampleCombinedDelayLine0: T2 "SampleCombinedDelayLine0" SampleCombinedDelayLine0 _.interactions.sampleCombinedDelayLine0 (Rect 480 940 60 60) backgroundc foregroundc
   -- changes intensities of various delay lines
-  , sampleDelayGainCarousel: Slider SampleDelayGainCarousel _.interactions.sampleDelayGainCarousel (Rect 270 300 320 90) backgroundc foregroundc
+  , sampleDelayGainCarousel: Slider "SampleDelayGainCarousel" SampleDelayGainCarousel _.interactions.sampleDelayGainCarousel (Rect 270 300 320 90) backgroundc foregroundc
   -- 0th delay line for combined lead sample
-  , leadSampleDelayLine0: T2 LeadSampleDelayLine0 _.interactions.leadSampleDelayLine0 (Rect 660 940 60 60) backgroundc foregroundc
+  , leadSampleDelayLine0: T2 "LeadSampleDelayLine0" LeadSampleDelayLine0 _.interactions.leadSampleDelayLine0 (Rect 660 940 60 60) backgroundc foregroundc
   -- 1st delay line for combined lead sample
-  , leadSampleDelayLine1: T2 LeadSampleDelayLine1 _.interactions.leadSampleDelayLine1 (Rect 330 690 60 60) backgroundc foregroundc
+  , leadSampleDelayLine1: T2 "LeadSampleDelayLine1" LeadSampleDelayLine1 _.interactions.leadSampleDelayLine1 (Rect 330 690 60 60) backgroundc foregroundc
   -- 2nd delay line for combined lead sample
-  , leadSampleDelayLine2: T2 LeadSampleDelayLine2 _.interactions.leadSampleDelayLine2 (Rect 0 180 60 60) backgroundc foregroundc
+  , leadSampleDelayLine2: T2 "LeadSampleDelayLine2" LeadSampleDelayLine2 _.interactions.leadSampleDelayLine2 (Rect 0 180 60 60) backgroundc foregroundc
   -- alternates between any looping buffers that are currently playing
-  , loopingBufferGainDJ: T2 LoopingBufferGainDJ _.interactions.loopingBufferGainDJ (Rect 240 0 60 60) backgroundc foregroundc
+  , loopingBufferGainDJ: T2 "LoopingBufferGainDJ" LoopingBufferGainDJ _.interactions.loopingBufferGainDJ (Rect 240 0 60 60) backgroundc foregroundc
   -- how close the start/end times are
-  , loopingBufferStartEndConstriction: Slider LoopingBufferStartEndConstriction _.interactions.loopingBufferStartEndConstriction (Rect 300 160 100 140) backgroundc foregroundc
+  , loopingBufferStartEndConstriction: Slider "LoopingBufferStartEndConstriction" LoopingBufferStartEndConstriction _.interactions.loopingBufferStartEndConstriction (Rect 300 160 100 140) backgroundc foregroundc
   -- 0th looping buffer
-  , loopingBuffer0: T2 LoopingBuffer0 _.interactions.loopingBuffer0 (Rect 180 0 60 60) backgroundc foregroundc
+  , loopingBuffer0: T2 "LoopingBuffer0" LoopingBuffer0 _.interactions.loopingBuffer0 (Rect 180 0 60 60) backgroundc foregroundc
   -- 1st looping buffer
-  , loopingBuffer1: T2 LoopingBuffer1 _.interactions.loopingBuffer1 (Rect 210 690 60 60) backgroundc foregroundc
+  , loopingBuffer1: T2 "LoopingBuffer1" LoopingBuffer1 _.interactions.loopingBuffer1 (Rect 210 690 60 60) backgroundc foregroundc
   -- 2nd looping buffer
-  , loopingBuffer2: T2 LoopingBuffer2 _.interactions.loopingBuffer2 (Rect 360 940 60 60) backgroundc foregroundc
+  , loopingBuffer2: T2 "LoopingBuffer2" LoopingBuffer2 _.interactions.loopingBuffer2 (Rect 360 940 60 60) backgroundc foregroundc
   -- 3rd looping buffer
-  , loopingBuffer3: T2 LoopingBuffer3 _.interactions.loopingBuffer3 (Rect 300 940 60 60) backgroundc foregroundc
+  , loopingBuffer3: T2 "LoopingBuffer3" LoopingBuffer3 _.interactions.loopingBuffer3 (Rect 300 940 60 60) backgroundc foregroundc
   -- 4th looping buffer
-  , loopingBuffer4: T2 LoopingBuffer4 _.interactions.loopingBuffer4 (Rect 0 120 60 60) backgroundc foregroundc
+  , loopingBuffer4: T2 "LoopingBuffer4" LoopingBuffer4 _.interactions.loopingBuffer4 (Rect 0 120 60 60) backgroundc foregroundc
   -- substitutes entirely different sets of base parameters
-  , radicalFlip: T2 RadicalFlip _.interactions.radicalFlip (Rect 460 60 60 60) backgroundc foregroundc
+  , radicalFlip: T2 "RadicalFlip" RadicalFlip _.interactions.radicalFlip (Rect 460 60 60 60) backgroundc foregroundc
   -- global pan extravaganza
-  , greatAndMightyPan: Slider GreatAndMightyPan _.interactions.greatAndMightyPan (Rect 90 870 630 70) backgroundc foregroundc
+  , greatAndMightyPan: Slider "GreatAndMightyPan" GreatAndMightyPan _.interactions.greatAndMightyPan (Rect 90 870 630 70) backgroundc foregroundc
   -- global delay
-  , globalDelay: T2 GlobalDelay _.interactions.globalDelay (Rect 600 940 60 60) backgroundc foregroundc
+  , globalDelay: T2 "GlobalDelay" GlobalDelay _.interactions.globalDelay (Rect 600 940 60 60) backgroundc foregroundc
   -- echoing uncontrollable singleton
-  , echoingUncontrollableSingleton: Source UncontrollableSingleton (Rect 300 60 100 100) backgroundc
-  , distantBellsFader: Slider DistantBellsFader _.interactions.distantBellsFader (Rect 180 560 90 130) backgroundc foregroundc
+  , echoingUncontrollableSingleton: Source "UncontrollableSingleton" UncontrollableSingleton _.interactions.echoingUncontrollableSingleton (Rect 300 60 100 100) backgroundc foregroundc
+  , distantBellsFader: Slider "DistantBellsFader" DistantBellsFader _.interactions.distantBellsFader (Rect 180 560 90 130) backgroundc foregroundc
   }
 
 foreign import normalizedWidthAndHeight_ :: (Number -> Number -> Number /\ Number) -> MouseEvent -> Number /\ Number
@@ -369,10 +373,10 @@ dT5 T5_3 = T5_4
 dT5 T5_4 = T5_0
 
 snap :: Int -> Number -> Number -> Number
-snap mx' v pct = let mx = toNumber mx' in (floor (pct * mx)) * v / mx
+snap mx' v pct = let mx = toNumber mx' in (floor (pct * mx) + 0.5) * v / mx
 
 c2s :: forall m. State -> Control -> Array (H.ComponentHTML Action () m)
-c2s st (Slider actionConstructor valueReader (Rect x y w h) background foreground) =
+c2s st (Slider id actionConstructor valueReader (Rect x y w h) background foreground) =
   let
     useX = w > h
   in
@@ -397,6 +401,7 @@ c2s st (Slider actionConstructor valueReader (Rect x y w h) background foregroun
         , SA.height $ toNumber h
         , SA.fill (RGBA 0 0 0 0.0)
         , SA.stroke (RGB 4 4 4)
+        , SA.id id
         , HE.onMouseDown $ lcmap normalizedWidthAndHeight
             ( actionConstructor
                 <<< SliderDown
@@ -411,10 +416,12 @@ c2s st (Slider actionConstructor valueReader (Rect x y w h) background foregroun
             (const $ actionConstructor SliderUp)
         ]
     ]
-c2s st (DiscreteChooser actionConstructor valueReader (Rect x y w h) background foreground mx) =
+c2s st (DiscreteChooser id actionConstructor valueReader (Rect x y w h) background foreground mx) =
   let
     useX = w > h
     mxx = toNumber mx
+    tx = toNumber x
+    ty = toNumber y
   in
     [ SE.rect
         [ SA.x $ toNumber x
@@ -426,17 +433,18 @@ c2s st (DiscreteChooser actionConstructor valueReader (Rect x y w h) background 
     ]
       <> map
         ( \n -> SE.line
-            [ SA.x1 $ if useX then (((toNumber n + 0.5) / mxx) * toNumber w) else toNumber (x + 10)
-            , SA.y1 $ if useX then toNumber (y + 10) else (((toNumber n + 0.5) / mxx) * toNumber h)
-            , SA.x2 $ if useX then (((toNumber n + 0.5) / mxx) * toNumber w) else toNumber (x + w - 10)
-            , SA.y2 $ if useX then toNumber (y + h - 10) else (((toNumber n + 0.5) / mxx) * toNumber h)
+            [ SA.x1 $ if useX then (((toNumber n + 0.5) / mxx) * toNumber w) + tx else toNumber (x + 10)
+            , SA.y1 $ if useX then toNumber (y + 10) else (((toNumber n + 0.5) / mxx) * toNumber h) + ty
+            , SA.x2 $ if useX then (((toNumber n + 0.5) / mxx) * toNumber w) + tx else toNumber (x + w - 10)
+            , SA.y2 $ if useX then toNumber (y + h - 10) else (((toNumber n + 0.5) / mxx) * toNumber h) + ty
+            , SA.stroke foreground
             ]
         )
-        (0 .. mx)
+        (0 .. (mx - 1))
       <>
         [ SE.rect
-            [ SA.x $ if useX then snap mx (toNumber w) (valueReader st) - 10.0 else toNumber w
-            , SA.y $ if useX then toNumber h else snap mx (toNumber h) (valueReader st) - 10.0
+            [ SA.x $ if useX then snap mx (toNumber w) (valueReader st) + tx - 10.0 else tx
+            , SA.y $ if useX then ty else snap mx (toNumber h) (valueReader st) + ty - 10.0
             , SA.width $ if useX then 20.0 else toNumber w
             , SA.height $ if useX then toNumber h else 20.0
             , SA.fill foreground
@@ -448,6 +456,7 @@ c2s st (DiscreteChooser actionConstructor valueReader (Rect x y w h) background 
             , SA.height $ toNumber h
             , SA.fill (RGBA 0 0 0 0.0)
             , SA.stroke (RGB 4 4 4)
+            , SA.id id
             , HE.onMouseDown $ lcmap normalizedWidthAndHeight
                 ( actionConstructor
                     <<< SliderDown
@@ -462,7 +471,7 @@ c2s st (DiscreteChooser actionConstructor valueReader (Rect x y w h) background 
                 (const $ actionConstructor SliderUp)
             ]
         ]
-c2s st (T2 actionConstructor valueReader (Rect x y w h) bg fg) =
+c2s st (T2 id actionConstructor valueReader (Rect x y w h) bg fg) =
   let
     cur = valueReader st
   in
@@ -473,6 +482,7 @@ c2s st (T2 actionConstructor valueReader (Rect x y w h) bg fg) =
         , SA.height $ toNumber h
         , SA.fill bg
         , SA.stroke (RGB 4 4 4)
+        , SA.id id
         , HE.onClick (const $ actionConstructor $ dT2 cur)
         ]
     ] <> case cur of
@@ -487,7 +497,7 @@ c2s st (T2 actionConstructor valueReader (Rect x y w h) bg fg) =
             , HE.onClick (const $ actionConstructor $ dT2 cur)
             ]
         ]
-c2s st (T3 actionConstructor valueReader (Rect x y w h) bg fg) =
+c2s st (T3 id actionConstructor valueReader (Rect x y w h) bg fg) =
   let
     cur = valueReader st
   in
@@ -498,6 +508,7 @@ c2s st (T3 actionConstructor valueReader (Rect x y w h) bg fg) =
         , SA.height $ toNumber h
         , SA.fill bg
         , SA.stroke (RGB 4 4 4)
+        , SA.id id
         , HE.onClick (const $ actionConstructor $ dT3 cur)
         ]
     ] <> case cur of
@@ -516,7 +527,7 @@ c2s st (T3 actionConstructor valueReader (Rect x y w h) bg fg) =
             , HE.onClick (const $ actionConstructor $ dT3 cur)
             ]
         ]
-c2s st (T4 actionConstructor valueReader (Rect x y w h) bg fg) =
+c2s st (T4 id actionConstructor valueReader (Rect x y w h) bg fg) =
   let
     cur = valueReader st
   in
@@ -526,7 +537,9 @@ c2s st (T4 actionConstructor valueReader (Rect x y w h) bg fg) =
         , SA.width $ toNumber w
         , SA.height $ toNumber h
         , SA.fill bg
+        , SA.id id
         , SA.stroke (RGB 4 4 4)
+        , HE.onClick (const $ actionConstructor $ dT4 cur)
         ]
     ] <> case cur of
       T4_0 -> []
@@ -551,17 +564,19 @@ c2s st (T4 actionConstructor valueReader (Rect x y w h) bg fg) =
             , HE.onClick (const $ actionConstructor $ dT4 cur)
             ]
         ]
-c2s st (T5 actionConstructor valueReader (Rect x y w h) bg fg) =
+c2s st (T5 id actionConstructor valueReader (Rect x y w h) bg fg) =
   let
     cur = valueReader st
   in
     [ SE.rect
         [ SA.x $ toNumber x
         , SA.y $ toNumber y
+        , SA.id id
         , SA.width $ toNumber w
         , SA.height $ toNumber h
         , SA.fill bg
         , SA.stroke (RGB 4 4 4)
+        , HE.onClick (const $ actionConstructor $ dT5 cur)
         ]
     ] <> case cur of
       T5_0 -> []
@@ -571,7 +586,7 @@ c2s st (T5 actionConstructor valueReader (Rect x y w h) bg fg) =
             , SA.y $ toNumber y
             , SA.width $ toNumber (w / 2)
             , SA.height $ toNumber (h / 2)
-            -- , SA.fill fg
+            , SA.fill fg
             , HE.onClick (const $ actionConstructor $ dT5 cur)
             ]
         ]
@@ -581,7 +596,7 @@ c2s st (T5 actionConstructor valueReader (Rect x y w h) bg fg) =
             , SA.y $ toNumber y
             , SA.width $ toNumber (w / 2)
             , SA.height $ toNumber (h / 2)
-            -- , SA.fill fg
+            , SA.fill fg
             , HE.onClick (const $ actionConstructor $ dT5 cur)
             ]
         ]
@@ -591,7 +606,7 @@ c2s st (T5 actionConstructor valueReader (Rect x y w h) bg fg) =
             , SA.y $ toNumber (y + (h / 2))
             , SA.width $ toNumber (w / 2)
             , SA.height $ toNumber (h / 2)
-            -- , SA.fill fg
+            , SA.fill fg
             , HE.onClick (const $ actionConstructor $ dT5 cur)
             ]
         ]
@@ -601,11 +616,11 @@ c2s st (T5 actionConstructor valueReader (Rect x y w h) bg fg) =
             , SA.y $ toNumber (y + (h / 2))
             , SA.width $ toNumber (w / 2)
             , SA.height $ toNumber (h / 2)
-            -- , SA.fill fg
+            , SA.fill fg
             , HE.onClick (const $ actionConstructor $ dT5 cur)
             ]
         ]
-c2s st (Pad actionConstructor valueReader (Rect x y w h) (c0 /\ c1 /\ c2) (d0 /\ d1 /\ d2)) =
+c2s st (Pad id actionConstructor valueReader (Rect x y w h) (c0 /\ c1 /\ c2) (d0 /\ d1 /\ d2)) =
   let
     cur = valueReader st
   in
@@ -614,6 +629,7 @@ c2s st (Pad actionConstructor valueReader (Rect x y w h) (c0 /\ c1 /\ c2) (d0 /\
         , SA.y $ toNumber y
         , SA.width $ toNumber w
         , SA.height $ toNumber h
+        , SA.id id
         , SA.fill
             ( RGB
                 (round $ calcSlope 0.0 c0 1.0 d0 cur)
@@ -625,13 +641,16 @@ c2s st (Pad actionConstructor valueReader (Rect x y w h) (c0 /\ c1 /\ c2) (d0 /\
         , HE.onMouseUp $ (const $ actionConstructor PadUp)
         ]
     ]
-c2s st (Source action (Rect x y w h) color) =
+c2s st (Source id actionConstructor reader (Rect x y w h) bg fg) =
   [ SE.rect
       [ SA.x $ toNumber x
       , SA.y $ toNumber y
       , SA.width $ toNumber w
+      , SA.id id
       , SA.height $ toNumber h
-      , SA.fill color
+      , SA.fill (if reader st then fg else bg)
       , SA.stroke (RGB 4 4 4)
+      , HE.onMouseDown $ (const $ actionConstructor true)
+      , HE.onMouseUp $ (const $ actionConstructor false)
       ]
   ]

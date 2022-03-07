@@ -138,6 +138,10 @@ initialState _ =
       , triggerPadUp: false
       , drone: 0.0
       , droneUp: false
+      --
+      , echoingUncontrollableSingleton: false
+      , triggerLead: false
+      , sampleOneShot: false
       }
   }
 
@@ -280,8 +284,10 @@ handleSlider push f _ _ mv (SliderDown n) = do
   H.modify_ (\s -> f s n true)
   H.liftEffect $ push (wrap $ mv n)
 handleSlider push f fb _ mv (SliderMove n) = do
-  H.modify_ (\s -> if fb s then f s n true else s)
-  H.liftEffect $ push (wrap $ mv n)
+  pressed <- H.gets fb
+  when pressed do
+    H.modify_ (\s -> f s n true)
+    H.liftEffect $ push (wrap $ mv n)
 handleSlider _ f _ fn _ SliderUp = do
   H.modify_ (\s -> f s (fn s) false)
 handleSlider push f fb _ mv (SliderRemoteMove n) = do
@@ -643,18 +649,27 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
     (inj (Proxy :: Proxy "globalDelay"))
     t2
   ----
-  TriggerLead -> H.liftEffect
-    $ localEvent.push
-    $ wrap
-    $ (inj (Proxy :: Proxy "triggerLead") Bang)
-  SampleOneShot -> H.liftEffect
-    $ localEvent.push
-    $ wrap
-    $ (inj (Proxy :: Proxy "sampleOneShot") Bang)
-  UncontrollableSingleton -> H.liftEffect
-    $ localEvent.push
-    $ wrap
-    $ (inj (Proxy :: Proxy "echoingUncontrollableSingleton") Bang)
+  TriggerLead ud -> do
+    H.modify_ _ { interactions { triggerLead = ud } }
+    when ud do
+      H.liftEffect
+        $ localEvent.push
+        $ wrap
+        $ (inj (Proxy :: Proxy "triggerLead") Bang)
+  SampleOneShot ud -> do
+    H.modify_ _ { interactions { sampleOneShot = ud } }
+    when ud do
+      H.liftEffect
+        $ localEvent.push
+        $ wrap
+        $ (inj (Proxy :: Proxy "sampleOneShot") Bang)
+  UncontrollableSingleton ud -> do
+    H.modify_ _ { interactions { echoingUncontrollableSingleton = ud } }
+    when ud do
+      H.liftEffect
+        $ localEvent.push
+        $ wrap
+        $ (inj (Proxy :: Proxy "echoingUncontrollableSingleton") Bang)
   ------
   EnvelopeLead t3 -> handleT3 localEvent.push _ { interactions { envelopeLead = _ } } _.interactions.envelopeLead
     (inj (Proxy :: Proxy "envelopeLead"))
@@ -718,7 +733,7 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
                 ffiAudio
                 (piece initialAcc setup oracle)
             )
-            (\({ res } :: TriggeredRun Res ()) -> Log.info $ show res)
+            (\(o :: TriggeredRun Res ()) -> Log.info $ show o)
     { emitter, listener } <- H.liftEffect HS.create
     unsubscribe1 <- H.liftEffect $
       subscribe remoteEvent
@@ -885,14 +900,20 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
             , globalDelay: et2
                 >>> GlobalDelay
                 >>> HS.notify listener
+            --
             -- ignore remote events
             -- we make pad triggers entirely local
             , triggerPad: \(_ :: PadT) -> pure unit
             , drone: \(_ :: PadT) -> pure unit
             ---
-            , triggerLead: \(_ :: Bang) -> HS.notify listener TriggerLead
-            , sampleOneShot: \(_ :: Bang) -> HS.notify listener SampleOneShot
-            , echoingUncontrollableSingleton: \(_ :: Bang) -> HS.notify listener UncontrollableSingleton
+            -- ignore triggering events
+            -- this way, we only get sound if we want it
+            -- perhaps allow in future, but then we'd need to
+            -- create flicker as we don't want to track mouse up
+            -- and mouse down from remote
+            , triggerLead: \(_ :: Bang) -> pure unit
+            , sampleOneShot: \(_ :: Bang) -> pure unit
+            , echoingUncontrollableSingleton: \(_ :: Bang) -> pure unit
             --
             , octaveLead: et3
                 >>> OctaveLead
