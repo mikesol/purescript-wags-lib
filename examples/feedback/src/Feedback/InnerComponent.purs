@@ -9,19 +9,19 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap, wrap)
 import Data.Traversable (for_)
 import Data.Typelevel.Num (class Pos, D2, D3, D4, D5, toInt')
-import Data.Variant (default, inj, onMatch)
+import Data.Variant (default, inj, onMatch, match, prj)
 import Data.Vec ((+>), empty)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
 import Effect.Class.Console as Log
-import FRP.Event (Event, EventIO, subscribe)
+import FRP.Event (Event, EventIO, filterMap, subscribe)
 import FRP.Event.Time (interval)
 import Feedback.Acc (initialAcc)
 import Feedback.Control (Action(..), PadAction(..), SliderAction(..), State, T2(..), T3(..), T4(..), T5(..), c2s, elts)
 import Feedback.Engine (piece)
 import Feedback.Oracle (oracle)
-import Feedback.PubNub (PubNub, publish)
+import Feedback.PubNub (PubNub, PubNubEvent(..), PubNubMessage(..), publish)
 import Feedback.Setup (setup)
 import Feedback.Types (Bang(..), Buffers, Elts(..), IncomingEvent, IncomingEvent', Res, Trigger(..), ZeroToOne(..), PadT, ezto, nFromZeroOne)
 import Foreign.Object (fromHomogeneous, values)
@@ -38,7 +38,7 @@ import Type.Proxy (Proxy(..))
 import WAGS.Interpret (close, context, makeFFIAudioSnapshot, makeFloatArray, makePeriodicWave)
 import WAGS.Run (TriggeredRun, runNoLoop)
 
-component :: forall query input output m. MonadEffect m => MonadAff m => Event IncomingEvent -> EventIO IncomingEvent -> PubNub -> Buffers -> H.Component query input output m
+component :: forall query input output m. MonadEffect m => MonadAff m => Event PubNubEvent -> EventIO IncomingEvent -> PubNub -> Buffers -> H.Component query input output m
 component remoteEvent localEvent pubnub buffers =
   H.mkComponent
     { initialState
@@ -328,7 +328,7 @@ et5 (Elts n) = case n of
   3 -> T5_3
   _ -> T5_4
 
-handleAction :: forall output m. MonadEffect m => MonadAff m => Event IncomingEvent -> EventIO IncomingEvent -> PubNub -> Buffers -> Action -> H.HalogenM State Action () output m Unit
+handleAction :: forall output m. MonadEffect m => MonadAff m => Event PubNubEvent -> EventIO IncomingEvent -> PubNub -> Buffers -> Action -> H.HalogenM State Action () output m Unit
 handleAction remoteEvent localEvent pubnub buffers = case _ of
   GainLFO0Pad sliderAction -> handleSlider
     localEvent.push
@@ -721,7 +721,15 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
         $ subscribe
             ( runNoLoop
                 ( Trigger <$>
-                    ( inj (Proxy :: Proxy "event") <$> remoteEvent
+                    ( inj (Proxy :: Proxy "event") <$>
+                        ( filterMap
+                            ( unwrap
+                                >>> _.message
+                                >>> unwrap
+                                >>> prj (Proxy :: Proxy "music")
+                            )
+                            remoteEvent
+                        )
                         <|>
                           inj (Proxy :: Proxy "event") <$> localEvent.event
                         <|>
@@ -737,212 +745,215 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
     { emitter, listener } <- H.liftEffect HS.create
     unsubscribe1 <- H.liftEffect $
       subscribe remoteEvent
-        ( unwrap >>> onMatch
-            { gainLFO0Pad: uzto
-                >>> SliderRemoteMove
-                >>> GainLFO0Pad
-                >>> HS.notify listener
-            , gainLFO1Pad: uzto
-                >>> SliderRemoteMove
-                >>> GainLFO1Pad
-                >>> HS.notify listener
-            , waveshaperPad: uzto
-                >>> SliderRemoteMove
-                >>> WaveshaperPad
-                >>> HS.notify listener
-            , pitchLead: ezto >>> uzto
-                >>> SliderRemoteMove
-                >>> PitchLead
-                >>> HS.notify listener
-            , leadDelayGainCarousel: uzto
-                >>> SliderRemoteMove
-                >>> LeadDelayGainCarousel
-                >>> HS.notify listener
-            , nPitchesPlayedLead: ezto >>> uzto
-                >>> SliderRemoteMove
-                >>> NPitchesPlayedLead
-                >>> HS.notify listener
-            , droneLowpass0Q: uzto
-                >>> SliderRemoteMove
-                >>> DroneLowpass0Q
-                >>> HS.notify listener
-            , droneBandpass0Q: uzto
-                >>> SliderRemoteMove
-                >>> DroneBandpass0Q
-                >>> HS.notify listener
-            , droneBandpass0LFO: uzto
-                >>> SliderRemoteMove
-                >>> DroneBandpass0LFO
-                >>> HS.notify listener
-            , droneBandpass1Q: uzto
-                >>> SliderRemoteMove
-                >>> DroneBandpass1Q
-                >>> HS.notify listener
-            , droneBandpass1LFO: uzto
-                >>> SliderRemoteMove
-                >>> DroneBandpass1LFO
-                >>> HS.notify listener
-            , droneHighpass0Q: uzto
-                >>> SliderRemoteMove
-                >>> DroneHighpass0Q
-                >>> HS.notify listener
-            , droneHighpass0LFO: uzto
-                >>> SliderRemoteMove
-                >>> DroneHighpass0LFO
-                >>> HS.notify listener
-            , droneActivationEnergyThreshold: uzto
-                >>> SliderRemoteMove
-                >>> DroneActivationEnergyThreshold
-                >>> HS.notify listener
-            , droneDecay: uzto
-                >>> SliderRemoteMove
-                >>> DroneDecay
-                >>> HS.notify listener
-            , sampleChooser: ezto >>> uzto
-                >>> SliderRemoteMove
-                >>> SampleChooser
-                >>> HS.notify listener
-            , sampleDelayGainCarousel: uzto
-                >>> SliderRemoteMove
-                >>> SampleDelayGainCarousel
-                >>> HS.notify listener
-            , loopingBufferStartEndConstriction: uzto
-                >>> SliderRemoteMove
-                >>> LoopingBufferStartEndConstriction
-                >>> HS.notify listener
-            , greatAndMightyPan: uzto
-                >>> SliderRemoteMove
-                >>> GreatAndMightyPan
-                >>> HS.notify listener
-            , distantBellsFader: uzto
-                >>> SliderRemoteMove
-                >>> DistantBellsFader
-                >>> HS.notify listener
-            -----
-            , togglePadOsc0: et2
-                >>> TogglePadOsc0
-                >>> HS.notify listener
-            , togglePadOsc1: et2
-                >>> TogglePadOsc1
-                >>> HS.notify listener
-            , togglePadOsc2: et2
-                >>> TogglePadOsc2
-                >>> HS.notify listener
-            , togglePadOsc3: et2
-                >>> TogglePadOsc3
-                >>> HS.notify listener
-            , togglePadOsc4: et2
-                >>> TogglePadOsc4
-                >>> HS.notify listener
-            , leadDelayLine0: et2
-                >>> LeadDelayLine0
-                >>> HS.notify listener
-            , leadDelayLine1: et2
-                >>> LeadDelayLine1
-                >>> HS.notify listener
-            , leadDelayLine2: et2
-                >>> LeadDelayLine2
-                >>> HS.notify listener
-            , leadCombinedDelay0: et2
-                >>> LeadCombinedDelay0
-                >>> HS.notify listener
-            , droneFlange: et2
-                >>> DroneFlange
-                >>> HS.notify listener
-            , sampleReverse: et2
-                >>> SampleReverse
-                >>> HS.notify listener
-            , sampleChorusEffect: et2
-                >>> SampleChorusEffect
-                >>> HS.notify listener
-            , sampleDelayLine0: et2
-                >>> SampleDelayLine0
-                >>> HS.notify listener
-            , sampleDelayLine1: et2
-                >>> SampleDelayLine1
-                >>> HS.notify listener
-            , sampleDelayLine2: et2
-                >>> SampleDelayLine2
-                >>> HS.notify listener
-            , sampleCombinedDelayLine0: et2
-                >>> SampleCombinedDelayLine0
-                >>> HS.notify listener
-            , leadSampleDelayLine0: et2
-                >>> LeadSampleDelayLine0
-                >>> HS.notify listener
-            , leadSampleDelayLine1: et2
-                >>> LeadSampleDelayLine1
-                >>> HS.notify listener
-            , leadSampleDelayLine2: et2
-                >>> LeadSampleDelayLine2
-                >>> HS.notify listener
-            , loopingBufferGainDJ: et2
-                >>> LoopingBufferGainDJ
-                >>> HS.notify listener
-            , loopingBuffer0: et2
-                >>> LoopingBuffer0
-                >>> HS.notify listener
-            , loopingBuffer1: et2
-                >>> LoopingBuffer1
-                >>> HS.notify listener
-            , loopingBuffer2: et2
-                >>> LoopingBuffer2
-                >>> HS.notify listener
-            , loopingBuffer3: et2
-                >>> LoopingBuffer3
-                >>> HS.notify listener
-            , loopingBuffer4: et2
-                >>> LoopingBuffer4
-                >>> HS.notify listener
-            , radicalFlip: et2
-                >>> RadicalFlip
-                >>> HS.notify listener
-            , globalDelay: et2
-                >>> GlobalDelay
-                >>> HS.notify listener
-            --
-            -- ignore remote events
-            -- we make pad triggers entirely local
-            , triggerPad: \(_ :: PadT) -> pure unit
-            , drone: \(_ :: PadT) -> pure unit
-            ---
-            -- ignore triggering events
-            -- this way, we only get sound if we want it
-            -- perhaps allow in future, but then we'd need to
-            -- create flicker as we don't want to track mouse up
-            -- and mouse down from remote
-            , triggerLead: \(_ :: Bang) -> pure unit
-            , sampleOneShot: \(_ :: Bang) -> pure unit
-            , echoingUncontrollableSingleton: \(_ :: Bang) -> pure unit
-            --
-            , octaveLead: et3
-                >>> OctaveLead
-                >>> HS.notify listener
-            , envelopeLead: et3
-                >>> EnvelopeLead
-                >>> HS.notify listener
-            , sampleRateChange: et3
-                >>> SampleRateChange
-                >>> HS.notify listener
-            ----
-            , detunePad: et4
-                >>> DetunePad
-                >>> HS.notify listener
-            ---
-            , filterBankChooserPad: et5
-                >>> FilterBankChooserPad
-                >>> HS.notify listener
-            , droneChooser: et5
-                >>> DroneChooser
-                >>> HS.notify listener
-            , droneRhythmicLoopingPiecewiseFunction: et5
-                >>> DroneRhythmicLoopingPiecewiseFunction
-                >>> HS.notify listener
-            , synthForLead: et5
-                >>> SynthForLead
-                >>> HS.notify listener
+        ( unwrap >>> _.message >>> unwrap >>> match
+            { ui: \_ -> pure unit
+            , music: unwrap >>> onMatch
+                { gainLFO0Pad: uzto
+                    >>> SliderRemoteMove
+                    >>> GainLFO0Pad
+                    >>> HS.notify listener
+                , gainLFO1Pad: uzto
+                    >>> SliderRemoteMove
+                    >>> GainLFO1Pad
+                    >>> HS.notify listener
+                , waveshaperPad: uzto
+                    >>> SliderRemoteMove
+                    >>> WaveshaperPad
+                    >>> HS.notify listener
+                , pitchLead: ezto >>> uzto
+                    >>> SliderRemoteMove
+                    >>> PitchLead
+                    >>> HS.notify listener
+                , leadDelayGainCarousel: uzto
+                    >>> SliderRemoteMove
+                    >>> LeadDelayGainCarousel
+                    >>> HS.notify listener
+                , nPitchesPlayedLead: ezto >>> uzto
+                    >>> SliderRemoteMove
+                    >>> NPitchesPlayedLead
+                    >>> HS.notify listener
+                , droneLowpass0Q: uzto
+                    >>> SliderRemoteMove
+                    >>> DroneLowpass0Q
+                    >>> HS.notify listener
+                , droneBandpass0Q: uzto
+                    >>> SliderRemoteMove
+                    >>> DroneBandpass0Q
+                    >>> HS.notify listener
+                , droneBandpass0LFO: uzto
+                    >>> SliderRemoteMove
+                    >>> DroneBandpass0LFO
+                    >>> HS.notify listener
+                , droneBandpass1Q: uzto
+                    >>> SliderRemoteMove
+                    >>> DroneBandpass1Q
+                    >>> HS.notify listener
+                , droneBandpass1LFO: uzto
+                    >>> SliderRemoteMove
+                    >>> DroneBandpass1LFO
+                    >>> HS.notify listener
+                , droneHighpass0Q: uzto
+                    >>> SliderRemoteMove
+                    >>> DroneHighpass0Q
+                    >>> HS.notify listener
+                , droneHighpass0LFO: uzto
+                    >>> SliderRemoteMove
+                    >>> DroneHighpass0LFO
+                    >>> HS.notify listener
+                , droneActivationEnergyThreshold: uzto
+                    >>> SliderRemoteMove
+                    >>> DroneActivationEnergyThreshold
+                    >>> HS.notify listener
+                , droneDecay: uzto
+                    >>> SliderRemoteMove
+                    >>> DroneDecay
+                    >>> HS.notify listener
+                , sampleChooser: ezto >>> uzto
+                    >>> SliderRemoteMove
+                    >>> SampleChooser
+                    >>> HS.notify listener
+                , sampleDelayGainCarousel: uzto
+                    >>> SliderRemoteMove
+                    >>> SampleDelayGainCarousel
+                    >>> HS.notify listener
+                , loopingBufferStartEndConstriction: uzto
+                    >>> SliderRemoteMove
+                    >>> LoopingBufferStartEndConstriction
+                    >>> HS.notify listener
+                , greatAndMightyPan: uzto
+                    >>> SliderRemoteMove
+                    >>> GreatAndMightyPan
+                    >>> HS.notify listener
+                , distantBellsFader: uzto
+                    >>> SliderRemoteMove
+                    >>> DistantBellsFader
+                    >>> HS.notify listener
+                -----
+                , togglePadOsc0: et2
+                    >>> TogglePadOsc0
+                    >>> HS.notify listener
+                , togglePadOsc1: et2
+                    >>> TogglePadOsc1
+                    >>> HS.notify listener
+                , togglePadOsc2: et2
+                    >>> TogglePadOsc2
+                    >>> HS.notify listener
+                , togglePadOsc3: et2
+                    >>> TogglePadOsc3
+                    >>> HS.notify listener
+                , togglePadOsc4: et2
+                    >>> TogglePadOsc4
+                    >>> HS.notify listener
+                , leadDelayLine0: et2
+                    >>> LeadDelayLine0
+                    >>> HS.notify listener
+                , leadDelayLine1: et2
+                    >>> LeadDelayLine1
+                    >>> HS.notify listener
+                , leadDelayLine2: et2
+                    >>> LeadDelayLine2
+                    >>> HS.notify listener
+                , leadCombinedDelay0: et2
+                    >>> LeadCombinedDelay0
+                    >>> HS.notify listener
+                , droneFlange: et2
+                    >>> DroneFlange
+                    >>> HS.notify listener
+                , sampleReverse: et2
+                    >>> SampleReverse
+                    >>> HS.notify listener
+                , sampleChorusEffect: et2
+                    >>> SampleChorusEffect
+                    >>> HS.notify listener
+                , sampleDelayLine0: et2
+                    >>> SampleDelayLine0
+                    >>> HS.notify listener
+                , sampleDelayLine1: et2
+                    >>> SampleDelayLine1
+                    >>> HS.notify listener
+                , sampleDelayLine2: et2
+                    >>> SampleDelayLine2
+                    >>> HS.notify listener
+                , sampleCombinedDelayLine0: et2
+                    >>> SampleCombinedDelayLine0
+                    >>> HS.notify listener
+                , leadSampleDelayLine0: et2
+                    >>> LeadSampleDelayLine0
+                    >>> HS.notify listener
+                , leadSampleDelayLine1: et2
+                    >>> LeadSampleDelayLine1
+                    >>> HS.notify listener
+                , leadSampleDelayLine2: et2
+                    >>> LeadSampleDelayLine2
+                    >>> HS.notify listener
+                , loopingBufferGainDJ: et2
+                    >>> LoopingBufferGainDJ
+                    >>> HS.notify listener
+                , loopingBuffer0: et2
+                    >>> LoopingBuffer0
+                    >>> HS.notify listener
+                , loopingBuffer1: et2
+                    >>> LoopingBuffer1
+                    >>> HS.notify listener
+                , loopingBuffer2: et2
+                    >>> LoopingBuffer2
+                    >>> HS.notify listener
+                , loopingBuffer3: et2
+                    >>> LoopingBuffer3
+                    >>> HS.notify listener
+                , loopingBuffer4: et2
+                    >>> LoopingBuffer4
+                    >>> HS.notify listener
+                , radicalFlip: et2
+                    >>> RadicalFlip
+                    >>> HS.notify listener
+                , globalDelay: et2
+                    >>> GlobalDelay
+                    >>> HS.notify listener
+                --
+                -- ignore remote events
+                -- we make pad triggers entirely local
+                , triggerPad: \(_ :: PadT) -> pure unit
+                , drone: \(_ :: PadT) -> pure unit
+                ---
+                -- ignore triggering events
+                -- this way, we only get sound if we want it
+                -- perhaps allow in future, but then we'd need to
+                -- create flicker as we don't want to track mouse up
+                -- and mouse down from remote
+                , triggerLead: \(_ :: Bang) -> pure unit
+                , sampleOneShot: \(_ :: Bang) -> pure unit
+                , echoingUncontrollableSingleton: \(_ :: Bang) -> pure unit
+                --
+                , octaveLead: et3
+                    >>> OctaveLead
+                    >>> HS.notify listener
+                , envelopeLead: et3
+                    >>> EnvelopeLead
+                    >>> HS.notify listener
+                , sampleRateChange: et3
+                    >>> SampleRateChange
+                    >>> HS.notify listener
+                ----
+                , detunePad: et4
+                    >>> DetunePad
+                    >>> HS.notify listener
+                ---
+                , filterBankChooserPad: et5
+                    >>> FilterBankChooserPad
+                    >>> HS.notify listener
+                , droneChooser: et5
+                    >>> DroneChooser
+                    >>> HS.notify listener
+                , droneRhythmicLoopingPiecewiseFunction: et5
+                    >>> DroneRhythmicLoopingPiecewiseFunction
+                    >>> HS.notify listener
+                , synthForLead: et5
+                    >>> SynthForLead
+                    >>> HS.notify listener
+                }
+                (default (pure unit))
             }
-            (default (pure unit))
         )
     -- don't send pad interactions over the wire
     -- let that be local
@@ -950,8 +961,14 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
       onMatch
         { triggerPad: \_ -> pure unit
         , drone: \_ -> pure unit
+        , triggerLead: \_ -> pure unit
+        , sampleOneShot: \_ -> pure unit
+        , echoingUncontrollableSingleton: \_ -> pure unit
         }
-        (default $ publish pubnub e)
+        ( default $ publish pubnub
+            $ PubNubMessage
+            $ inj (Proxy :: Proxy "music") e
+        )
         (unwrap e)
     unsubscribe3 <- H.liftEffect $ subscribe (interval 200) \_ ->
       H.liftEffect $ HS.notify listener DoPadStuff

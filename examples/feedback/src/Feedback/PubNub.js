@@ -15,7 +15,7 @@ exports.pubnub_ = function (listener) {
 		pn.addListener({
 			message: function (msg) {
 				if (msg.publisher !== publisher) {
-					listener(msg.message)();
+					listener(msg)();
 				}
 			},
 		});
