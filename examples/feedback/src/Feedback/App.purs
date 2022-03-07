@@ -235,7 +235,7 @@ handleAction = case _ of
                         }
                 )
               -- a snippet of https://freesound.org/people/Zabuhailo/sounds/178648/
-              <*> (parallel $ decodeAudioDataFromUri audioCtx "https://media.graphcms.com/R7hkyD9DTOK6D2UsKb92")
+              <*> (parallel $ decodeAudioDataFromUri audioCtx "https://media.graphcms.com/Gxd8kghFQv6ylLLhEsTI")
               -- https://freesound.org/people/ihatetoregister/sounds/31822/
               <*> (parallel $ decodeAudioDataFromUri audioCtx "https://freesound.org/data/previews/31/31822_266486-hq.mp3")
           )

@@ -13,6 +13,7 @@ import WAGS.Run (RunAudio, RunEngine, TriggeredScene(..))
 
 setup :: forall proof. TriggeredScene Trigger World () -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit
 setup (TriggeredScene { world: { buffers, waveshaperArray, periodic } }) = do
+  --
   ichange' (Proxy :: _ "mainFader") 1.0
   ichange' (Proxy :: _ "subMainFader") 1.0
   ichange' (Proxy :: _ "loopingBuffer0") 0.0
@@ -30,6 +31,26 @@ setup (TriggeredScene { world: { buffers, waveshaperArray, periodic } }) = do
   ichange' (Proxy :: _ "loopingBuffer4") 0.0
   ichange' (Proxy :: _ "loopingBuffer4Pan") 0.0
   ichange' (Proxy :: _ "loopingBuffer4PlayBuf") { buffer: buffers.loops.b4, onOff: _on }
+  -- bells
+  ichange' (Proxy :: _ "distantBells") 0.0
+  ichange' (Proxy :: _ "distantBellsPan") 0.0
+  ichange' (Proxy :: _ "distantBellsPlayBuf")
+    { buffer: buffers.bells
+    , onOff: _on
+    }
+  -- singleton
+  ichange' (Proxy :: _ "uSingleton") 1.0
+  ichange' (Proxy :: _ "uSingletonGain") 1.0
+  ichange' (Proxy :: _ "uSingletonSource") 1.0
+  ichange' (Proxy :: _ "uSingletonPlayBuf0") buffers.uncontrollable
+  ichange' (Proxy :: _ "uSingletonPlayBuf1") buffers.uncontrollable
+  ichange' (Proxy :: _ "uSingletonPlayBuf2") buffers.uncontrollable
+  ichange' (Proxy :: _ "uSingletonPlayBuf3") buffers.uncontrollable
+  ichange' (Proxy :: _ "uSingletonPlayBuf4") buffers.uncontrollable
+  ichange' (Proxy :: _ "uSingletonHGain") 0.3
+  ichange' (Proxy :: _ "uSingletonHHPF") 2500.0
+  ichange' (Proxy :: _ "uSingletonHDelay") 0.6
+  --
 
 setup0 :: forall proof. TriggeredScene Trigger World () -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit
 setup0 (TriggeredScene { world: { buffers, waveshaperArray, periodic } }) = do

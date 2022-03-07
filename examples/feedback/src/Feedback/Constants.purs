@@ -149,4 +149,7 @@ loopingBufferCombinedDuration :: Number
 loopingBufferCombinedDuration = 2.5
 
 loopingBufferSliderDuration :: Number
-loopingBufferSliderDuration = 0.05
+loopingBufferSliderDuration = 0.7
+
+--
+distantBellFaderOffset = 0.05 :: Number

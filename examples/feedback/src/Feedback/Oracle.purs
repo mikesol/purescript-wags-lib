@@ -702,7 +702,7 @@ distantBellsFader (ZeroToOne z) _ a = ChangeWrapper do
   ichange' (Proxy :: Proxy "distantBells")
     ( AudioSingleNumber
         { param: z
-        , timeOffset: 2.0
+        , timeOffset: C.distantBellFaderOffset
         , transition: _linearRamp
         }
     )
