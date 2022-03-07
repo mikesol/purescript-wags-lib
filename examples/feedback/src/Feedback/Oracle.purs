@@ -41,7 +41,15 @@ unChangeWrapper (ChangeWrapper x) = x
 type ChangeSig arg = arg -> TriggeredScene Trigger World () -> Acc -> ChangeWrapper
 
 triggerPad :: ChangeSig PadT
-triggerPad { v } _ a = ChangeWrapper (ichange' (Proxy :: _ "pad") (unwrap v) $> a)
+triggerPad { v } _ a = ChangeWrapper
+  ( ichange' (Proxy :: _ "pad")
+      ( AudioSingleNumber
+          { param: unwrap v
+          , timeOffset: C.padSwellOffset
+          , transition: _linearRamp
+          }
+      ) $> a
+  )
 
 togglePadOsc0 :: ChangeSig (Elts D2)
 togglePadOsc0 e _ a = ChangeWrapper
@@ -351,8 +359,13 @@ octaveLead e _ a = ChangeWrapper
 drone :: ChangeSig PadT
 drone { v, ud } _ a = ChangeWrapper
   ( ichange' (Proxy :: _ "drone")
-      ( if ud then (unwrap v * (1.0 - 0.99 * unwrap a.droneActivationEnergyThreshold))
-        else ((unwrap v) `pow` (1.0 - unwrap a.droneDecay))
+      ( AudioSingleNumber
+          { param:
+              if ud then (unwrap v * (1.0 - 0.99 * unwrap a.droneActivationEnergyThreshold))
+              else ((unwrap v) `pow` (1.0 - unwrap a.droneDecay))
+          , timeOffset: C.padSwellOffset
+          , transition: _linearRamp
+          }
       ) $> a
   )
 

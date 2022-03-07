@@ -725,7 +725,7 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
     H.liftEffect
       $ localEvent.push
       $ wrap
-      $ inj (Proxy :: Proxy "triggerPad")
+      $ inj (Proxy :: Proxy "drone")
           { v: wrap droneV
           , ud: s.interactions.droneUp
           }

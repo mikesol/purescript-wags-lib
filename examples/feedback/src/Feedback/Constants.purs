@@ -153,3 +153,7 @@ loopingBufferSliderDuration = 0.7
 
 --
 distantBellFaderOffset = 0.05 :: Number
+
+--
+
+padSwellOffset = 0.15 :: Number
