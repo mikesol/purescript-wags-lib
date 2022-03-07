@@ -1,5 +1,5 @@
 var PubNub = require("pubnub");
-var uuidv4 = require("uuid/v4");
+var uuidv4 = require("uuid").v4;
 
 exports.pubnub_ = function (listener) {
 	return function () {
