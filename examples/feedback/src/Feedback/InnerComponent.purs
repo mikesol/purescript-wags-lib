@@ -721,7 +721,6 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
           { v: wrap triggerPadV
           , ud: s.interactions.triggerPadUp
           }
-
     H.liftEffect
       $ localEvent.push
       $ wrap
@@ -729,7 +728,6 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
           { v: wrap droneV
           , ud: s.interactions.droneUp
           }
-
   StartAudio -> do
     handleAction remoteEvent localEvent pubnub buffers StopAudio
     audioCtx <- H.liftEffect context
