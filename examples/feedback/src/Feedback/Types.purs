@@ -407,6 +407,6 @@ type Acc =
       , loopingBuffer2 :: Boolean
       , loopingBuffer3 :: Boolean
       , loopingBuffer4 :: Boolean
-      , loopingBufferGainDJ :: ZeroToOne
+      , loopingBufferGainDJ :: Boolean
       }
   }

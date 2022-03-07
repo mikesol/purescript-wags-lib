@@ -250,12 +250,17 @@ data LoopingBuffer
   | LoopingBuffer3
   | LoopingBuffer4
 
-loopingBufferSliderToVal :: LoopingBuffer -> ZeroToOne -> Number
-loopingBufferSliderToVal LoopingBuffer0 (ZeroToOne n) = (sin (2.0 * pi * n) * 0.0 + 0.5) * 0.4
-loopingBufferSliderToVal LoopingBuffer1 (ZeroToOne n) = (sin (2.0 * pi * (n + 0.4)) * 0.5 + 0.5) * 0.3
-loopingBufferSliderToVal LoopingBuffer2 (ZeroToOne n) = (sin (2.0 * pi * (n + 0.8)) * 0.5 + 0.5) * 0.2
-loopingBufferSliderToVal LoopingBuffer3 (ZeroToOne n) = (sin (2.0 * pi * (n + 1.2)) * 0.5 + 0.5) * 0.1
-loopingBufferSliderToVal LoopingBuffer4 (ZeroToOne n) = (sin (2.0 * pi * (n + 1.6)) * 0.5 + 0.5) * 0.1
+loopingBufferSliderToVal :: LoopingBuffer -> Boolean -> Number
+loopingBufferSliderToVal LoopingBuffer0 false = 0.6
+loopingBufferSliderToVal LoopingBuffer0 true = 0.05
+loopingBufferSliderToVal LoopingBuffer1 false = 0.5
+loopingBufferSliderToVal LoopingBuffer1 true = 0.1
+loopingBufferSliderToVal LoopingBuffer2 false = 0.4
+loopingBufferSliderToVal LoopingBuffer2 true = 0.2
+loopingBufferSliderToVal LoopingBuffer3 false = 0.1
+loopingBufferSliderToVal LoopingBuffer3 true = 0.5
+loopingBufferSliderToVal LoopingBuffer4 false = 0.05
+loopingBufferSliderToVal LoopingBuffer4 true = 0.5
 
 leadDelaySliderToVal :: LeadDelay -> ZeroToOne -> Number
 leadDelaySliderToVal LeadDelay0 (ZeroToOne n) = (sin (2.0 * pi * n) * 0.5 + 0.5) * 0.4
@@ -612,7 +617,7 @@ loopingBuffer4 e _ a = ChangeWrapper
 loopingBufferGainDJ :: ChangeSig (Elts D2)
 loopingBufferGainDJ z' _ a =
   let
-    z = ezto z'
+    z = onElts (false +> true +> empty) z'
   in
     ChangeWrapper do
       CBNA.when (a.loopingBufferInfo.loopingBuffer0)

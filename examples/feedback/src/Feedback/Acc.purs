@@ -413,7 +413,7 @@ initialAcc =
       , loopingBuffer2: false
       , loopingBuffer3: false
       , loopingBuffer4: false
-      , loopingBufferGainDJ: ZeroToOne zero
+      , loopingBufferGainDJ: false
       }
   , uncontrollable: cycleL
       ( UncontrollableNT
