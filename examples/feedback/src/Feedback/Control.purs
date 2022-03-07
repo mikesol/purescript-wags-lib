@@ -9,7 +9,7 @@ import Data.Newtype (wrap)
 import Data.Profunctor (lcmap)
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested (type (/\), (/\))
--- import Debug (spy)
+
 import Effect (Effect)
 import Feedback.Types (Instructions)
 import Halogen.HTML as H
@@ -637,8 +637,8 @@ c2s st (Pad id actionConstructor valueReader (Rect x y w h) (c0 /\ c1 /\ c2) (d0
                 (round $ calcSlope 0.0 c2 1.0 d2 cur)
             )
         , SA.stroke (RGB 4 4 4)
-        , HE.onMouseDown $ (const $ actionConstructor PadDown)
-        , HE.onMouseUp $ (const $ actionConstructor PadUp)
+        , HE.onMouseLeave $ (const $ actionConstructor PadDown)
+        , HE.onMouseEnter $ (const $ actionConstructor PadUp)
         ]
     ]
 c2s st (Source id actionConstructor reader (Rect x y w h) bg fg) =

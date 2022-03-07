@@ -47,9 +47,45 @@ setup (TriggeredScene { world: { buffers, waveshaperArray, periodic } }) = do
   ichange' (Proxy :: _ "uSingletonPlayBuf2") buffers.uncontrollable
   ichange' (Proxy :: _ "uSingletonPlayBuf3") buffers.uncontrollable
   ichange' (Proxy :: _ "uSingletonPlayBuf4") buffers.uncontrollable
-  ichange' (Proxy :: _ "uSingletonHGain") 0.3
+  ichange' (Proxy :: _ "uSingletonHGain") 0.26
   ichange' (Proxy :: _ "uSingletonHHPF") 2500.0
   ichange' (Proxy :: _ "uSingletonHDelay") 0.6
+  --
+  ichange' (Proxy :: _ "pad") 0.0
+  ichange' (Proxy :: _ "padDry") 1.0
+  ichange' (Proxy :: _ "padWaveshaped") 0.0
+  ichange' (Proxy :: _ "padWaveshaper") waveshaperArray -- waveshape
+  ichange' (Proxy :: _ "padMix") 1.0
+  ichange' (Proxy :: _ "padFilter0") { freq: C.padFilter0Freq, q: C.padFilter0Q }
+  ichange' (Proxy :: _ "padFilter1") { freq: C.padFilter1Freq, q: C.padFilter1Q }
+  ichange' (Proxy :: _ "padFilter2") { freq: C.padFilter2Freq, q: C.padFilter2Q }
+  ichange' (Proxy :: _ "padFilter3") { freq: C.padFilter3Freq, q: C.padFilter3Q }
+  ichange' (Proxy :: _ "padSources") 1.0
+  ichange' (Proxy :: _ "padSource0") C.padOsc0Vol
+  ichange' (Proxy :: _ "padSource0LFO") 1.0
+  ichange' (Proxy :: _ "padSource0Pan") 0.0
+  ichange' (Proxy :: _ "padSource0Osc") periodic -- periodic osc
+  ichange' (Proxy :: _ "padSource0Osc") _on
+  ichange' (Proxy :: _ "padSource1") 0.0 -- C.padOsc1Vol
+  ichange' (Proxy :: _ "padSource1LFO") 1.0
+  ichange' (Proxy :: _ "padSource1Pan") 0.0
+  ichange' (Proxy :: _ "padSource1Osc") C.padOsc1Freq
+  ichange' (Proxy :: _ "padSource1Osc") _on
+  ichange' (Proxy :: _ "padSource2") C.padOsc2Vol
+  ichange' (Proxy :: _ "padSource2LFO") 1.0
+  ichange' (Proxy :: _ "padSource2Pan") 0.0
+  ichange' (Proxy :: _ "padSource2Osc") C.padOsc2Freq
+  ichange' (Proxy :: _ "padSource2Osc") _on
+  ichange' (Proxy :: _ "padSource3") 0.0 -- C.padOsc3Vol
+  ichange' (Proxy :: _ "padSource3LFO") 1.0
+  ichange' (Proxy :: _ "padSource3Pan") 0.0
+  ichange' (Proxy :: _ "padSource3Osc") C.padOsc3Freq
+  ichange' (Proxy :: _ "padSource3Osc") _on
+  ichange' (Proxy :: _ "padSource4") 0.0 -- C.padOsc4Vol
+  ichange' (Proxy :: _ "padSource4LFO") 1.0
+  ichange' (Proxy :: _ "padSource4Pan") 0.0
+  ichange' (Proxy :: _ "padSource4Osc") C.padOsc4Freq
+  ichange' (Proxy :: _ "padSource4Osc") _on
   --
 
 setup0 :: forall proof. TriggeredScene Trigger World () -> IxWAG RunAudio RunEngine proof Res FullGraph FullGraph Unit

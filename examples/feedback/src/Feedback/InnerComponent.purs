@@ -95,9 +95,9 @@ initialState _ =
       , distantBellsFader: 0.0
       , distantBellsFaderDown: false
       --
-      , togglePadOsc0: T2_0
+      , togglePadOsc0: T2_1
       , togglePadOsc1: T2_0
-      , togglePadOsc2: T2_0
+      , togglePadOsc2: T2_1
       , togglePadOsc3: T2_0
       , togglePadOsc4: T2_0
       , leadDelayLine0: T2_0
@@ -704,12 +704,32 @@ handleAction remoteEvent localEvent pubnub buffers = case _ of
     PadUp -> H.modify_ _ { interactions { droneUp = true } }
     PadDown -> H.modify_ _ { interactions { droneUp = false } }
   ---
-  DoPadStuff -> H.modify_ \s -> s
-    { interactions
-        { drone = min 1.0 $ max 0.0 $ s.interactions.drone + (if s.interactions.droneUp then 0.01 else -0.01)
-        , triggerPad = min 1.0 $ max 0.0 $ s.interactions.triggerPad + (if s.interactions.triggerPadUp then 0.01 else -0.01)
-        }
-    }
+  DoPadStuff -> do
+    s <- H.get
+    let droneV = min 1.0 $ max 0.0 $ s.interactions.drone + (if s.interactions.droneUp then 0.01 else -0.01)
+    let triggerPadV = min 1.0 $ max 0.0 $ s.interactions.triggerPad + (if s.interactions.triggerPadUp then 0.01 else -0.01)
+    H.modify_ _
+      { interactions
+          { drone = droneV
+          , triggerPad = triggerPadV
+          }
+      }
+    H.liftEffect
+      $ localEvent.push
+      $ wrap
+      $ inj (Proxy :: Proxy "triggerPad")
+          { v: wrap triggerPadV
+          , ud: s.interactions.triggerPadUp
+          }
+
+    H.liftEffect
+      $ localEvent.push
+      $ wrap
+      $ inj (Proxy :: Proxy "triggerPad")
+          { v: wrap droneV
+          , ud: s.interactions.droneUp
+          }
+
   StartAudio -> do
     handleAction remoteEvent localEvent pubnub buffers StopAudio
     audioCtx <- H.liftEffect context
