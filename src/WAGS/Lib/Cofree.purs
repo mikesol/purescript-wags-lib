@@ -5,10 +5,10 @@ import Prelude hiding (Ordering(..))
 import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree (Cofree, deferCofree, hoistCofree, (:<))
 import Control.Comonad.Cofree.Class (class ComonadCofree, unwrapCofree)
-import Control.Monad.State (class MonadState, get, put, runState)
+import Control.Monad.State (class MonadState, execStateT, get, lift, put, runState)
 import Data.Identity (Identity(..))
 import Data.Newtype (unwrap)
-import Data.Traversable (class Traversable, sequence)
+import Data.Traversable (class Foldable, class Traversable, sequence, traverse_)
 import Data.Tuple.Nested ((/\), type (/\))
 import Data.Typelevel.Num (class Nat)
 import Data.Vec as V
@@ -16,8 +16,7 @@ import Heterogeneous.Mapping (class HMap, class Mapping, hmap)
 
 --- heads and tails needs recursion down records to work
 --- otherwise namespacing is impossible
-data Tailz
-  = Tailz
+data Tailz = Tailz
 
 class Tailable a b | a -> b where
   tails :: a -> b
@@ -34,8 +33,7 @@ instance tailzMapping ::
   Mapping Tailz i o where
   mapping Tailz = tails
 
-data Headz
-  = Headz
+data Headz = Headz
 
 class Headable a b | a -> b where
   heads :: a -> b
@@ -189,3 +187,22 @@ ana' f a = deferCofree \_ -> a /\ map (ana' f) (f a)
 
 ana :: forall a. (a -> a) -> a -> Cofree Identity a
 ana = ana' <<< map Identity
+
+cofreeTraversal_
+  :: ∀ m a l f w b
+   . Monad m
+  => Foldable l
+  => Comonad w
+  => Comonad f
+  => ComonadCofree f w
+  => (a -> b -> m Unit)
+  -> l a
+  -> w b
+  -> m (w b)
+cofreeTraversal_ f = execStateT
+  <<< traverse_
+    ( \i ->
+        get >>= (*>)
+          <$> (lift <<< f i <<< extract)
+          <*> (put <<< extract <<< unwrapCofree)
+    )
