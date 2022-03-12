@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.100] - 2022-03-12
+
+- adds `cofreeTraversal_`
+- deletes `feedback` example as it took too long to build (RIP)
+
 ## [0.0.99] - 2022-02-28
 
 - fixes bug in `numericTumult`, makes monomorphic-er in the process.
