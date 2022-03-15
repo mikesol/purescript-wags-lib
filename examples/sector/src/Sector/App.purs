@@ -49,7 +49,7 @@ import WAGS.Change (change)
 import WAGS.Control.Functions (start)
 import WAGS.Control.Functions.Graph ((@|>), loop)
 import WAGS.Control.Types (Frame0, Scene, WAG)
-import WAGS.Graph.Parameter (OnOff(..), _offOn)
+import WAGS.Graph.Parameter (_offOn)
 import WAGS.Graph.AudioUnit (TGain, TPlayBuf, TSpeaker)
 import WAGS.Interpret (class AudioInterpret, bufferDuration, close, context, decodeAudioDataFromUri, makeFFIAudioSnapshot)
 import WAGS.Lib.Lag (CfLag, makeLag)
@@ -353,24 +353,32 @@ runScene
    . AudioInterpret audio engine
   => RunWag Env (Acc audio engine) audio engine Res Graph Unit
   -> WAG audio engine proof Res Graph (Acc audio engine)
-  -> Env -> WAG audio engine proof Res Graph (Acc audio engine)
+  -> Env
+  -> WAG audio engine proof Res Graph (Acc audio engine)
 runScene = runWag
 
 loopScene
   :: forall audio engine proof
    . AudioInterpret audio engine
   => WAG audio engine proof Res Graph (Acc audio engine)
-  -> Env -> WAG audio engine proof Res Graph (Acc audio engine)
+  -> Env
+  -> WAG audio engine proof Res Graph (Acc audio engine)
 loopScene = runScene <<< extract <<< _.playingNow <<< unwrap <<< extract <*> identity
 
 firstFrame
   :: forall audio engine
    . AudioInterpret audio engine
   => Acc audio engine
-  -> Env -> WAG audio engine Frame0 Res Graph (Acc audio engine)
+  -> Env
+  -> WAG audio engine Frame0 Res Graph (Acc audio engine)
 firstFrame acc env@(BehavingScene { world: { buffer } }) =
   start
-    # patch { microphone: empty, mediaElement: empty }
+    # patch
+        { microphone: empty
+        , mediaElement: empty
+        , subgraphs: {}
+        , tumults: {}
+        }
     # voidRight { gain: 1.0, buf: buffer }
     # change
     # voidRight acc
@@ -473,8 +481,7 @@ easingAlgorithm =
   in
     fOf 20
 
-type State
-  =
+type State =
   { unsubscribe :: Effect Unit
   , unsubscribeFromHalogen :: Maybe H.SubscriptionId
   , audioCtx :: Maybe AudioContext

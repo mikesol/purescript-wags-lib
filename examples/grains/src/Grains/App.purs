@@ -7,8 +7,8 @@ import Control.Comonad.Cofree (Cofree, mkCofree)
 import Data.Foldable (for_)
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..))
-import Data.Newtype (unwrap)
 import Data.Typelevel.Num (D20)
+import Data.Vec (fill)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
@@ -19,16 +19,15 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Math (pow)
-import Type.Proxy (Proxy(..))
 import WAGS.Change (ichange)
 import WAGS.Control.Functions.Graph (iloop, startUsingWithHint)
 import WAGS.Control.Functions.Subgraph as SG
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Create.Optionals (gain, pan, playBuf, speaker, subgraph)
-import WAGS.Interpret (close, context, decodeAudioDataFromUri, makeFFIAudioSnapshot)
+import WAGS.Interpret (AsSubgraph(..), close, context, decodeAudioDataFromUri, makeFFIAudioSnapshot)
 import WAGS.Lib.BufferPool (AHotBufferPool, Buffy, BuffyVec, bOnOff, makeHotBufferPool)
 import WAGS.Lib.Cofree (tails)
-import WAGS.Lib.Record (applyRecord, unwrapRecord)
+import WAGS.Patch (PatchedSubgraphInput(..))
 import WAGS.Run (RunAudio, RunEngine, BehavingScene(..), BehavingRun, run)
 import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
@@ -39,20 +38,28 @@ ntropi =
     makeEvent \f ->
       e `subscribe` \a2b -> (a2b <$> random) >>= f
 
-type Acc
-  = { hbp :: AHotBufferPool D20 }
+type Acc = { hbp :: AHotBufferPool D20 }
 
 acc :: Acc
 acc = { hbp: makeHotBufferPool { startsAt: 0.0 } }
 
-type World
-  = { entropy :: Number, buffers :: { bells :: BrowserAudioBuffer } }
+type World = { entropy :: Number, buffers :: { bells :: BrowserAudioBuffer } }
 
-piece :: Scene (BehavingScene Unit World ()) RunAudio RunEngine Frame0 Unit
-piece =
+piece :: BrowserAudioBuffer -> Scene (BehavingScene Unit World ()) RunAudio RunEngine Frame0 Unit
+piece bellz =
   startUsingWithHint
     scene
-    { microphone: Nothing, mediaElement: Nothing }
+    { microphone: Nothing
+    , mediaElement: Nothing
+    , subgraphs:
+        { mainBus: PatchedSubgraphInput
+            { controls: fill (const Nothing)
+            , scenes: AsSubgraph (const $ const internal0)
+            , envs: \i -> { i, time: 0.0, bells: bellz, entropy: 0.5, gor: _ }
+            }
+        }
+        , tumults: {}
+    }
     (const acc)
     ( iloop \(BehavingScene { time, headroomInSeconds, world: { entropy, buffers: { bells } } }) (a :: Acc) ->
         let
@@ -61,13 +68,14 @@ piece =
           ichange (scene time bells entropy (extract actualized.hbp)) $> tails actualized
     )
   where
-  internal0 :: SubSceneSig "singleton" ()
-    { gor :: Maybe (Buffy Unit)
-    , bells :: BrowserAudioBuffer
-    , time :: Number
-    , entropy :: Number
-    , i :: Int
-    }
+  internal0
+    :: SubSceneSig "singleton" ()
+         { gor :: Maybe (Buffy Unit)
+         , bells :: BrowserAudioBuffer
+         , time :: Number
+         , entropy :: Number
+         , i :: Int
+         }
   internal0 = (const unit) # SG.loopUsingScene \{ i, time, bells, entropy, gor } _ ->
     { control: unit
     , scene:
@@ -94,8 +102,7 @@ easingAlgorithm =
   in
     fOf 20
 
-type State
-  =
+type State =
   { unsubscribe :: Effect Unit
   , audioCtx :: Maybe AudioContext
   }
@@ -138,12 +145,12 @@ handleAction = case _ of
     ffiAudio <- H.liftEffect $ makeFFIAudioSnapshot audioCtx
     bells <-
       H.liftAff $ decodeAudioDataFromUri
-            audioCtx
-            "https://freesound.org/data/previews/339/339822_5121236-lq.mp3"
+        audioCtx
+        "https://freesound.org/data/previews/339/339822_5121236-lq.mp3"
     unsubscribe <-
       H.liftEffect
         $ subscribe
-            (run (pure unit) ({ entropy: _, buffers: { bells } } <$> ntropi) { easingAlgorithm } (ffiAudio) piece)
+            (run (pure unit) ({ entropy: _, buffers: { bells } } <$> ntropi) { easingAlgorithm } (ffiAudio) (piece bells))
             (\(_ :: BehavingRun Unit ()) -> pure unit)
     H.modify_ _ { unsubscribe = unsubscribe, audioCtx = Just audioCtx }
   StopAudio -> do
