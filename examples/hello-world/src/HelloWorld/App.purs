@@ -34,8 +34,7 @@ import WAGS.Patch (ipatch)
 import WAGS.Run (RunAudio, RunEngine, BehavingScene(..), BehavingRun, run)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
 
-type SceneType
-  =
+type SceneType =
   ( speaker ::
       TSpeaker
         /\
@@ -57,8 +56,7 @@ type SceneType
   , b3 :: TPlayBuf /\ {}
   )
 
-type Acc
-  =
+type Acc =
   { myRate :: ARate
   , myEmitter :: AnEmitter
   , buffy :: ABufferPool D4
@@ -68,7 +66,12 @@ type World = { bell :: BrowserAudioBuffer }
 
 createFrame :: BehavingScene Unit World () -> IxWAG RunAudio RunEngine Frame0 Unit () SceneType Acc
 createFrame = \(BehavingScene { time, world: { bell } }) ->
-  ( ipatch { microphone: empty, mediaElement: empty }
+  ( ipatch
+      { microphone: empty
+      , mediaElement: empty
+      , subgraphs: {}
+      , tumults: {}
+      }
       :*>
         ( ichange
             { b0: bell
@@ -117,8 +120,7 @@ easingAlgorithm =
   in
     fOf 20
 
-type State
-  =
+type State =
   { unsubscribe :: Effect Unit
   , audioCtx :: Maybe AudioContext
   }
@@ -161,8 +163,8 @@ handleAction = case _ of
     ffiAudio <- H.liftEffect $ makeFFIAudioSnapshot audioCtx
     bell <-
       H.liftAff $ decodeAudioDataFromUri
-            audioCtx
-            "https://freesound.org/data/previews/339/339809_5121236-hq.mp3"
+        audioCtx
+        "https://freesound.org/data/previews/339/339809_5121236-hq.mp3"
     unsubscribe <-
       H.liftEffect
         $ subscribe
