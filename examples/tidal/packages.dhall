@@ -173,7 +173,7 @@ let additions =
           , "simple-json"
           ]
         , repo = "https://github.com/mikesol/purescript-wags.git"
-        , version = "v0.7.1"
+        , version = "v0.7.2"
         }
       , halogen-svg = {
         dependencies = ["aff"

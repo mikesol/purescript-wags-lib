@@ -7,6 +7,7 @@ import Control.Comonad.Cofree (Cofree, mkCofree)
 import Data.Foldable (for_)
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..))
+import Data.Tuple (fst)
 import Data.Typelevel.Num (D20)
 import Data.Vec (fill)
 import Effect (Effect)
@@ -24,10 +25,9 @@ import WAGS.Control.Functions.Graph (iloop, startUsingWithHint)
 import WAGS.Control.Functions.Subgraph as SG
 import WAGS.Control.Types (Frame0, Scene)
 import WAGS.Create.Optionals (gain, pan, playBuf, speaker, subgraph)
-import WAGS.Interpret (AsSubgraph(..), close, context, decodeAudioDataFromUri, makeFFIAudioSnapshot)
+import WAGS.Interpret (close, context, decodeAudioDataFromUri, makeFFIAudioSnapshot)
 import WAGS.Lib.BufferPool (AHotBufferPool, Buffy, BuffyVec, bOnOff, makeHotBufferPool)
 import WAGS.Lib.Cofree (tails)
-import WAGS.Patch (PatchedSubgraphInput(..))
 import WAGS.Run (RunAudio, RunEngine, BehavingScene(..), BehavingRun, run)
 import WAGS.Subgraph (SubSceneSig)
 import WAGS.WebAPI (AudioContext, BrowserAudioBuffer)
@@ -52,13 +52,9 @@ piece bellz =
     { microphone: Nothing
     , mediaElement: Nothing
     , subgraphs:
-        { mainBus: PatchedSubgraphInput
-            { controls: fill (const Nothing)
-            , scenes: AsSubgraph (const $ const internal0)
-            , envs: \i -> { i, time: 0.0, bells: bellz, entropy: 0.5, gor: _ }
-            }
+        { mainBus: fst $ subgraph (fill (const Nothing)) (const $ const internal0) (\i -> { i, time: 0.0, bells: bellz, entropy: 0.5, gor: _ }) unit
         }
-        , tumults: {}
+    , tumults: {}
     }
     (const acc)
     ( iloop \(BehavingScene { time, headroomInSeconds, world: { entropy, buffers: { bells } } }) (a :: Acc) ->
