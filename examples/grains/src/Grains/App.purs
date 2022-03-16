@@ -5,6 +5,7 @@ import Prelude
 import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, mkCofree)
 import Data.Foldable (for_)
+import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (fst)
@@ -52,7 +53,7 @@ piece bellz =
     { microphone: Nothing
     , mediaElement: Nothing
     , subgraphs:
-        { mainBus: fst $ subgraph (fill (const Nothing)) (const $ const internal0) (\i -> { i, time: 0.0, bells: bellz, entropy: 0.5, gor: _ }) unit
+        { mainBus: fst $ subgraph (fill \i -> { i, time: 0.0, bells: bellz, entropy: 0.5, gor: Nothing }) (const internal0) unit
         }
     , tumults: {}
     }
@@ -89,7 +90,7 @@ piece bellz =
         }
     }
   scene (time' :: Number) (bells :: BrowserAudioBuffer) (entropy :: Number) (v :: BuffyVec D20) =
-    speaker { mainBus: subgraph v (const $ const internal0) (\i -> { i, time: time', bells, entropy, gor: _ }) {} }
+    speaker { mainBus: subgraph (mapWithIndex (\i -> { i, time: time', bells, entropy, gor: _ }) v) (const internal0) {} }
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =
