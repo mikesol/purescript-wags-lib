@@ -90,7 +90,7 @@ piece bellz =
         }
     }
   scene (time' :: Number) (bells :: BrowserAudioBuffer) (entropy :: Number) (v :: BuffyVec D20) =
-    speaker { mainBus: subgraph (mapWithIndex (\i -> { i, time: time', bells, entropy, gor: _ }) v) (const internal0) {} }
+    speaker { mainBus: subgraph (mapWithIndex ({ i: _, time: time', bells, entropy, gor: _ }) v) (const internal0) {} }
 
 easingAlgorithm :: Cofree ((->) Int) Int
 easingAlgorithm =
