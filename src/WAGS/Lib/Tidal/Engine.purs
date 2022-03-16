@@ -13,7 +13,6 @@ import Data.Lens (_1, over)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (unwrap, wrap)
 import Data.Traversable (sequence)
-import Data.Tuple (uncurry)
 import Data.Tuple.Nested (type (/\), (/\))
 import Data.Typelevel.Num (class Pos)
 import Data.Variant (Variant, inj)
@@ -322,9 +321,17 @@ internal1 = (const emptyLags) # SG.loopUsingScene
           { singleton: gain 1.0
               { tmlt: tumult tumultNow
                   { voice: subgraph
-                      (map (uncurry { time, buffers, event, headroomInSeconds, externalControl, silence, seed: _, buf: _ }) (V.zipWithE (/\) seeds (extract future)))
+                      ( { time
+                        , buffers
+                        , event
+                        , headroomInSeconds
+                        , externalControl
+                        , silence
+                        , seed: _
+                        , buf: _
+                        } <$> seeds <*> extract future
+                      )
                       (const $ internal0)
-
                       {}
                   }
               }
@@ -677,18 +684,16 @@ engine dmo evt ctrl mrc bsc = usingcr
 
                             {}
                         , drones: subgraph
-                            ( map
-                                ( uncurry
-                                    { time: time'
-                                    , buffers
-                                    , silence
-                                    , event
-                                    , externalControl
-                                    , seed: _
-                                    , buf: _
-                                    }
-                                )
-                                (V.zipWithE (/\) seedsDrone ((unwrap theFuture).water +> (unwrap theFuture).heart +> V.empty))
+                            ( { time: time'
+                              , buffers
+                              , silence
+                              , event
+                              , externalControl
+                              , seed: _
+                              , buf: _
+                              }
+                                <$> seedsDrone
+                                <*> ((unwrap theFuture).water +> (unwrap theFuture).heart +> V.empty)
                             )
                             (const $ droneSg)
 
