@@ -322,9 +322,9 @@ internal1 = (const emptyLags) # SG.loopUsingScene
           { singleton: gain 1.0
               { tmlt: tumult tumultNow
                   { voice: subgraph
-                      (V.zipWithE (/\) seeds (extract future))
-                      (const $ const $ internal0)
-                      (const $ uncurry { time, buffers, event, headroomInSeconds, externalControl, silence, seed: _, buf: _ })
+                      (map (uncurry { time, buffers, event, headroomInSeconds, externalControl, silence, seed: _, buf: _ }) (V.zipWithE (/\) seeds (extract future)))
+                      (const $ internal0)
+
                       {}
                   }
               }
@@ -338,8 +338,7 @@ internal1 = (const emptyLags) # SG.loopUsingScene
     , tumultLag1: makeLag
     }
 
-type CfLag a
-  = Cofree ((->) a) a
+type CfLag a = Cofree ((->) a) a
 
 makeLag :: forall a. CfLag (VM.Maybe a)
 makeLag = VM.nothing :< go
@@ -662,8 +661,8 @@ engine dmo evt ctrl mrc bsc = usingcr
             { recorder: recorder rcdr
                 { analyse: analyser myAnalyser
                     { analysed: gain 1.0
-                        { subs: subgraph vec (const $ const $ internal1)
-                            ( const $
+                        { subs: subgraph
+                            ( map
                                 { time: time'
                                 , headroomInSeconds
                                 , buffers
@@ -672,21 +671,27 @@ engine dmo evt ctrl mrc bsc = usingcr
                                 , silence
                                 , fng: _
                                 }
+                                vec
                             )
+                            (const internal1)
+
                             {}
                         , drones: subgraph
-                            (V.zipWithE (/\) seedsDrone ((unwrap theFuture).water +> (unwrap theFuture).heart +> V.empty))
-                            (const $ const $ droneSg)
-                            ( const $ uncurry
-                                { time: time'
-                                , buffers
-                                , silence
-                                , event
-                                , externalControl
-                                , seed: _
-                                , buf: _
-                                }
+                            ( map
+                                ( uncurry
+                                    { time: time'
+                                    , buffers
+                                    , silence
+                                    , event
+                                    , externalControl
+                                    , seed: _
+                                    , buf: _
+                                    }
+                                )
+                                (V.zipWithE (/\) seedsDrone ((unwrap theFuture).water +> (unwrap theFuture).heart +> V.empty))
                             )
+                            (const $ droneSg)
+
                             {}
                         }
                     }

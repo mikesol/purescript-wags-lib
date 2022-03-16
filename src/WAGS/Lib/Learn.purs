@@ -366,7 +366,7 @@ makeCofreeSequencedNote notes' =
                     { control: { oscSimple: unwrapCofree actualized }
                     , scene:
                         speaker
-                          { piece: subgraph (extract actualized) (const $ const internal) (const $ { time: time', buf: _ }) {}
+                          { piece: subgraph (map ({ time: time', buf: _ }) (extract actualized)) (const internal) {}
                           }
                     }
               )
