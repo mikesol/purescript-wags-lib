@@ -52,7 +52,7 @@ import WAGS.Create (class Create)
 import WAGS.Create.Optionals (constant, gain, playBuf, sinOsc, speaker, subgraph)
 import WAGS.Graph.AudioUnit as CTOR
 import WAGS.Graph.Paramable (paramize)
-import WAGS.Graph.Parameter (class Timed, AudioOnOff, AudioParameter, ff, lensParam)
+import WAGS.Graph.Parameter (class Timed, ff, lensParam)
 import WAGS.Interpret (class AudioInterpret, close, constant0Hack, context, contextResume, contextState, decodeAudioDataFromUri, makeFFIAudioSnapshot)
 import WAGS.Lib.BufferPool (AScoredBufferPool, Buffy(..), makeBufferPoolWithAnchor)
 import WAGS.Lib.Learn.Duration (Duration(..), Rest(..), longest)
@@ -306,7 +306,7 @@ instance toSceneCofreeNote ::
   ToScene (Cofree Identity (Note volumeF Identity pitchF)) Unit where
   toScene = makeCofreeNote
 
-noSine :: CTOR.Gain AudioParameter /\ (CTOR.SinOsc AudioOnOff AudioParameter /\ {})
+noSine :: CTOR.Gain /\ (CTOR.SinOsc /\ {})
 noSine = gain 0.0 (sinOsc 0.1)
 
 {-

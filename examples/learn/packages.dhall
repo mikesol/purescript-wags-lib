@@ -162,6 +162,7 @@ let additions =
           , "psci-support"
           , "record"
           , "refs"
+          , "row-options"
           , "safe-coerce"
           , "sized-vectors"
           , "tuples"
@@ -173,8 +174,16 @@ let additions =
           , "simple-json"
           ]
         , repo = "https://github.com/mikesol/purescript-wags.git"
-        , version = "v0.7.3"
+        , version = "v0.7.4"
+        }      , row-options =
+        { dependencies =
+          [ "homogeneous"
+          , "heterogeneous"
+          ]
+        , repo = "https://github.com/mikesol/purescript-row-options.git"
+        , version = "v0.0.2"
         }
+
       , halogen-svg = {
         dependencies = ["aff"
   , "arrays"
